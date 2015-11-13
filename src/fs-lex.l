@@ -6,6 +6,8 @@
 #include "fs-parse.h"
 
 int lineno = 1;
+
+#pragma GCC diagnostic ignored "-Wunused-function"
 %}
 
 identifier	[:*_a-zA-Z][:*_a-zA-Z0-9]*
