@@ -28,11 +28,11 @@ void yyerror(const char *s)
 %token <string> IDENT STRING CMP ASSIGNOP BINOP
 %token <integer> INT
 
-%type <node> probes probe block stmts term_stmt stmt if_stmt variable expr vargs
+%type <node> probes probe block stmts stmt if_stmt variable expr vargs
 %type <spec> probespec
 
 %left BINOP
-%right '!'
+%precedence '!'
 
 %start script
 
@@ -58,16 +58,10 @@ probespec : IDENT
 		{ $$ = fs_probespec_add($1, $3); }
 ;
 
-stmts : term_stmt
+stmts : stmt
 		{ $$ = $1; }
-      | stmts term_stmt
-		{ insque_tail($2, $1); }
-;
-
-term_stmt: stmt ';'
-		{ $$ = $1; }
-	 | stmt
-		{ $$ = $1; }
+      | stmts ';' stmt
+		{ insque_tail($3, $1); }
 ;
 
 stmt : variable ASSIGNOP expr
@@ -87,6 +81,8 @@ if_stmt : IF expr block ELSE block
 ;
 
 block : '{' stmts '}'
+		{ $$ = $2; }
+      | '{' stmts ';' '}'
 		{ $$ = $2; }
 ;
 
