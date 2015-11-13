@@ -55,7 +55,6 @@ struct fs_script {
 
 enum fs_type {
 	FS_UNKNOWN,
-	FS_NOP,
 	FS_SCRIPT,
 	FS_PROBE,
 	FS_CALL,
@@ -112,5 +111,8 @@ struct fs_node *fs_cond_new(struct fs_node *cond,
 struct fs_node *fs_call_new(char *func, struct fs_node *vargs);
 struct fs_probespec *fs_probespec_add(struct fs_probespec *prev, char *spec);
 struct fs_node *fs_probe_new(struct fs_probespec *spec, struct fs_node *stmts);
+struct fs_node *fs_script_new(struct fs_node *probes);
+
+void fs_node_free(struct fs_node *n);
 
 #endif	/* __FS_AST_H */

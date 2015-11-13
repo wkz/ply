@@ -4,13 +4,12 @@
 #include <stdio.h>
 
 #include "fs-ast.h"
+#include "fs-parse.h"
+#include "fs-lex.h"
 
 extern int lineno;
-extern int yylex(void);
 
-struct fs_node fs;
-
-void yyerror(const char *s)
+void yyerror(struct fs_node **node, yyscan_t scanner, const char *s)
 {
 	printf("error(%d): %s\n", lineno, s);
 }
@@ -23,6 +22,19 @@ void yyerror(const char *s)
 	char *string;
 	unsigned int integer;
 }
+%code requires {
+
+#ifndef YY_TYPEDEF_YY_SCANNER_T
+#define YY_TYPEDEF_YY_SCANNER_T
+typedef void* yyscan_t;
+#endif
+
+}
+ 
+%define api.pure
+%lex-param   { yyscan_t scanner }
+%parse-param { struct fs_node **script }
+%parse-param { yyscan_t scanner }
 
 %token IF ELSE RETURN
 %token <string> IDENT STRING CMP ASSIGNOP BINOP
@@ -39,7 +51,7 @@ void yyerror(const char *s)
 %%
 
 script : probes
-		{ fs.type = FS_SCRIPT; fs.script.probes = $1; }
+		{ *script = fs_script_new($1); }
 ;
 
 probes : probe

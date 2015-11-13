@@ -19,10 +19,6 @@ static void _fs_ast_dump(struct fs_node *n, int indent)
 	__indent(indent);
 
 	switch (n->type) {
-	case FS_NOP:
-		fprintf(stderr, "nop\n");
-		break;
-
 	case FS_SCRIPT:
 		fprintf(stderr, "script\n");
 
@@ -212,3 +208,90 @@ struct fs_node *fs_probe_new(struct fs_probespec *spec, struct fs_node *stmts)
 	n->probe.stmts = stmts;
 	return n;
 }
+
+struct fs_node *fs_script_new(struct fs_node *probes)
+{
+	struct fs_node *n = fs_node_new(FS_SCRIPT);
+
+	n->script.probes = probes;
+	return n;
+}
+
+static void _fs_node_free_list(struct fs_node *head)
+{
+	struct fs_node *elem, *next = head;
+
+	for (elem = next; elem;) {
+		next = elem->next;
+		fs_node_free(elem);
+		elem = next;
+	}
+}
+
+void fs_node_free(struct fs_node *n)
+{
+	/* struct fs_probespec *ps; */
+	
+	switch (n->type) {
+	case FS_SCRIPT:
+		_fs_node_free_list(n->script.probes);
+		break;
+
+	case FS_PROBE:
+		/* for (ps = n->probe.spec; ps; ps = ps->next) */
+		/* 	free(ps->spec); */
+		_fs_node_free_list(n->probe.stmts);
+		break;
+
+	case FS_CALL:
+		free(n->call.func);
+		_fs_node_free_list(n->call.vargs);
+		break;
+
+	case FS_COND:
+		fs_node_free(n->cond.cond);
+		fs_node_free(n->cond.yes);
+		if (n->cond.no)
+			fs_node_free(n->cond.no);
+		break;
+
+	case FS_ASSIGN:
+		free(n->assign.op);
+		fs_node_free(n->assign.lval);
+		fs_node_free(n->assign.expr);
+		break;
+
+	case FS_RETURN:
+		fs_node_free(n->ret);
+		break;
+
+	case FS_BINOP:
+		free(n->binop.op);
+		fs_node_free(n->binop.left);
+		fs_node_free(n->binop.right);
+		break;
+
+	case FS_NOT:
+		fs_node_free(n->not);
+		break;
+
+	case FS_VAR:
+		free(n->var.name);
+		_fs_node_free_list(n->var.vargs);
+		break;
+
+	case FS_INT:
+		break;
+
+	case FS_STR:
+		free(n->string);
+		break;
+
+	default:
+		assert(0);
+	}
+
+	free(n);
+}
+		
+		

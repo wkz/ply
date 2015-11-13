@@ -18,7 +18,7 @@ fs-parse.h: fs-parse.c
 
 fs-lex.c: fs-lex.l fs-parse.h
 	@echo "  FLEX   $@"
-	@flex --outfile=$@ $<
+	@flex --header-file=fs-lex.h --outfile=$@ $<
 
 dtl: $(OBJS)
 	@echo "  LINK   $@"
@@ -26,6 +26,6 @@ dtl: $(OBJS)
 
 clean:
 	@echo "  CLEAN"
-	@rm fs-lex.[oc] fs-parse.[och] $(OBJS) dtl 2>/dev/null || true
+	@rm fs-lex.[och] fs-parse.[och] $(OBJS) dtl 2>/dev/null || true
 
 all: dtl

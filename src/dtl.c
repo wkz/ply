@@ -1,15 +1,33 @@
 #include <stdio.h>
 
 #include "fs-ast.h"
+#include "fs-parse.h"
+#include "fs-lex.h"
 
-extern struct fs_node fs;
+struct fs_node *parse_file(FILE *fp)
+{
+	struct fs_node *script = NULL;
+	yyscan_t scanner;
+ 
+	if (yylex_init(&scanner))
+		return NULL;
 
-extern int yyparse(void);
+	yyset_in(fp, scanner);
+	yyparse(&script, scanner);
+ 
+	yylex_destroy(scanner); 
+	return script;
+}
 
 int main(int argc, char **argv)
 {
-	int err = yyparse();
+	struct fs_node *script;
 
-	fs_ast_dump(&fs);
-	return err;
+	script = parse_file(stdin);
+	if (!script)
+		return 1;
+	
+	fs_ast_dump(script);
+	fs_node_free(script);
+	return 0;
 }
