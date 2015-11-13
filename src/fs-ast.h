@@ -39,13 +39,8 @@ struct fs_call {
 	struct fs_node *vargs;
 };
 
-struct fs_probespec {
-	void *next, *prev;
-	char *spec;
-};
-
 struct fs_probe {
-	struct fs_probespec *spec;
+	struct fs_node *pspecs;
 	struct fs_node *stmts;
 };
 
@@ -57,6 +52,7 @@ enum fs_type {
 	FS_UNKNOWN,
 	FS_SCRIPT,
 	FS_PROBE,
+	FS_PSPEC,
 	FS_CALL,
 	FS_COND,
 	FS_ASSIGN,
@@ -109,8 +105,8 @@ struct fs_node *fs_assign_new(struct fs_node *lval, char *op, struct fs_node *ex
 struct fs_node *fs_cond_new(struct fs_node *cond,
 			    struct fs_node *yes, struct fs_node *no);
 struct fs_node *fs_call_new(char *func, struct fs_node *vargs);
-struct fs_probespec *fs_probespec_add(struct fs_probespec *prev, char *spec);
-struct fs_node *fs_probe_new(struct fs_probespec *spec, struct fs_node *stmts);
+struct fs_node *fs_pspec_new(char *spec);
+struct fs_node *fs_probe_new(struct fs_node *pspecs, struct fs_node *stmts);
 struct fs_node *fs_script_new(struct fs_node *probes);
 
 void fs_node_free(struct fs_node *n);

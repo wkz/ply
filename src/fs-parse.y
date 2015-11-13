@@ -18,7 +18,6 @@ void yyerror(struct fs_node **node, yyscan_t scanner, const char *s)
 
 %union {
 	struct fs_node *node;
-	struct fs_probespec *spec;
 	char *string;
 	unsigned int integer;
 }
@@ -40,8 +39,8 @@ typedef void* yyscan_t;
 %token <string> IDENT STRING CMP ASSIGNOP BINOP
 %token <integer> INT
 
-%type <node> probes probe block stmts stmt if_stmt variable expr vargs
-%type <spec> probespec
+%type <node> script probes probe pspecs pspec block
+%type <node> stmts stmt if_stmt variable expr vargs
 
 %left BINOP
 %precedence '!'
@@ -60,14 +59,18 @@ probes : probe
 		{ insque_tail($2, $1); }
 ;
 
-probe : probespec block
+probe : pspecs block
 		{ $$ = fs_probe_new($1, $2); }
 ;
 
-probespec : IDENT
-		{ $$ = fs_probespec_add(NULL, $1); }
-	  | probespec ',' IDENT
-		{ $$ = fs_probespec_add($1, $3); }
+pspecs : pspec
+		{ $$ = $1; }
+      | pspecs ',' pspec
+		{ insque_tail($3, $1); }
+;
+
+pspec : IDENT
+		{ $$ = fs_pspec_new($1); }
 ;
 
 stmts : stmt

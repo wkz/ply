@@ -14,7 +14,6 @@ static void __indent(int indent)
 static void _fs_ast_dump(struct fs_node *n, int indent)
 {
 	struct fs_node *c;
-	struct fs_probespec *ps;
 
 	__indent(indent);
 
@@ -29,9 +28,9 @@ static void _fs_ast_dump(struct fs_node *n, int indent)
 	case FS_PROBE:		
 		fprintf(stderr, "probe(");
 
-		for (ps = n->probe.spec; ps; ps = ps->next)
-			fprintf(stderr, "%s%s", (ps == n->probe.spec) ? "" : ", ",
-				ps->spec);
+		for (c = n->probe.pspecs; c; c = c->next)
+			fprintf(stderr, "%s%s", (c == n->probe.pspecs) ? "" : ", ",
+				c->string);
 
 		fputs(")\n", stderr);
 
@@ -187,25 +186,20 @@ struct fs_node *fs_call_new(char *func, struct fs_node *vargs)
 	return n;
 }
 
-struct fs_probespec *fs_probespec_add(struct fs_probespec *prev, char *spec)
+struct fs_node *fs_pspec_new(char *spec)
 {
-	struct fs_probespec *ps = calloc(1, sizeof(*ps));
+	struct fs_node *n = fs_node_new(FS_PSPEC);
 
-	assert(ps);
-	ps->spec = spec;
-
-	if (prev)
-		insque_tail(ps, prev);
-		
-	return prev ? : ps;
+	n->string = spec;
+	return n;
 }
 
-struct fs_node *fs_probe_new(struct fs_probespec *spec, struct fs_node *stmts)
+struct fs_node *fs_probe_new(struct fs_node *pspecs, struct fs_node *stmts)
 {
 	struct fs_node *n = fs_node_new(FS_PROBE);
 
-	n->probe.spec = spec;
-	n->probe.stmts = stmts;
+	n->probe.pspecs = pspecs;
+	n->probe.stmts  = stmts;
 	return n;
 }
 
@@ -230,16 +224,13 @@ static void _fs_node_free_list(struct fs_node *head)
 
 void fs_node_free(struct fs_node *n)
 {
-	/* struct fs_probespec *ps; */
-	
 	switch (n->type) {
 	case FS_SCRIPT:
 		_fs_node_free_list(n->script.probes);
 		break;
 
 	case FS_PROBE:
-		/* for (ps = n->probe.spec; ps; ps = ps->next) */
-		/* 	free(ps->spec); */
+		_fs_node_free_list(n->probe.pspecs);
 		_fs_node_free_list(n->probe.stmts);
 		break;
 
@@ -283,6 +274,7 @@ void fs_node_free(struct fs_node *n)
 	case FS_INT:
 		break;
 
+	case FS_PSPEC:
 	case FS_STR:
 		free(n->string);
 		break;
