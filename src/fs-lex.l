@@ -7,6 +7,19 @@
 
 int lineno = 1;
 
+static int input(void);
+
+void comment(void)
+{
+	int this, last = 0;
+
+	for (this = input();
+	     this != EOF && !(this == '/' && last == '*');
+	     last = this, this = input())
+		if (this == '\n')
+			lineno++;
+}
+
 #pragma GCC diagnostic ignored "-Wunused-function"
 %}
 
@@ -14,6 +27,7 @@ identifier	[:*_a-zA-Z][:*_a-zA-Z0-9]*
 binop		[+\-*/|&%^]
 
 %%
+"/*"			comment();
 
 [ \r\t]			;
 \n			{ lineno++; }
