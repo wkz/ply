@@ -1,9 +1,7 @@
 %define parse.error verbose
 
 %{
-#include <search.h>
 #include <stdio.h>
-#include <stdlib.h>
 
 #include "fs-ast.h"
 
@@ -19,7 +17,6 @@ void yyerror(const char *s)
 
 %}
 
-/* Represents the many different ways we can access our data */
 %union {
 	struct fs_node *node;
 	struct fs_probespec *spec;
@@ -27,91 +24,100 @@ void yyerror(const char *s)
 	unsigned int integer;
 }
 
-/* Define our terminal symbols (tokens). This should
-   match our tokens.l lex file. We also define the node type
-   they represent.
- */
-%token <string> TIDENT TSTR TCMP TASSOP TBINOP
-%token <integer> TINT
+%token IF ELSE RETURN
+%token <string> IDENT STRING CMP ASSIGNOP BINOP
+%token <integer> INT
 
-/* Define the type of node our nonterminal symbols represent.
-   The types refer to the %union declaration above. Ex: when
-   we call an ident (defined by union type ident) we are really
-   calling an (NIdentifier*). It makes the compiler happy.
- */
-/* %type <ident> ident */
-/* %type <expr> numeric expr  */
-/* %type <varvec> func_decl_args */
-/* %type <exprvec> call_args */
-/* %type <block> program stmts block */
-/* %type <stmt> stmt var_decl func_decl */
-/* %type <token> comparison */
-%type <node> probes probe block
+%type <node> probes probe block stmts term_stmt stmt if_stmt variable expr vargs
 %type <spec> probespec
 
-/* Operator precedence for mathematical operators */
-%left TBINOP
+%left BINOP
 %right '!'
 
 %start script
 
 %%
 
-script : probes { fs.type = FS_SCRIPT; fs.script.probes = $<node>1; }
+script : probes
+		{ fs.type = FS_SCRIPT; fs.script.probes = $1; }
 ;
 
-probes : probe { $$ = $1; }
-       | probes probe { insque($<node>2, $<node>1); }
+probes : probe
+		{ $$ = $1; }
+       | probes probe
+		{ insque_tail($2, $1); }
 ;
 
-probe : probespec block {
-	$$ = calloc(1, sizeof(struct fs_node));
-	$$->type = FS_PROBE;
-	$$->probe.spec = $<spec>1;
-	$$->probe.stmts = $<node>2;
-};
-
-probespec : TIDENT { $$ = calloc(1, sizeof(struct fs_probespec)); $$->spec = $1; }
-          | probespec ',' TIDENT /* { insque($2, $1); } */
+probe : probespec block
+		{ $$ = fs_probe_new($1, $2); }
 ;
 
-block : '{' stmts '}' { $$ = NULL; }
+probespec : IDENT
+		{ $$ = fs_probespec_add(NULL, $1); }
+	  | probespec ',' IDENT
+		{ $$ = fs_probespec_add($1, $3); }
 ;
 
-stmts : stmt
-      | stmts ';' stmt
+stmts : term_stmt
+		{ $$ = $1; }
+      | stmts term_stmt
+		{ insque_tail($2, $1); }
 ;
 
-stmt : /* empty */
-     | assign
+term_stmt: stmt ';'
+		{ $$ = $1; }
+	 | stmt
+		{ $$ = $1; }
+;
+
+stmt : variable ASSIGNOP expr
+		{ $$ = fs_assign_new($1, $2, $3); }
      | expr
+		{ $$ = $1; }
+     | if_stmt
+		{ $$ = $1; }
+     | RETURN expr
+		{ $$ = fs_return_new($2); }
 ;
 
-assign : lval TASSOP expr
+if_stmt : IF expr block ELSE block
+		{ $$ = fs_cond_new($2, $3, $5); }
+	| IF expr block
+		{ $$ = fs_cond_new($2, $3, NULL); }
 ;
 
-lval : TIDENT
-     | TIDENT '[' vargs ']'
+block : '{' stmts '}'
+		{ $$ = $2; }
 ;
 
-expr : TINT
-     | TSTR
-     | TIDENT
-     | binop
-     | call
+expr : INT
+		{ $$ = fs_int_new($1); }
+     | STRING
+		{ $$ = fs_str_new($1); }
+     | variable
+		{ $$ = $1; }
+     | expr BINOP expr
+		{ $$ = fs_binop_new($1, $2, $3); }
+     | IDENT '(' ')'
+		{ $$ = fs_call_new($1, NULL); }
+     | IDENT '(' vargs ')'
+		{ $$ = fs_call_new($1, $3); }
      | '!' expr
+		{ $$ = fs_not_new($2); }
      | '(' expr ')'
+		{ $$ = $2; }
 ;
 
-binop : expr TBINOP expr
+variable : IDENT
+		{ $$ = fs_var_new($1, NULL); }
+         | IDENT '[' vargs ']'
+		{ $$ = fs_var_new($1, $3); }
 ;
 
-call : TIDENT '(' vargs ')'
-;
-
-vargs : /* empty */
-      | expr
+vargs : expr
+		{ $$ = $1; }
       | vargs ',' expr
+		{ insque_tail($3, $1); }
 ;
 
 %%
