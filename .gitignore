@@ -1,5 +1,7 @@
 *~
 .#*
+*.o
+
 /src/fs-lex.c
 /src/fs-parse.[ch]
 /src/dtl
