@@ -87,6 +87,10 @@ struct fs_node {
 	
 void fs_ast_dump(struct fs_node *n);
 
+static inline int fs_node_is(struct fs_node *n, enum fs_type type) {
+	return n->type == type;
+}
+
 static inline struct fs_node *fs_node_new(enum fs_type type) {
 	struct fs_node *n = calloc(1, sizeof(*n));
 

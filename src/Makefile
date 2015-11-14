@@ -3,7 +3,7 @@
 CFLAGS ?= -O3 -Wall -Werror
 
 HEADERS = fs-ast.h
-SRCS = fs-lex.c fs-parse.c fs-ast.c dtl.c
+SRCS = fs-lex.c fs-parse.c fs-ast.c fs-ebpf.c dtl.c
 OBJS = $(patsubst %.c, %.o, $(SRCS))
 
 %.o: %.c $(HEADERS)

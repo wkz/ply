@@ -1,10 +1,11 @@
 #include <stdio.h>
 
 #include "fs-ast.h"
+#include "fs-ebpf.h"
 #include "fs-parse.h"
 #include "fs-lex.h"
 
-struct fs_node *parse_file(FILE *fp)
+struct fs_node *fs_load(FILE *fp)
 {
 	struct fs_node *script = NULL;
 	yyscan_t scanner;
@@ -22,12 +23,19 @@ struct fs_node *parse_file(FILE *fp)
 int main(int argc, char **argv)
 {
 	struct fs_node *script;
+	struct ebpf *e;
 
-	script = parse_file(stdin);
+	script = fs_load(stdin);
 	if (!script)
 		return 1;
+
+	e = malloc(sizeof(*e));
 	
-	fs_ast_dump(script);
+	if (fs_compile(script->script.probes, ebpf_init(e))) {	
+		fs_ast_dump(script);
+	}
+
+	free(e);
 	fs_node_free(script);
 	return 0;
 }
