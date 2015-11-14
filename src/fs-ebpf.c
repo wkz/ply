@@ -46,8 +46,10 @@ int fs_compile(struct fs_node *n, struct ebpf *e)
 			err = fs_compile(c, e);
 		RET_ON_ERR(err, "probe (%s)\n", n->probe.pspecs->string);
 
-		*(e->ip)++ = MOV_IMM(BPF_REG_0, 0);
-		*(e->ip)++ = EXIT;
+		if ((e->ip - 1)->code != EXIT.code) {
+			*(e->ip)++ = MOV_IMM(BPF_REG_0, 0);
+			*(e->ip)++ = EXIT;
+		}
 		break;
 
 	case FS_RETURN:
