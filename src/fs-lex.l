@@ -24,21 +24,31 @@ void comment(yyscan_t scanner)
 #pragma GCC diagnostic ignored "-Wunused-function"
 %}
 
-identifier	[:*_a-zA-Z][:*_a-zA-Z0-9]*
-binop		[+\-*/|&%^]
+uaz		[_a-zA-Z]
+uazd		[_a-zA-Z0-9]
+
+identifier	{uaz}{uazd}*
+pspec		{identifier}:[:*_a-zA-Z0-9]*
+simpleop	[+\-*/|&%^]
+binop		{simpleop}|!=|<|<=|==|>=|>|\|\||&&
 
 %%
 "/*"			comment(yyscanner);
 
 [ \r\t]			;
+
 \n			{ lineno++; }
 "if"			{ return IF; }
 "else"			{ return ELSE; }
 "return"		{ return RETURN; }
+
+{pspec}			{ yylval->string = strdup(yytext); return PSPEC; }
 {identifier}		{ yylval->string = strdup(yytext); return IDENT; }
-==|!=|<|<=|>=|>		{ yylval->string = strdup(yytext); return CMP; }
-{binop}=|=|<<=|>>=	{ yylval->string = strdup(yytext); return ASSIGNOP; }
+@{identifier}?		{ yylval->string = strdup(yytext); return MAP; }
+
+{simpleop}=|=|<<=|>>=	{ yylval->string = strdup(yytext); return ASSIGNOP; }
 {binop}			{ yylval->string = strdup(yytext); return BINOP; }
+
 [.,;+\-*/!()\[\]{}]	{ return *yytext; }
 \"(\\.|[^\\"])*\"	{ yylval->string = strndup(&yytext[1], strlen(yytext) - 2); return STRING; }
 [0-9]+			{ yylval->integer = strtoul(yytext, NULL, 0); return INT; }

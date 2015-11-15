@@ -5,103 +5,114 @@
 
 #include "fs-ast.h"
 
-static void __indent(int indent)
+static void _indent(int *indent)
 {
-	while(indent--)
+	int left = *indent;
+
+	while(left--)
 		fputc(' ', stderr);
+
+	*indent += 3;
 }
 
-static void _fs_ast_dump(struct fs_node *n, int indent)
+static int _unindent(struct fs_node *n, void *indent)
 {
-	struct fs_node *c;
+	*((int *)indent) -= 3;
+	return 0;
+}
 
-	__indent(indent);
-
+static int _fs_ast_dump(struct fs_node *n, void *indent)
+{
+	_indent((int *)indent);
+	
 	switch (n->type) {
 	case FS_SCRIPT:
-		fprintf(stderr, "script\n");
-
-		for (c = n->script.probes; c; c = c->next)
-			_fs_ast_dump(c, indent + 2);
+		fprintf(stderr, "script");
 		break;
 
 	case FS_PROBE:		
-		fprintf(stderr, "probe(");
-
-		for (c = n->probe.pspecs; c; c = c->next)
-			fprintf(stderr, "%s%s", (c == n->probe.pspecs) ? "" : ", ",
-				c->string);
-
-		fputs(")\n", stderr);
-
-		for (c = n->probe.stmts; c; c = c->next)
-			_fs_ast_dump(c, indent + 2);
+		fprintf(stderr, "probe");
 		break;
 
+	case FS_PSPEC:
+		fprintf(stderr, "pspec(%s)", n->string);
+		break;
+		
 	case FS_CALL:
-		fprintf(stderr, "call(%s)\n", n->call.func);
-		for (c = n->call.vargs; c; c = c->next)
-			_fs_ast_dump(c, indent + 2);
+		fprintf(stderr, "call(%s)", n->call.func);
 		break;
 
 	case FS_COND:
-		fprintf(stderr, "if\n");
-		_fs_ast_dump(n->cond.cond, indent + 2);
-		__indent(indent + 2); fprintf(stderr, "then\n");
-		_fs_ast_dump(n->cond.yes, indent + 4);
-		if (n->cond.no) {
-			__indent(indent + 2); fprintf(stderr, "else\n");
-			_fs_ast_dump(n->cond.no, indent + 4);
-		}
+		fprintf(stderr, "if");
 		break;
 
 	case FS_ASSIGN:
-		fprintf(stderr, "assign\n");
-		_fs_ast_dump(n->assign.lval, indent + 2);
-		__indent(indent + 2); fprintf(stderr, "%s\n", n->assign.op);
-		_fs_ast_dump(n->assign.expr, indent + 2);
+		fprintf(stderr, "assign(%s)", n->assign.op);
 		break;
 
 	case FS_BINOP:
-		fprintf(stderr, "binop\n");
-		_fs_ast_dump(n->binop.left, indent + 2);
-		__indent(indent + 2); fprintf(stderr, "%s\n", n->binop.op);
-		_fs_ast_dump(n->binop.right, indent + 2);
+		fprintf(stderr, "binop(%s)", n->binop.op);
 		break;
 
 	case FS_RETURN:
-		fprintf(stderr, "return\n");
-		_fs_ast_dump(n->ret, indent + 2);
+		fprintf(stderr, "return");
 		break;
 
 	case FS_NOT:
-		fprintf(stderr, "not\n");
-		_fs_ast_dump(n->not, indent + 2);
+		fprintf(stderr, "not");
+		break;
+
+	case FS_MAP:
+		fprintf(stderr, "map(%s)", n->map.name);
 		break;
 
 	case FS_VAR:
-		fprintf(stderr, "%s(%s)\n", n->var.vargs? "map" : "variable", n->var.name);
-		for (c = n->call.vargs; c; c = c->next)
-			_fs_ast_dump(c, indent + 2);
+		fprintf(stderr, "var(%s)", n->string);
 		break;
 
 	case FS_INT:
-		fprintf(stderr, "int(%ld)\n", n->integer);
+		fprintf(stderr, "int(%ld)", n->integer);
 		break;
 		
 	case FS_STR:
-		fprintf(stderr, "string(\"%s\")\n", n->string);
+		fprintf(stderr, "string(\"%s\")", n->string);
 		break;
 
 	default:
-		fprintf(stderr, "!type:%d\n", n->type);
+		fprintf(stderr, "!type:%d", n->type);
 		break;
 	}
+
+	if (n->annot.type != FS_UNKNOWN) {
+		fputs(" $(type:", stderr);
+
+		switch (n->annot.type) {
+		case FS_INT:
+			fputs("int, ", stderr);
+			break;
+		case FS_STR:
+			fputs("str, ", stderr);
+			break;
+		default:
+			fprintf(stderr, "%d, ", n->annot.type);
+			break;
+		}
+
+		if (n->type == FS_MAP)
+			fprintf(stderr, "key_size:%lu, ", n->annot.key_size);
+		
+		fprintf(stderr, "size:%lu)", n->annot.size);
+	}
+
+	fputc('\n', stderr);
+	return 0;
 }
 
 void fs_ast_dump(struct fs_node *n)
 {
-	return _fs_ast_dump(n, 0);
+	int indent = 0;
+
+	fs_walk(n, _fs_ast_dump, _unindent, &indent);
 }
 
 
@@ -121,12 +132,20 @@ struct fs_node *fs_int_new(int64_t val)
 	return n;
 }
 
-struct fs_node *fs_var_new(char *name, struct fs_node *vargs)
+struct fs_node *fs_var_new(char *name)
 {
 	struct fs_node *n = fs_node_new(FS_VAR);
 
-	n->var.name  = name;
-	n->var.vargs = vargs;
+	n->string  = name;
+	return n;
+}
+
+struct fs_node *fs_map_new(char *name, struct fs_node *vargs)
+{
+	struct fs_node *n = fs_node_new(FS_MAP);
+
+	n->map.name  = name;
+	n->map.vargs = vargs;
 	return n;
 }
 
@@ -211,79 +230,125 @@ struct fs_node *fs_script_new(struct fs_node *probes)
 	return n;
 }
 
-static void _fs_node_free_list(struct fs_node *head)
-{
-	struct fs_node *elem, *next = head;
 
-	for (elem = next; elem;) {
-		next = elem->next;
-		fs_node_free(elem);
-		elem = next;
-	}
-}
-
-void fs_node_free(struct fs_node *n)
+static int _fs_free(struct fs_node *n, void *ctx)
 {
 	switch (n->type) {
-	case FS_SCRIPT:
-		_fs_node_free_list(n->script.probes);
-		break;
-
-	case FS_PROBE:
-		_fs_node_free_list(n->probe.pspecs);
-		_fs_node_free_list(n->probe.stmts);
-		break;
-
 	case FS_CALL:
 		free(n->call.func);
-		_fs_node_free_list(n->call.vargs);
-		break;
-
-	case FS_COND:
-		fs_node_free(n->cond.cond);
-		fs_node_free(n->cond.yes);
-		if (n->cond.no)
-			fs_node_free(n->cond.no);
 		break;
 
 	case FS_ASSIGN:
 		free(n->assign.op);
-		fs_node_free(n->assign.lval);
-		fs_node_free(n->assign.expr);
-		break;
-
-	case FS_RETURN:
-		fs_node_free(n->ret);
 		break;
 
 	case FS_BINOP:
 		free(n->binop.op);
-		fs_node_free(n->binop.left);
-		fs_node_free(n->binop.right);
 		break;
 
-	case FS_NOT:
-		fs_node_free(n->not);
-		break;
-
-	case FS_VAR:
-		free(n->var.name);
-		_fs_node_free_list(n->var.vargs);
-		break;
-
-	case FS_INT:
+	case FS_MAP:
+		free(n->map.name);
 		break;
 
 	case FS_PSPEC:
+	case FS_VAR:
 	case FS_STR:
 		free(n->string);
 		break;
 
 	default:
-		assert(0);
+		break;
 	}
 
 	free(n);
+	return 0;
 }
-		
+
+void fs_free(struct fs_node *n)
+{
+	fs_walk(n, NULL, _fs_free, NULL);
+}
+
+static int _fs_walk_list(struct fs_node *head,
+			 int (*pre) (struct fs_node *n, void *ctx),
+			 int (*post)(struct fs_node *n, void *ctx), void *ctx)
+{
+	struct fs_node *elem, *next = head;
+	int err = 0;
+	
+	for (elem = next; !err && elem;) {
+		next = elem->next;
+		err = fs_walk(elem, pre, post, ctx);
+		elem = next;
+	}
+
+	return err;
+}
+
+
+int fs_walk(struct fs_node *n,
+	    int (*pre) (struct fs_node *n, void *ctx),
+	    int (*post)(struct fs_node *n, void *ctx), void *ctx)
+{
+#define do_list(_head) err = _fs_walk_list(_head, pre, post, ctx); if (err) return err
+#define do_walk(_node) err =       fs_walk(_node, pre, post, ctx); if (err) return err
+	int err = 0;
+
+	err = pre ? pre(n, ctx) : 0;
+	if (err)
+		return err;
+	
+	switch (n->type) {
+	case FS_SCRIPT:
+		do_list(n->script.probes);
+		break;
+
+	case FS_PROBE:
+		do_list(n->probe.pspecs);
+		do_list(n->probe.stmts);
+		break;
+
+	case FS_CALL:
+		do_list(n->call.vargs);
+		break;
+
+	case FS_COND:
+		do_walk(n->cond.cond);
+		do_walk(n->cond.yes);
+		if (n->cond.no)
+			do_walk(n->cond.no);
+		break;
+
+	case FS_ASSIGN:
+		do_walk(n->assign.lval);
+		do_walk(n->assign.expr);
+		break;
+
+	case FS_RETURN:
+		do_walk(n->ret);
+		break;
+
+	case FS_BINOP:
+		do_walk(n->binop.left);
+		do_walk(n->binop.right);
+		break;
+
+	case FS_NOT:
+		do_walk(n->not);
+		break;
+
+	case FS_MAP:
+		do_list(n->map.vargs);
+		break;
+
+	case FS_UNKNOWN:
+		return -1;
+
+	default:
+		break;
+	}
+
+	return post ? post(n, ctx) : 0;
+}
+
 		

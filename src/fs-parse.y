@@ -36,7 +36,7 @@ typedef void* yyscan_t;
 %parse-param { yyscan_t scanner }
 
 %token IF ELSE RETURN
-%token <string> IDENT STRING CMP ASSIGNOP BINOP
+%token <string> PSPEC IDENT MAP STRING ASSIGNOP BINOP
 %token <integer> INT
 
 %type <node> script probes probe pspecs pspec block
@@ -69,7 +69,7 @@ pspecs : pspec
 		{ insque_tail($3, $1); }
 ;
 
-pspec : IDENT
+pspec : PSPEC
 		{ $$ = fs_pspec_new($1); }
 ;
 
@@ -120,9 +120,9 @@ expr : INT
 ;
 
 variable : IDENT
-		{ $$ = fs_var_new($1, NULL); }
-         | IDENT '[' vargs ']'
-		{ $$ = fs_var_new($1, $3); }
+		{ $$ = fs_var_new($1); }
+         | MAP '[' vargs ']'
+		{ $$ = fs_map_new($1, $3); }
 ;
 
 vargs : expr

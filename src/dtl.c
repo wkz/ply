@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <unistd.h>
 
 #include "fs-ast.h"
 #include "fs-ebpf.h"
@@ -31,11 +32,15 @@ int main(int argc, char **argv)
 
 	e = malloc(sizeof(*e));
 	
-	if (fs_compile(script->script.probes, ebpf_init(e))) {	
+	if (fs_compile(script->script.probes, ebpf_init(e))) {
 		fs_ast_dump(script);
 	}
 
+	fs_ast_dump(script);
+	/* if (write(1, e->prog, (e->ip - e->prog) << 3) <= 0) */
+	/* 	return 1; */
+	
 	free(e);
-	fs_node_free(script);
+	fs_free(script);
 	return 0;
 }
