@@ -6,6 +6,8 @@
 #include "fs-parse.h"
 #include "fs-lex.h"
 
+#include "provider.h"
+
 struct fs_node *fs_load(FILE *fp)
 {
 	struct fs_node *script = NULL;
@@ -29,18 +31,18 @@ int main(int argc, char **argv)
 	script = fs_load(stdin);
 	if (!script)
 		return 1;
-
-	e = malloc(sizeof(*e));
 	
-	if (fs_compile(script->script.probes, ebpf_init(e))) {
-		fs_ast_dump(script);
-	}
+	e = fs_compile(script->script.probes, &kprobe_provider);
 
 	fs_ast_dump(script);
-	/* if (write(1, e->prog, (e->ip - e->prog) << 3) <= 0) */
-	/* 	return 1; */
-	
-	free(e);
 	fs_free(script);
+
+	if (e) {
+		if (write(1, e->prog, (e->ip - e->prog) << 3) <= 0)
+			return 1;
+	
+		free(e);
+	}
+
 	return 0;
 }

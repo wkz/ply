@@ -16,15 +16,23 @@
 
 #define MOV_IMM(_dst, _imm) INSN(BPF_ALU64 | BPF_MOV | BPF_K, _dst, 0, 0, _imm)
 
+#define STW(_dst, _off, _imm) INSN(BPF_ST | BPF_SIZE(BPF_W) | BPF_MEM, _dst, 0, _off, _imm)
+
+struct sym;
+struct symtable;
+struct provider;
+
 struct ebpf {
-	struct bpf_insn prog[BPF_MAXINSNS];
+	struct provider *provider;
+	struct symtable *st;
+
+	struct sym *regs[__MAX_BPF_REG];
+	ssize_t     stack;
+	
 	struct bpf_insn *ip;
+	struct bpf_insn  prog[BPF_MAXINSNS];
 };
 
-struct ebpf *ebpf_init(struct ebpf *e);
-
-
-
-int fs_compile(struct fs_node *n, struct ebpf *e);
+struct ebpf *fs_compile(struct fs_node *probe, struct provider *provider);
 
 #endif	/* _FS_EBPF_H */

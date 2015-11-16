@@ -5,6 +5,17 @@
 
 #include "fs-ast.h"
 
+const char *fs_typestr(enum fs_type type)
+{
+#define TYPE(_type, _typestr) [_type] = _typestr,
+	static const char *strs[] = {
+		FS_TYPE_TABLE
+	};
+#undef TYPE
+
+	return strs[type];
+}
+
 static void _indent(int *indent)
 {
 	int left = *indent;
@@ -24,85 +35,39 @@ static int _unindent(struct fs_node *n, void *indent)
 static int _fs_ast_dump(struct fs_node *n, void *indent)
 {
 	_indent((int *)indent);
-	
+
+	fputs(fs_typestr(n->type), stderr);
+
 	switch (n->type) {
+	case FS_UNKNOWN:
 	case FS_SCRIPT:
-		fprintf(stderr, "script");
-		break;
-
 	case FS_PROBE:		
-		fprintf(stderr, "probe");
-		break;
-
 	case FS_PSPEC:
-		fprintf(stderr, "pspec(%s)", n->string);
+	case FS_COND:
+	case FS_RETURN:
+	case FS_NOT:
 		break;
 		
 	case FS_CALL:
-		fprintf(stderr, "call(%s)", n->call.func);
-		break;
-
-	case FS_COND:
-		fprintf(stderr, "if");
-		break;
-
 	case FS_ASSIGN:
-		fprintf(stderr, "assign(%s)", n->assign.op);
-		break;
-
 	case FS_BINOP:
-		fprintf(stderr, "binop(%s)", n->binop.op);
-		break;
-
-	case FS_RETURN:
-		fprintf(stderr, "return");
-		break;
-
-	case FS_NOT:
-		fprintf(stderr, "not");
-		break;
-
 	case FS_MAP:
-		fprintf(stderr, "map(%s)", n->map.name);
-		break;
-
 	case FS_VAR:
-		fprintf(stderr, "var(%s)", n->string);
+		fprintf(stderr, "(%s)", n->string);
 		break;
 
 	case FS_INT:
-		fprintf(stderr, "int(%ld)", n->integer);
+		fprintf(stderr, "(%ld)", n->integer);
 		break;
 		
 	case FS_STR:
-		fprintf(stderr, "string(\"%s\")", n->string);
-		break;
-
-	default:
-		fprintf(stderr, "!type:%d", n->type);
+		fprintf(stderr, "(\"%s\")", n->string);
 		break;
 	}
 
-	if (n->annot.type != FS_UNKNOWN) {
-		fputs(" $(type:", stderr);
-
-		switch (n->annot.type) {
-		case FS_INT:
-			fputs("int, ", stderr);
-			break;
-		case FS_STR:
-			fputs("str, ", stderr);
-			break;
-		default:
-			fprintf(stderr, "%d, ", n->annot.type);
-			break;
-		}
-
-		if (n->type == FS_MAP)
-			fprintf(stderr, "key_size:%lu, ", n->annot.key_size);
-		
-		fprintf(stderr, "size:%lu)", n->annot.size);
-	}
+	if (n->annot.type != FS_UNKNOWN)
+		fprintf(stderr, " $(type:%s/%lu)",
+			fs_typestr(n->annot.type), n->annot.size);
 
 	fputc('\n', stderr);
 	return 0;
@@ -136,7 +101,7 @@ struct fs_node *fs_var_new(char *name)
 {
 	struct fs_node *n = fs_node_new(FS_VAR);
 
-	n->string  = name;
+	n->string = name;
 	return n;
 }
 
@@ -144,7 +109,7 @@ struct fs_node *fs_map_new(char *name, struct fs_node *vargs)
 {
 	struct fs_node *n = fs_node_new(FS_MAP);
 
-	n->map.name  = name;
+	n->string = name;
 	n->map.vargs = vargs;
 	return n;
 }
@@ -169,8 +134,8 @@ struct fs_node *fs_binop_new(struct fs_node *left, char *op, struct fs_node *rig
 {
 	struct fs_node *n = fs_node_new(FS_BINOP);
 
+	n->string = op;
 	n->binop.left  = left;
-	n->binop.op    = op;
 	n->binop.right = right;
 	return n;
 }
@@ -179,8 +144,8 @@ struct fs_node *fs_assign_new(struct fs_node *lval, char *op, struct fs_node *ex
 {
 	struct fs_node *n = fs_node_new(FS_ASSIGN);
 
+	n->string = op;
 	n->assign.lval = lval;
-	n->assign.op   = op;
 	n->assign.expr = expr;
 	return n;
 }
@@ -200,7 +165,7 @@ struct fs_node *fs_call_new(char *func, struct fs_node *vargs)
 {
 	struct fs_node *n = fs_node_new(FS_CALL);
 
-	n->call.func  = func;
+	n->string = func;
 	n->call.vargs = vargs;
 	return n;
 }
@@ -235,21 +200,9 @@ static int _fs_free(struct fs_node *n, void *ctx)
 {
 	switch (n->type) {
 	case FS_CALL:
-		free(n->call.func);
-		break;
-
 	case FS_ASSIGN:
-		free(n->assign.op);
-		break;
-
 	case FS_BINOP:
-		free(n->binop.op);
-		break;
-
 	case FS_MAP:
-		free(n->map.name);
-		break;
-
 	case FS_PSPEC:
 	case FS_VAR:
 	case FS_STR:

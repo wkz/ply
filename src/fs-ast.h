@@ -15,17 +15,14 @@ static inline void insque_tail(void *elem, void *prev)
 }
 
 struct fs_map {
-	char *name;
 	struct fs_node *vargs;
 };
 
 struct fs_binop {
-	char *op;
 	struct fs_node *left, *right;
 };
 
 struct fs_assign {
-	char *op;
 	struct fs_node *lval, *expr;
 };
 
@@ -35,7 +32,6 @@ struct fs_cond {
 };
 
 struct fs_call {
-	char *func;
 	struct fs_node *vargs;
 };
 
@@ -48,34 +44,56 @@ struct fs_script {
 	struct fs_node *probes;
 };
 
+#define FS_TYPE_TABLE \
+	TYPE(FS_UNKNOWN, "UNKNOWN")		\
+	TYPE(FS_SCRIPT, "script")		\
+	TYPE(FS_PROBE, "probe")			\
+	TYPE(FS_PSPEC, "pspec")			\
+	TYPE(FS_CALL, "call")			\
+	TYPE(FS_COND, "cond")			\
+	TYPE(FS_ASSIGN, "assign")		\
+	TYPE(FS_RETURN, "return")		\
+	TYPE(FS_BINOP, "binop")			\
+	TYPE(FS_NOT, "not")			\
+	TYPE(FS_MAP, "map")			\
+	TYPE(FS_VAR, "var")			\
+	TYPE(FS_INT, "int")			\
+	TYPE(FS_STR, "str")
+
+#define TYPE(_type, _typestr) _type,
 enum fs_type {
-	FS_UNKNOWN,
-	FS_SCRIPT,
-	FS_PROBE,
-	FS_PSPEC,
-	FS_CALL,
-	FS_COND,
-	FS_ASSIGN,
-	FS_RETURN,
-	FS_BINOP,
-	FS_NOT,
-	FS_MAP,
-	FS_VAR,
-	FS_INT,
-	FS_STR,
+	FS_TYPE_TABLE
+};
+#undef TYPE
+
+const char *fs_typestr(enum fs_type type);
+
+enum fs_location {
+	LOC_NOWHERE,
+	LOC_REG,
+	LOC_STACK,
 };
 
-struct fs_annotations {
-	enum fs_type type;
+struct fs_annot {
+	enum fs_type     type;
+	size_t           size;
 
-	size_t size;
-	size_t key_size;
+	enum fs_location loc;
+	int              reg;
+	ssize_t          addr;
 };
+
+static inline int fs_annot_compatible(struct fs_annot *a, struct fs_annot *b)
+{
+	return a->type == b->type && a->size == b->size;
+}
 
 struct fs_node {
 	void *next, *prev;
 
 	enum fs_type type;
+
+	char *string;
 
 	union {
 		struct fs_script script;
@@ -89,17 +107,13 @@ struct fs_node {
 		struct fs_node  *ret;
 		
 		int64_t          integer;
-		char            *string;
 	};
 
-	struct fs_annotations annot;
+	struct fs_annot annot;
 };
 
-#define fs_foreach(_n, _in) for((_n) = (_in); (_n); (_n) = (_n)->next)
 
-static inline int fs_node_is(struct fs_node *n, enum fs_type type) {
-	return n->type == type;
-}
+#define fs_foreach(_n, _in) for((_n) = (_in); (_n); (_n) = (_n)->next)
 
 static inline struct fs_node *fs_node_new(enum fs_type type) {
 	struct fs_node *n = calloc(1, sizeof(*n));
