@@ -42,12 +42,12 @@ static int _fs_ast_dump(struct fs_node *n, void *indent)
 	case FS_UNKNOWN:
 	case FS_SCRIPT:
 	case FS_PROBE:		
-	case FS_PSPEC:
 	case FS_COND:
 	case FS_RETURN:
 	case FS_NOT:
 		break;
 		
+	case FS_PSPEC:
 	case FS_CALL:
 	case FS_ASSIGN:
 	case FS_BINOP:
@@ -66,8 +66,9 @@ static int _fs_ast_dump(struct fs_node *n, void *indent)
 	}
 
 	if (n->annot.type != FS_UNKNOWN)
-		fprintf(stderr, " $(type:%s/%lu)",
-			fs_typestr(n->annot.type), n->annot.size);
+		fprintf(stderr, " $(type:%s/%lu parent:%s)",
+			fs_typestr(n->annot.type), n->annot.size,
+			n->parent? fs_typestr(n->parent->type) : "none");
 
 	fputc('\n', stderr);
 	return 0;

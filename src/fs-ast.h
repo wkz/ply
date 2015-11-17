@@ -14,15 +14,21 @@ static inline void insque_tail(void *elem, void *prev)
 	insque(le, pe);
 }
 
+enum fs_op {
+	FS_EQ,
+};	
+
 struct fs_map {
 	struct fs_node *vargs;
 };
 
 struct fs_binop {
+	enum fs_op op;
 	struct fs_node *left, *right;
 };
 
 struct fs_assign {
+	enum fs_op op;
 	struct fs_node *lval, *expr;
 };
 
@@ -68,19 +74,9 @@ enum fs_type {
 
 const char *fs_typestr(enum fs_type type);
 
-enum fs_location {
-	LOC_NOWHERE,
-	LOC_REG,
-	LOC_STACK,
-};
-
 struct fs_annot {
-	enum fs_type     type;
-	size_t           size;
-
-	enum fs_location loc;
-	int              reg;
-	ssize_t          addr;
+	enum fs_type    type;
+	size_t          size;
 };
 
 static inline int fs_annot_compatible(struct fs_annot *a, struct fs_annot *b)
@@ -89,11 +85,11 @@ static inline int fs_annot_compatible(struct fs_annot *a, struct fs_annot *b)
 }
 
 struct fs_node {
-	void *next, *prev;
-
+	struct fs_node *next, *prev;
+	struct fs_node *parent;
+	
 	enum fs_type type;
-
-	char *string;
+	char        *string;
 
 	union {
 		struct fs_script script;
