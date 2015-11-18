@@ -29,8 +29,7 @@ uazd		[_a-zA-Z0-9]
 
 identifier	{uaz}{uazd}*
 pspec		{identifier}:[:*_a-zA-Z0-9]*
-simpleop	[+\-*/|&%^]
-binop		{simpleop}|!=|<|<=|==|>=|>|\|\||&&
+op		[+\-*/|&%^]|<<|>>
 
 %%
 "/*"			comment(yyscanner);
@@ -46,8 +45,8 @@ binop		{simpleop}|!=|<|<=|==|>=|>|\|\||&&
 {identifier}		{ yylval->string = strdup(yytext); return IDENT; }
 @{identifier}?		{ yylval->string = strdup(yytext); return MAP; }
 
-{simpleop}=|=|<<=|>>=	{ yylval->string = strdup(yytext); return ASSIGNOP; }
-{binop}			{ yylval->string = strdup(yytext); return BINOP; }
+/* {simpleop}=|=|<<=|>>=	{ yylval->string = strdup(yytext); return ASSIGNOP; } */
+{op}			{ yylval->string = strdup(yytext); return OP; }
 
 [.,;+\-*/!()\[\]{}]	{ return *yytext; }
 \"(\\.|[^\\"])*\"	{ yylval->string = strndup(&yytext[1], strlen(yytext) - 2); return STRING; }

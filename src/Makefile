@@ -3,7 +3,7 @@
 #CFLAGS ?= -O3 -Wall -Werror
 CFLAGS ?= -O0 -g -Wall -Werror
 
-HEADERS = fs-ast.h
+HEADERS = fs-ast.h fs-ebpf.h
 SRCS = fs-lex.c fs-parse.c fs-ast.c fs-ebpf.c provider-kprobe.c dtl.c
 OBJS = $(patsubst %.c, %.o, $(SRCS))
 

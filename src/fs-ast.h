@@ -15,8 +15,19 @@ static inline void insque_tail(void *elem, void *prev)
 }
 
 enum fs_op {
-	FS_EQ,
-};	
+	FS_ADD = BPF_ADD,
+	FS_SUB = BPF_SUB,
+	FS_MUL = BPF_MUL,
+	FS_DIV = BPF_DIV,
+	FS_OR  = BPF_OR,
+	FS_AND = BPF_AND,
+	FS_LSH = BPF_LSH,
+	FS_RSH = BPF_RSH,
+	FS_NEG = BPF_NEG,
+	FS_MOD = BPF_MOD,
+	FS_XOR = BPF_XOR,
+	FS_MOV = BPF_MOV,
+};
 
 struct fs_map {
 	struct fs_node *vargs;

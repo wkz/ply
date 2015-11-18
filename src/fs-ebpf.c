@@ -189,8 +189,8 @@ int symtable_add(struct symtable *st, struct fs_node *n)
 	
 	if (st->len == st->cap) {
 		st->cap += 16;
-		st->table = realloc(st->table, sizeof(*st));
-		memset(&st->table[st->len], 0, 16 * sizeof(*st));
+		st->table = realloc(st->table, st->cap * sizeof(*st->table));
+		memset(&st->table[st->len], 0, 16 * sizeof(*st->table));
 	}
 
 	sym = &st->table[st->len++];
@@ -217,6 +217,8 @@ struct symtable *symtable_new(void)
 
 	assert(st);
 
+	fprintf(stderr, "symtable:%p+%lx\n", st, sizeof(*st));
+	
 	for (i = BPF_REG_0; i < __MAX_BPF_REG; i++)
 		*(int *)(&st->reg[i].reg) = i;
 	return st;
@@ -333,20 +335,23 @@ static struct reg *ebpf_reg_swap(struct ebpf *e, struct reg *r, struct fs_node *
 	case FS_MAP:
 		r->type = REG_SYM;
 		r->sym = symtable_get(e->st, n->string);
+		if (!r->sym)
+			return NULL;
+
 		r->sym->in_reg = 1;
+		ebpf_emit(e, LDXDW(r->reg, r->sym->addr, BPF_REG_10));
 		break;
 	default:
 		r->type = REG_NODE;
 		r->n = n;
+
+		err = ebpf_mov(e, r->reg, n);
+		if (err)
+			return NULL;
 		break;
 	}
 
 	r->age  = ++(e->st->age);
-
-	err = ebpf_mov(e, r->reg, n);
-	if (err)
-		return NULL;
-
 	return r;
 }
 
@@ -386,7 +391,6 @@ struct ebpf *ebpf_new(struct provider *provider)
 static int _fs_compile_pre(struct fs_node *n, void *_e)
 {
 	/* struct ebpf *e = _e; */
-
 	return 0;
 }
 
@@ -408,7 +412,8 @@ static int _fs_compile_post(struct fs_node *n, void *_e)
 	case FS_BINOP:
 		dst = ebpf_load(e, n->binop.left);
 		if (!dst)
-			return -ENOSPC;
+			RET_ON_ERR(-ENOSPC, "binop: unable to load  %s\n",
+				   n->binop.left->string ? : fs_typestr(n->binop.left->type));
 
 		ebpf_alu(e, dst->reg, n->binop.op, n->binop.right);
 		ebpf_reg_swap(e, dst, n);
@@ -425,7 +430,8 @@ static int _fs_compile_post(struct fs_node *n, void *_e)
 	case FS_ASSIGN:
 		dst = ebpf_load(e, n->assign.lval);
 		if (!dst)
-			return -ENOSPC;
+			RET_ON_ERR(-ENOSPC, "assign: unable to load %s\n",
+				   n->assign.lval->string);
 
 		ebpf_alu(e, dst->reg, n->assign.op, n->assign.expr);
 		/* ebpf_reg_clean(e, n->assign.expr); */
@@ -456,6 +462,7 @@ static int _fs_annotate_pre(struct fs_node *n, void *_e)
 	case FS_RETURN:
 	case FS_ASSIGN:
 	case FS_CALL:
+	case FS_PROBE:
 		e->parent = n;
 	default:
 		break;
@@ -507,6 +514,10 @@ static int _fs_annotate_post(struct fs_node *n, void *_e)
 		n->annot.size = n->binop.left->annot.size;
 		break;
 	case FS_RETURN:
+		err = symtable_transfer(e->st, n->ret);
+		if (err)
+			return err;
+
 		if (n->ret->annot.type != FS_INT)
 			RET_ON_ERR(-EINVAL, "return: unexpected type %s\n",
 				   fs_typestr(n->ret->annot.type));
@@ -515,6 +526,11 @@ static int _fs_annotate_post(struct fs_node *n, void *_e)
 		n->annot.size = n->ret->annot.size;
 		break;
 	case FS_ASSIGN:
+	{
+		void *dummy = malloc(0x100);
+		if (dummy)
+			free(dummy);
+	}
 		err = symtable_transfer(e->st, n->assign.expr);
 		if (err)
 			return err;
@@ -566,6 +582,7 @@ struct ebpf *fs_compile(struct fs_node *probe, struct provider *provider)
 
 	return e;
 err:
+	fprintf(stderr, "ERROR\n");
 	free(e);
 	return NULL;
 }
