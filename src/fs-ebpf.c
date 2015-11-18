@@ -227,8 +227,17 @@ struct symtable *symtable_new(void)
 
 
 
-static inline void _emit(struct ebpf *e, struct bpf_insn insn)
+static inline void ebpf_emit(struct ebpf *e, struct bpf_insn insn)
 {
+	FILE *dasm = popen("ebpf-dasm >&2", "w");
+
+	if (dasm) {
+		fwrite(&insn, sizeof(insn), 1, dasm);
+		pclose(dasm);
+	} else {
+		assert(0);
+	}
+
 	*(e->ip)++ = insn;
 }
 
@@ -262,24 +271,24 @@ static struct reg *ebpf_reg_find(struct ebpf *e, struct fs_node *n)
 	return NULL;
 }
 
-static void ebpf_reg_clean(struct ebpf *e, struct fs_node *n)
-{
-	struct reg *r;
+/* static void ebpf_reg_clean(struct ebpf *e, struct fs_node *n) */
+/* { */
+/* 	struct reg *r; */
 
-	if (n->type != FS_VAR && n->type != FS_MAP)
-		return;
+/* 	if (n->type != FS_VAR && n->type != FS_MAP) */
+/* 		return; */
 
-	r = ebpf_reg_find(e, n);
-	if (r)
-		r->type = REG_EMPTY;
-}
+/* 	r = ebpf_reg_find(e, n); */
+/* 	if (r) */
+/* 		r->type = REG_EMPTY; */
+/* } */
 
 static int ebpf_mov(struct ebpf *e, int dst, struct fs_node *n)
 {
 	struct reg *r;
 
 	if (n->type == FS_INT) {
-		_emit(e, MOV_IMM(dst, n->integer));
+		ebpf_emit(e, MOV_IMM(dst, n->integer));
 		return 0;
 	}
 
@@ -287,7 +296,9 @@ static int ebpf_mov(struct ebpf *e, int dst, struct fs_node *n)
 	if (!r)
 		return -ENOENT;
 
-	_emit(e, MOV(dst, r->reg));
+	if (dst != r->reg)
+		ebpf_emit(e, MOV(dst, r->reg));
+
 	return 0;
 }
 
@@ -296,7 +307,7 @@ static int ebpf_alu(struct ebpf *e, int dst, enum fs_op op, struct fs_node *expr
 	struct reg *r;
 
 	if (expr->type == FS_INT) {
-		_emit(e, ALU_IMM(op, dst, expr->integer));
+		ebpf_emit(e, ALU_IMM(op, dst, expr->integer));
 		return 0;
 	}
 
@@ -304,16 +315,16 @@ static int ebpf_alu(struct ebpf *e, int dst, enum fs_op op, struct fs_node *expr
 	if (!r)
 		return -ENOENT;
 
-	_emit(e, ALU(op, dst, r->reg));
+	ebpf_emit(e, ALU(op, dst, r->reg));
 	return 0;
 }
 
-static int _ebpf_reg_swap(struct ebpf *e, struct reg *r, struct fs_node *n)
+static struct reg *ebpf_reg_swap(struct ebpf *e, struct reg *r, struct fs_node *n)
 {
-	/* int err; */
+	int err;
 
 	if (r->type == REG_SYM) {
-		_emit(e, STXDW(BPF_REG_10, r->sym->addr, r->reg));
+		ebpf_emit(e, STXDW(BPF_REG_10, r->sym->addr, r->reg));
 		r->sym->in_reg = 0;
 	}
 
@@ -322,6 +333,7 @@ static int _ebpf_reg_swap(struct ebpf *e, struct reg *r, struct fs_node *n)
 	case FS_MAP:
 		r->type = REG_SYM;
 		r->sym = symtable_get(e->st, n->string);
+		r->sym->in_reg = 1;
 		break;
 	default:
 		r->type = REG_NODE;
@@ -330,29 +342,34 @@ static int _ebpf_reg_swap(struct ebpf *e, struct reg *r, struct fs_node *n)
 	}
 
 	r->age  = ++(e->st->age);
-	return ebpf_mov(e, r->reg, n);
+
+	err = ebpf_mov(e, r->reg, n);
+	if (err)
+		return NULL;
+
+	return r;
 }
 
-static int ebpf_load(struct ebpf *e, struct fs_node *n)
+static struct reg *ebpf_load(struct ebpf *e, struct fs_node *n)
 {
 	struct reg *r, *r_aged;
 
 	r = ebpf_reg_find(e, n);
 	if (r)
-		return r->reg;
+		return r;
 	
 	for (r = &e->st->reg[BPF_REG_9]; r >= &e->st->reg[BPF_REG_0]; r--) {
 		if (r->type == REG_EMPTY)
-			return _ebpf_reg_swap(e, r, n);
+			return ebpf_reg_swap(e, r, n);
 
 		if (r->type == REG_SYM && (!r_aged || r->age < r_aged->age))
 			r_aged = r;
 	}
 
 	if (!r_aged)
-		return -ENOENT;
+		return NULL;
 
-	return _ebpf_reg_swap(e, r_aged, n);
+	return ebpf_reg_swap(e, r_aged, n);
 }
 
 struct ebpf *ebpf_new(struct provider *provider)
@@ -376,10 +393,12 @@ static int _fs_compile_pre(struct fs_node *n, void *_e)
 static int _fs_compile_post(struct fs_node *n, void *_e)
 {
 	struct ebpf *e = _e;
-	/* struct reg  *r; */
-	int dst;
+	struct reg  *dst;
+	/* int dst; */
 	/* struct sym *sym; */
 
+	fprintf(stderr, ";; %s(%s)\n", n->string ? : "anon", fs_typestr(n->type));
+	
 	switch (n->type) {
 	/* case FS_STR: */
 	/* 	sym */
@@ -387,30 +406,38 @@ static int _fs_compile_post(struct fs_node *n, void *_e)
 	/* 	break; */
 
 	case FS_BINOP:
-		dst = ebpf_load(e, n);
-		if (dst < 0)
-			return dst;
+		dst = ebpf_load(e, n->binop.left);
+		if (!dst)
+			return -ENOSPC;
 
-		ebpf_mov(e, dst, n->binop.left);
-		ebpf_reg_clean(e, n->binop.left);
-
-		ebpf_alu(e, dst, n->binop.op, n->binop.right);
-		ebpf_reg_clean(e, n->binop.right);
+		ebpf_alu(e, dst->reg, n->binop.op, n->binop.right);
+		ebpf_reg_swap(e, dst, n);
+		
+		/* ebpf_reg_clean(e, n->binop.left); */
+		/* ebpf_reg_clean(e, n->binop.right); */
 		break;
 
 	case FS_RETURN:
 		ebpf_mov(e, BPF_REG_0, n->ret);
+		ebpf_emit(e, EXIT);
 		break;
 
 	case FS_ASSIGN:
 		dst = ebpf_load(e, n->assign.lval);
-		if (dst < 0)
-			return dst;
+		if (!dst)
+			return -ENOSPC;
 
-		ebpf_alu(e, dst, n->assign.op, n->assign.expr);
-		ebpf_reg_clean(e, n->assign.expr);
+		ebpf_alu(e, dst->reg, n->assign.op, n->assign.expr);
+		/* ebpf_reg_clean(e, n->assign.expr); */
 		break;
 
+	case FS_PROBE:
+		if ((e->ip - 1)->code != EXIT.code) {
+			ebpf_emit(e, MOV_IMM(BPF_REG_0, 0));
+			ebpf_emit(e, EXIT);
+		}
+		break;
+		
 	default:
 		break;
 	}
