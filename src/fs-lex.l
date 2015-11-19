@@ -45,8 +45,8 @@ op		[+\-*/|&%^]|<<|>>
 {identifier}		{ yylval->string = strdup(yytext); return IDENT; }
 @{identifier}?		{ yylval->string = strdup(yytext); return MAP; }
 
-/* {simpleop}=|=|<<=|>>=	{ yylval->string = strdup(yytext); return ASSIGNOP; } */
 {op}			{ yylval->string = strdup(yytext); return OP; }
+{op}?=			{ yylval->string = strdup(yytext); return AOP; }
 
 [.,;+\-*/!()\[\]{}]	{ return *yytext; }
 \"(\\.|[^\\"])*\"	{ yylval->string = strndup(&yytext[1], strlen(yytext) - 2); return STRING; }

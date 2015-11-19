@@ -6,6 +6,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#include <linux/bpf.h>
+
 static inline void insque_tail(void *elem, void *prev)
 {
 	struct { void *next, *prev; } *le = elem, *pe = prev;
@@ -122,6 +124,11 @@ struct fs_node {
 
 #define fs_foreach(_n, _in) for((_n) = (_in); (_n); (_n) = (_n)->next)
 
+static inline int fs_node_is_sym(struct fs_node *n)
+{
+	return n->type == FS_VAR || n->type == FS_MAP;
+}
+
 static inline struct fs_node *fs_node_new(enum fs_type type) {
 	struct fs_node *n = calloc(1, sizeof(*n));
 
@@ -138,8 +145,8 @@ struct fs_node *fs_var_new(char *name);
 struct fs_node *fs_map_new(char *name, struct fs_node *vargs);
 struct fs_node *fs_not_new(struct fs_node *expr);
 struct fs_node *fs_return_new(struct fs_node *expr);
-struct fs_node *fs_binop_new(struct fs_node *left, char *op, struct fs_node *right);
-struct fs_node *fs_assign_new(struct fs_node *lval, char *op, struct fs_node *expr);
+struct fs_node *fs_binop_new(struct fs_node *left, char *opstr, struct fs_node *right);
+struct fs_node *fs_assign_new(struct fs_node *lval, char *opstr, struct fs_node *expr);
 struct fs_node *fs_cond_new(struct fs_node *cond,
 			    struct fs_node *yes, struct fs_node *no);
 struct fs_node *fs_call_new(char *func, struct fs_node *vargs);

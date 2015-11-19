@@ -131,21 +131,51 @@ struct fs_node *fs_return_new(struct fs_node *expr)
 	return n;
 }
 
-struct fs_node *fs_binop_new(struct fs_node *left, char *op, struct fs_node *right)
+static enum fs_op fs_op_from_str(const char *opstr)
+{
+	switch (opstr[0]) {
+	case '+':
+		return FS_ADD;
+	case '-':
+		return FS_SUB;
+	case '*':
+		return FS_MUL;
+	case '/':
+		return FS_DIV;
+	case '|':
+		return FS_OR;
+	case '&':
+		return FS_AND;
+	case '<':
+		return FS_LSH;
+	case '>':
+		return FS_RSH;
+	case '%':
+		return FS_MOD;
+	case '^':
+		return FS_XOR;
+	}
+
+	return FS_MOV;
+}
+
+struct fs_node *fs_binop_new(struct fs_node *left, char *opstr, struct fs_node *right)
 {
 	struct fs_node *n = fs_node_new(FS_BINOP);
 
-	n->string = op;
+	n->string = opstr;
+	n->binop.op    = fs_op_from_str(opstr);
 	n->binop.left  = left;
 	n->binop.right = right;
 	return n;
 }
 
-struct fs_node *fs_assign_new(struct fs_node *lval, char *op, struct fs_node *expr)
+struct fs_node *fs_assign_new(struct fs_node *lval, char *opstr, struct fs_node *expr)
 {
 	struct fs_node *n = fs_node_new(FS_ASSIGN);
 
-	n->string = op;
+	n->string = opstr;
+	n->assign.op   = fs_op_from_str(opstr);
 	n->assign.lval = lval;
 	n->assign.expr = expr;
 	return n;

@@ -36,14 +36,14 @@ typedef void* yyscan_t;
 %parse-param { yyscan_t scanner }
 
 %token IF ELSE RETURN
-%token <string> PSPEC IDENT MAP STRING OP
+%token <string> PSPEC IDENT MAP STRING OP AOP
 %token <integer> INT
 
 %type <node> script probes probe pspecs pspec block
 %type <node> stmts stmt if_stmt variable expr vargs
 
 %left OP
-/* %precedence '=' */
+%precedence '!'
 
 %start script
 
@@ -79,8 +79,8 @@ stmts : stmt
 		{ insque_tail($3, $1); }
 ;
 
-stmt : variable OP '=' expr
-		{ $$ = fs_assign_new($1, $2, $4); }
+stmt : variable AOP expr
+		{ $$ = fs_assign_new($1, $2, $3); }
      | expr
 		{ $$ = $1; }
      | if_stmt
@@ -108,7 +108,7 @@ expr : INT
      | variable
 		{ $$ = $1; }
      | expr OP expr
-		{ $$ = fs_binop_new($1, $2, $3); }
+     		{ $$ = fs_binop_new($1, $2, $3); }
      | IDENT '(' ')'
 		{ $$ = fs_call_new($1, NULL); }
      | IDENT '(' vargs ')'
