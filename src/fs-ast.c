@@ -2,6 +2,7 @@
 #include <search.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "fs-ast.h"
 
@@ -42,12 +43,12 @@ static int _fs_ast_dump(struct fs_node *n, void *indent)
 	case FS_UNKNOWN:
 	case FS_SCRIPT:
 	case FS_PROBE:		
-	case FS_COND:
 	case FS_RETURN:
 	case FS_NOT:
 		break;
 		
 	case FS_PSPEC:
+	case FS_PRED:
 	case FS_CALL:
 	case FS_ASSIGN:
 	case FS_BINOP:
@@ -115,6 +116,11 @@ struct fs_node *fs_map_new(char *name, struct fs_node *vargs)
 	return n;
 }
 
+struct fs_node *fs_global_new(char *name)
+{
+	return fs_map_new(strdup("@$"), fs_str_new(name));
+}
+
 struct fs_node *fs_not_new(struct fs_node *expr)
 {
 	struct fs_node *n = fs_node_new(FS_NOT);
@@ -154,9 +160,12 @@ static enum fs_op fs_op_from_str(const char *opstr)
 		return FS_MOD;
 	case '^':
 		return FS_XOR;
+	case '=':
+		return FS_MOV;
+	default:
+		assert(0);
+		return 0;
 	}
-
-	return FS_MOV;
 }
 
 struct fs_node *fs_binop_new(struct fs_node *left, char *opstr, struct fs_node *right)
@@ -181,23 +190,51 @@ struct fs_node *fs_assign_new(struct fs_node *lval, char *opstr, struct fs_node 
 	return n;
 }
 
-struct fs_node *fs_cond_new(struct fs_node *cond,
-			    struct fs_node *yes, struct fs_node *no)
-{
-	struct fs_node *n = fs_node_new(FS_COND);
-
-	n->cond.cond = cond;
-	n->cond.yes  = yes;
-	n->cond.no   = no;
-	return n;
-}
-
 struct fs_node *fs_call_new(char *func, struct fs_node *vargs)
 {
 	struct fs_node *n = fs_node_new(FS_CALL);
 
 	n->string = func;
 	n->call.vargs = vargs;
+	return n;
+}
+
+struct fs_node *fs_pred_new(struct fs_node *left, char *opstr,
+			   struct fs_node *right)
+{
+	/* TODO: signed or unsigned compares? */
+	struct fs_node *n = fs_node_new(FS_PRED);
+	int inv = 0;
+
+	n->string = opstr;
+
+	switch (opstr[0]) {
+	case '=':
+		n->pred.jmp = FS_JNE;
+		break;
+	case '!':
+		n->pred.jmp = FS_JEQ;
+		break;
+	case '<':
+		if (opstr[1] == '=')
+			n->pred.jmp = FS_JGT;
+		else
+			n->pred.jmp = FS_JGE;
+		break;
+	case '>':
+		inv = 1;
+		if (opstr[1] == '=')
+			n->pred.jmp = FS_JGT;
+		else
+			n->pred.jmp = FS_JGE;
+		break;
+	default:
+		assert(0);
+		break;
+	}
+
+	n->pred.left  = inv ? right : left;
+	n->pred.right = inv ? left : right;
 	return n;
 }
 
@@ -209,11 +246,13 @@ struct fs_node *fs_pspec_new(char *spec)
 	return n;
 }
 
-struct fs_node *fs_probe_new(struct fs_node *pspecs, struct fs_node *stmts)
+struct fs_node *fs_probe_new(struct fs_node *pspecs, struct fs_node *pred,
+			     struct fs_node *stmts)
 {
 	struct fs_node *n = fs_node_new(FS_PROBE);
 
 	n->probe.pspecs = pspecs;
+	n->probe.pred   = pred;
 	n->probe.stmts  = stmts;
 	return n;
 }
@@ -235,6 +274,7 @@ static int _fs_free(struct fs_node *n, void *ctx)
 	case FS_BINOP:
 	case FS_MAP:
 	case FS_PSPEC:
+	case FS_PRED:
 	case FS_VAR:
 	case FS_STR:
 		free(n->string);
@@ -289,18 +329,13 @@ int fs_walk(struct fs_node *n,
 
 	case FS_PROBE:
 		do_list(n->probe.pspecs);
+		if (n->probe.pred)
+			do_walk(n->probe.pred);
 		do_list(n->probe.stmts);
 		break;
 
 	case FS_CALL:
 		do_list(n->call.vargs);
-		break;
-
-	case FS_COND:
-		do_walk(n->cond.cond);
-		do_walk(n->cond.yes);
-		if (n->cond.no)
-			do_walk(n->cond.no);
 		break;
 
 	case FS_ASSIGN:

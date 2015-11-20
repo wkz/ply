@@ -36,11 +36,11 @@ typedef void* yyscan_t;
 %parse-param { yyscan_t scanner }
 
 %token IF ELSE RETURN
-%token <string> PSPEC IDENT MAP STRING OP AOP
+%token <string> PSPEC IDENT MAP STRING OP AOP CMP
 %token <integer> INT
 
-%type <node> script probes probe pspecs pspec block
-%type <node> stmts stmt if_stmt variable expr vargs
+%type <node> script probes probe pspecs pspec pred
+%type <node> block stmts stmt variable expr vargs
 
 %left OP
 %precedence '!'
@@ -60,7 +60,9 @@ probes : probe
 ;
 
 probe : pspecs block
-		{ $$ = fs_probe_new($1, $2); }
+		{ $$ = fs_probe_new($1, NULL, $2); }
+      | pspecs '/' pred '/' block
+		{ $$ = fs_probe_new($1, $3, $5); }
 ;
 
 pspecs : pspec
@@ -73,6 +75,12 @@ pspec : PSPEC
 		{ $$ = fs_pspec_new($1); }
 ;
 
+pred : expr
+		{ $$ = fs_pred_new($1, "!=", fs_int_new(0)); }
+     | expr CMP expr
+		{ $$ = fs_pred_new($1, $2, $3); }
+;
+
 stmts : stmt
 		{ $$ = $1; }
       | stmts ';' stmt
@@ -83,16 +91,8 @@ stmt : variable AOP expr
 		{ $$ = fs_assign_new($1, $2, $3); }
      | expr
 		{ $$ = $1; }
-     | if_stmt
-		{ $$ = $1; }
      | RETURN expr
 		{ $$ = fs_return_new($2); }
-;
-
-if_stmt : IF expr block ELSE block
-		{ $$ = fs_cond_new($2, $3, $5); }
-	| IF expr block
-		{ $$ = fs_cond_new($2, $3, NULL); }
 ;
 
 block : '{' stmts '}'
@@ -123,6 +123,8 @@ variable : IDENT
 		{ $$ = fs_var_new($1); }
          | MAP '[' vargs ']'
 		{ $$ = fs_map_new($1, $3); }
+	 | '$' IDENT
+		{ $$ = fs_global_new($2); }
 ;
 
 vargs : expr

@@ -212,15 +212,32 @@ int symtable_add(struct symtable *st, struct fs_node *n)
 	return 0;
 }
 
+static void symtable_add_global(struct symtable *st)
+{
+	struct sym *sym;
+
+	sym = &st->table[st->len++];
+	sym->annot.type = FS_INT;
+	sym->annot.size = 8;
+	sym->name = "@$";
+	sym->size = sym->annot.size;
+	sym->keys = fs_str_new("0123456789abcdef");
+}
+
 struct symtable *symtable_new(void)
 {
-	struct symtable *st = calloc(1, sizeof(*st));
+	struct symtable *st;
 	int i;
 
+	st = calloc(1, sizeof(*st));
 	assert(st);
 
-	fprintf(stderr, "symtable:%p+%lx\n", st, sizeof(*st));
-	
+	st->cap = 16;
+	st->table = calloc(st->cap, sizeof(*st->table));
+	assert(st->table);
+
+	symtable_add_global(st);
+
 	for (i = BPF_REG_0; i < __MAX_BPF_REG; i++)
 		*(int *)(&st->reg[i].reg) = i;
 	return st;

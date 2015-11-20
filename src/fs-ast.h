@@ -16,6 +16,15 @@ static inline void insque_tail(void *elem, void *prev)
 	insque(le, pe);
 }
 
+enum fs_jmp {
+	FS_JEQ = BPF_JEQ,
+	FS_JGT = BPF_JGT,
+	FS_JGE = BPF_JGE,
+	FS_JNE = BPF_JNE,
+	FS_JSGT = BPF_JSGT,
+	FS_JSGE = BPF_JSGE,
+};
+
 enum fs_op {
 	FS_ADD = BPF_ADD,
 	FS_SUB = BPF_SUB,
@@ -45,9 +54,9 @@ struct fs_assign {
 	struct fs_node *lval, *expr;
 };
 
-struct fs_cond {
-	struct fs_node *cond;
-	struct fs_node *yes, *no;
+struct fs_pred {
+	enum fs_jmp jmp;
+	struct fs_node *left, *right;
 };
 
 struct fs_call {
@@ -56,6 +65,7 @@ struct fs_call {
 
 struct fs_probe {
 	struct fs_node *pspecs;
+	struct fs_node *pred;
 	struct fs_node *stmts;
 };
 
@@ -68,8 +78,8 @@ struct fs_script {
 	TYPE(FS_SCRIPT, "script")		\
 	TYPE(FS_PROBE, "probe")			\
 	TYPE(FS_PSPEC, "pspec")			\
+	TYPE(FS_PRED, "pred")			\
 	TYPE(FS_CALL, "call")			\
-	TYPE(FS_COND, "cond")			\
 	TYPE(FS_ASSIGN, "assign")		\
 	TYPE(FS_RETURN, "return")		\
 	TYPE(FS_BINOP, "binop")			\
@@ -107,8 +117,8 @@ struct fs_node {
 	union {
 		struct fs_script script;
 		struct fs_probe  probe;
+		struct fs_pred   pred;
 		struct fs_call   call;
-		struct fs_cond   cond;
 		struct fs_assign assign;
 		struct fs_binop  binop;
 		struct fs_map    map;
@@ -143,15 +153,16 @@ struct fs_node *fs_str_new(char *val);
 struct fs_node *fs_int_new(int64_t val);
 struct fs_node *fs_var_new(char *name);
 struct fs_node *fs_map_new(char *name, struct fs_node *vargs);
+struct fs_node *fs_global_new(char *name);
 struct fs_node *fs_not_new(struct fs_node *expr);
 struct fs_node *fs_return_new(struct fs_node *expr);
 struct fs_node *fs_binop_new(struct fs_node *left, char *opstr, struct fs_node *right);
 struct fs_node *fs_assign_new(struct fs_node *lval, char *opstr, struct fs_node *expr);
-struct fs_node *fs_cond_new(struct fs_node *cond,
-			    struct fs_node *yes, struct fs_node *no);
 struct fs_node *fs_call_new(char *func, struct fs_node *vargs);
+struct fs_node *fs_pred_new(struct fs_node *left, char *opstr, struct fs_node *right);
 struct fs_node *fs_pspec_new(char *spec);
-struct fs_node *fs_probe_new(struct fs_node *pspecs, struct fs_node *stmts);
+struct fs_node *fs_probe_new(struct fs_node *pspecs, struct fs_node *pred,
+			     struct fs_node *stmts);
 struct fs_node *fs_script_new(struct fs_node *probes);
 
 void fs_free(struct fs_node *n);
