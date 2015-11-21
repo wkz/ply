@@ -12,7 +12,7 @@ struct fs_node *fs_load(FILE *fp)
 {
 	struct fs_node *script = NULL;
 	yyscan_t scanner;
- 
+	
 	if (yylex_init(&scanner))
 		return NULL;
 

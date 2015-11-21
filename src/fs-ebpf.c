@@ -347,6 +347,8 @@ static int ebpf_reg_load(struct ebpf *e, struct reg *r, struct fs_node *n)
 		src = ebpf_reg_find(e, n);
 		if (!src)
 			return -ENOENT;
+		else if (src == r)
+			return 0;
 
 		r->type = REG_NODE;
 		r->n = n;
@@ -405,6 +407,25 @@ static int ebpf_alu(struct ebpf *e, int dst, enum fs_op op, struct fs_node *expr
 	return 0;
 }
 
+static int ebpf_pred(struct ebpf *e, int dst, enum fs_jmp jmp, struct fs_node *expr)
+{
+	struct reg *r;
+
+	if (expr->type == FS_INT) {
+		ebpf_emit(e, JMP_IMM(jmp, dst, expr->integer, 16));
+	} else {
+		r = ebpf_reg_find(e, expr);
+		if (!r)
+			return -ENOENT;
+
+		ebpf_emit(e, JMP(jmp, dst, r->reg, 16));
+	}
+
+	ebpf_emit(e, MOV_IMM(BPF_REG_0, 0));
+	ebpf_emit(e, EXIT);
+	return 0;
+}
+
 struct ebpf *ebpf_new(struct provider *provider)
 {
 	struct ebpf *e = calloc(1, sizeof(*e));
@@ -425,7 +446,7 @@ static int _fs_compile_pre(struct fs_node *n, void *_e)
 static int _fs_compile_post(struct fs_node *n, void *_e)
 {
 	struct ebpf *e = _e;
-	struct reg  *dst;
+	struct reg  *dst = NULL;
 	int err;
 	/* struct sym *sym; */
 	
@@ -434,16 +455,21 @@ static int _fs_compile_post(struct fs_node *n, void *_e)
 
 	switch (n->type) {
 	case FS_BINOP:
-		dst = ebpf_reg_get(e);
-		if (!dst)
-			RET_ON_ERR(-ENOSPC, "assign/reg_get\n");
+		if (!fs_node_is_sym(n->binop.left))
+			dst = ebpf_reg_find(e, n->binop.left);
+
+		if (!dst) {
+			dst = ebpf_reg_get(e);
+			if (!dst)
+				RET_ON_ERR(-ENOSPC, "binop/reg_get\n");
+		}
 
 		err = ebpf_reg_load(e, dst, n->binop.left);
 		RET_ON_ERR(err, "binop/load left\n");
 
 		ebpf_alu(e, dst->reg, n->binop.op, n->binop.right);
 		if (!fs_node_is_sym(n->binop.right))
-			ebpf_reg_put(e, ebpf_reg_find(e, n->assign.expr));
+			ebpf_reg_put(e, ebpf_reg_find(e, n->binop.right));
 
 		err = ebpf_reg_bind(e, dst, n);
 		RET_ON_ERR(err, "binop/bind\n");
@@ -482,13 +508,31 @@ static int _fs_compile_post(struct fs_node *n, void *_e)
 			ebpf_reg_put(e, ebpf_reg_find(e, n->assign.expr));
 		break;
 
+	case FS_PRED:
+		if (!fs_node_is_sym(n->pred.left))
+			dst = ebpf_reg_find(e, n->pred.left);
+
+		if (!dst) {
+			dst = ebpf_reg_get(e);
+			if (!dst)
+				RET_ON_ERR(-ENOSPC, "pred/reg_get\n");
+		}
+
+		err = ebpf_reg_load(e, dst, n->pred.left);
+		RET_ON_ERR(err, "pred/load left\n");
+
+		ebpf_pred(e, dst->reg, n->pred.jmp, n->pred.right);
+		if (!fs_node_is_sym(n->pred.left))
+			ebpf_reg_put(e, ebpf_reg_find(e, n->pred.left));
+		if (!fs_node_is_sym(n->pred.right))
+			ebpf_reg_put(e, ebpf_reg_find(e, n->pred.right));
+		break;
 	case FS_PROBE:
 		if ((e->ip - 1)->code != EXIT.code) {
 			ebpf_emit(e, MOV_IMM(BPF_REG_0, 0));
 			ebpf_emit(e, EXIT);
 		}
-		break;
-		
+		break;		
 	default:
 		break;
 	}
@@ -571,11 +615,6 @@ static int _fs_annotate_post(struct fs_node *n, void *_e)
 		n->annot.size = n->ret->annot.size;
 		break;
 	case FS_ASSIGN:
-	{
-		void *dummy = malloc(0x100);
-		if (dummy)
-			free(dummy);
-	}
 		err = symtable_transfer(e->st, n->assign.expr);
 		if (err)
 			return err;
@@ -597,6 +636,15 @@ static int _fs_annotate_post(struct fs_node *n, void *_e)
 			   n->string);
 		break;
 
+	case FS_PRED:
+		err = symtable_transfer(e->st, n->pred.left);
+		if (err)
+			return err;
+
+		err = symtable_transfer(e->st, n->pred.right);
+		if (err)
+			return err;
+		break;
 	default:
 		break;
 	}

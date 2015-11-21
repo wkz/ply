@@ -11,7 +11,7 @@ extern int lineno;
 
 void yyerror(struct fs_node **node, yyscan_t scanner, const char *s)
 {
-	printf("error(%d): %s\n", lineno, s);
+	fprintf(stderr, "error(%d): %s\n", lineno, s);
 }
 
 %}
@@ -35,7 +35,7 @@ typedef void* yyscan_t;
 %parse-param { struct fs_node **script }
 %parse-param { yyscan_t scanner }
 
-%token IF ELSE RETURN
+%token RETURN
 %token <string> PSPEC IDENT MAP STRING OP AOP CMP
 %token <integer> INT
 
@@ -76,7 +76,7 @@ pspec : PSPEC
 ;
 
 pred : expr
-		{ $$ = fs_pred_new($1, "!=", fs_int_new(0)); }
+		{ $$ = fs_pred_new($1, strdup("!="), fs_int_new(0)); }
      | expr CMP expr
 		{ $$ = fs_pred_new($1, $2, $3); }
 ;

@@ -29,7 +29,7 @@ uazd		[_a-zA-Z0-9]
 
 identifier	{uaz}{uazd}*
 pspec		{identifier}:[:*_a-zA-Z0-9]*
-op		[+\-*/|&%^]|<<|>>
+op		[+\-*|&%^]|<<|>>
 cmp		[!=<>]=|<|>
 
 %%
@@ -38,8 +38,6 @@ cmp		[!=<>]=|<|>
 [ \r\t]			;
 
 \n			{ lineno++; }
-"if"			{ return IF; }
-"else"			{ return ELSE; }
 "return"		{ return RETURN; }
 
 {pspec}			{ yylval->string = strdup(yytext); return PSPEC; }
