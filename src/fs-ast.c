@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <inttypes.h>
 #include <search.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -58,7 +59,7 @@ static int _fs_ast_dump(struct fs_node *n, void *indent)
 		break;
 
 	case FS_INT:
-		fprintf(stderr, "(%ld)", n->integer);
+		fprintf(stderr, "(%" PRIx64 ")", n->integer);
 		break;
 		
 	case FS_STR:
@@ -67,7 +68,7 @@ static int _fs_ast_dump(struct fs_node *n, void *indent)
 	}
 
 	if (n->annot.type != FS_UNKNOWN)
-		fprintf(stderr, " $(type:%s/%lu parent:%s)",
+		fprintf(stderr, " $(type:%s/%zx parent:%s)",
 			fs_typestr(n->annot.type), n->annot.size,
 			n->parent? fs_typestr(n->parent->type) : "none");
 

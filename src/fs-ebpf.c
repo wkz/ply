@@ -11,65 +11,19 @@
 #include "fs-ebpf.h"
 #include "provider.h"
 
-#define RET_ON_ERR(_err, _fmt, ...)					\
-	if (_err) {							\
-		fprintf(stderr, "error(%s:%d): " _fmt, __func__, _err,	\
-			##__VA_ARGS__);					\
-	}
-
 #define _ALIGN 4
 #define _ALIGNED(_size) (((_size) + _ALIGN - 1) & ~(_ALIGN - 1))
 
-struct reg;
-
-struct sym {
-	const char *name;
-	ssize_t     addr;
-	size_t      size;
-
-	struct reg *reg;
-	
-	struct fs_annot annot;
-	struct fs_node *keys;
-	int mapfd;
-};
-
-struct reg {
-	const int reg;
-
-	enum {
-		REG_EMPTY,
-		REG_SYM,
-		REG_NODE,
-	} type;
-
-	int age;
-	
-	union {
-		void           *obj;
-		struct sym     *sym;
-		struct fs_node *n;
-	};
-};
-
-struct symtable {
-	size_t cap, len;
-	struct sym *table;
-
-	int         age;
-	struct reg  reg[__MAX_BPF_REG];
-	ssize_t     stack_top;
-};
 
 void symtable_dump(struct symtable *st)
 {
 	struct sym *sym;
 	size_t i;
 
-	fprintf(stderr, "syms:%lu stack_top:-%#lx\n", st->len, (size_t)-st->stack_top);
+	fprintf(stderr, "syms:%zu stack_top:-%#zx\n", st->len, (size_t)-st->stack_top);
 	
 	for (i = 0, sym = st->table; i < st->len; i++, sym++)
-		fprintf(stderr, "  name:%-10.10s type:%s/%#lx  addr:-%#lx+%#lx\n", sym->name,
+		fprintf(stderr, "  name:%-10.10s type:%s/%#zx  addr:-%#zx+%#zx\n", sym->name,
 			fs_typestr(sym->annot.type), sym->annot.size,
 			(size_t)-sym->addr, sym->size);
 }
@@ -138,7 +92,7 @@ int symtable_restrict(struct symtable *st, struct fs_node *n, struct fs_node *ex
 		return 0;
 
 	symtable_dump(st);
-	RET_ON_ERR(-EINVAL, "conflicting type for %s, known:%s/%lu new:%s/%lu\n",
+	RET_ON_ERR(-EINVAL, "conflicting type for %s, known:%s/%zx new:%s/%zx\n",
 		   sym->name,
 		   fs_typestr(sym->annot.type), sym->annot.size,
 		   fs_typestr(expr->annot.type), expr->annot.size);
@@ -159,7 +113,7 @@ static int symtable_restrict_map(struct symtable *st, struct sym *sym,
 			continue;
 
 		RET_ON_ERR(-EINVAL, "conflicting types for %s keys, argument "
-			   "%d, known:%s/%lu new:%s/%lu\n", sym->name, i,
+			   "%d, known:%s/%zx new:%s/%zx\n", sym->name, i,
 			   fs_typestr(known->annot.type), known->annot.size,
 			   fs_typestr(new->annot.type), new->annot.size);
 	}
@@ -248,7 +202,7 @@ struct symtable *symtable_new(void)
 
 
 
-static inline void ebpf_emit(struct ebpf *e, struct bpf_insn insn)
+void ebpf_emit(struct ebpf *e, struct bpf_insn insn)
 {
 	FILE *dasm = popen("ebpf-dasm >&2", "w");
 
@@ -262,18 +216,18 @@ static inline void ebpf_emit(struct ebpf *e, struct bpf_insn insn)
 	*(e->ip)++ = insn;
 }
 
-/* static int ebpf_push(struct ebpf *e, ssize_t at, void *data, size_t size) */
-/* { */
-/* 	uint32_t *wdata = data;	/\* TODO: ENSURE ALIGNMENT *\/ */
-/* 	size_t left = _ALIGNED(size) / sizeof(*wdata); */
+int ebpf_push(struct ebpf *e, ssize_t at, void *data, size_t size)
+{
+	uint32_t *wdata = data;	/* TODO: ENSURE ALIGNMENT */
+	size_t left = _ALIGNED(size) / sizeof(*wdata);
 
-/* 	for (; left; left--, wdata++, at += sizeof(*wdata)) */
-/* 		*(e->ip++) = STW(BPF_REG_10, at, *wdata); */
+	for (; left; left--, wdata++, at += sizeof(*wdata))
+		ebpf_emit(e, STW_IMM(BPF_REG_10, at, *wdata));
 
-/* 	return 0; */
-/* } */
+	return 0;
+}
 
-static struct reg *ebpf_reg_find(struct ebpf *e, struct fs_node *n)
+struct reg *ebpf_reg_find(struct ebpf *e, struct fs_node *n)
 {
 	struct reg *r;
 	void *obj = n;
@@ -292,7 +246,7 @@ static struct reg *ebpf_reg_find(struct ebpf *e, struct fs_node *n)
 	return NULL;
 }
 
-static int ebpf_reg_bind(struct ebpf *e, struct reg * r, struct fs_node *n)
+int ebpf_reg_bind(struct ebpf *e, struct reg * r, struct fs_node *n)
 {
 	if (fs_node_is_sym(n)) {
 		struct sym *sym;
@@ -312,7 +266,17 @@ static int ebpf_reg_bind(struct ebpf *e, struct reg * r, struct fs_node *n)
 	return 0;
 }
 
-static int ebpf_reg_load(struct ebpf *e, struct reg *r, struct fs_node *n)
+/* static int ebpf_reg_load_sym(struct ebpf *e, struct reg *r, struct sym *sym) */
+/* { */
+/* 	switch (sym->annot.type) { */
+/* 	case FS_INT: */
+/* 		ebpf_emit(e, LDXDW(r->reg, sym->addr, BPF_REG_10)); */
+/* 		break; */
+/* 	case FS_STR: */
+		
+/* } */
+
+int ebpf_reg_load(struct ebpf *e, struct reg *r, struct fs_node *n)
 {
 	if (!r)
 		return -EINVAL;
@@ -321,6 +285,12 @@ static int ebpf_reg_load(struct ebpf *e, struct reg *r, struct fs_node *n)
 		r->type = REG_NODE;
 		r->n = n;
 		ebpf_emit(e, MOV_IMM(r->reg, n->integer));
+		return 0;
+	} else if (n->type == FS_STR) {
+		r->type = REG_NODE;
+		r->n = n;
+		ebpf_emit(e, MOV(r->reg, BPF_REG_10));
+		ebpf_emit(e, ALU_IMM(FS_ADD, r->reg, n->annot.addr));
 		return 0;
 	} else if (fs_node_is_sym(n)) {
 		struct sym *sym;
@@ -357,12 +327,12 @@ static int ebpf_reg_load(struct ebpf *e, struct reg *r, struct fs_node *n)
 	}
 }
 
-static void ebpf_reg_put(struct ebpf *e, struct reg *r)
+void ebpf_reg_put(struct ebpf *e, struct reg *r)
 {
 	if (!r)
 		return;
 
-	if (r->type == REG_SYM) {
+	if (r->type == REG_SYM && r->sym->annot.type == FS_INT) {
 		ebpf_emit(e, STXDW(BPF_REG_10, r->sym->addr, r->reg));
 		r->sym->reg = NULL;
 	}
@@ -371,7 +341,7 @@ static void ebpf_reg_put(struct ebpf *e, struct reg *r)
 	r->obj = NULL;
 }
 
-static struct reg *ebpf_reg_get(struct ebpf *e)
+struct reg *ebpf_reg_get(struct ebpf *e)
 {
 	struct reg *r, *r_aged = NULL;
 
@@ -454,6 +424,11 @@ static int _fs_compile_post(struct fs_node *n, void *_e)
 		n->string ? : "anon", fs_typestr(n->type));
 
 	switch (n->type) {
+	case FS_STR:
+		err = ebpf_push(e, n->annot.addr, n->string, n->annot.size);
+		RET_ON_ERR(err, "str/push\n");
+		break;
+
 	case FS_BINOP:
 		if (!fs_node_is_sym(n->binop.left))
 			dst = ebpf_reg_find(e, n->binop.left);
@@ -506,6 +481,11 @@ static int _fs_compile_post(struct fs_node *n, void *_e)
 		ebpf_alu(e, dst->reg, n->assign.op, n->assign.expr);
 		if (!fs_node_is_sym(n->assign.expr))
 			ebpf_reg_put(e, ebpf_reg_find(e, n->assign.expr));
+		break;
+
+	case FS_CALL:
+		err = e->provider->compile(e->provider, e, n);
+		RET_ON_ERR(err, "call/compile\n");
 		break;
 
 	case FS_PRED:
@@ -569,9 +549,8 @@ static int _fs_annotate_post(struct fs_node *n, void *_e)
 	switch (n->type) {
 	case FS_STR:
 		n->annot.type = FS_STR;
-		n->annot.size = strlen(n->string);
-		fprintf(stderr, "%s: parent:%s\n", n->string, fs_typestr(n->parent->type));
-		/* n->annot.addr = ebpf_reserve(e, n->annot.size); */
+		n->annot.size = _ALIGNED(strlen(n->string));
+		n->annot.addr = symtable_reserve(e->st, n->annot.size);
 		break;
 	case FS_INT:
 		n->annot.type = FS_INT;

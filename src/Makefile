@@ -1,7 +1,7 @@
 .PHONY: all clean
 
 #CFLAGS ?= -O3 -Wall -Werror
-CFLAGS ?= -O0 -g -Wall -Werror
+CFLAGS ?= -O0 -g -Wall -Werror -I/home/wkz/code/github/troglobit/troglos/staging/include
 
 HEADERS = fs-ast.h fs-ebpf.h
 SRCS = fs-lex.c fs-parse.c fs-ast.c fs-ebpf.c provider-kprobe.c dtl.c

@@ -100,6 +100,7 @@ const char *fs_typestr(enum fs_type type);
 struct fs_annot {
 	enum fs_type    type;
 	size_t          size;
+	ssize_t         addr;
 };
 
 static inline int fs_annot_compatible(struct fs_annot *a, struct fs_annot *b)

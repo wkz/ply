@@ -16,6 +16,7 @@
 #define MOV_IMM(_dst, _imm) INSN(BPF_ALU64 | BPF_MOV | BPF_K, _dst, 0, 0, _imm)
 
 #define EXIT INSN(BPF_JMP | BPF_EXIT, 0, 0, 0, 0)
+#define CALL(_imm) INSN(BPF_JMP | BPF_CALL, 0, 0, 0, _imm)
 #define JMP(_op, _dst, _src, _off)     INSN(BPF_JMP | BPF_OP((_op)) | BPF_X, _dst, _src, _off, 0)
 #define JMP_IMM(_op, _dst, _imm, _off) INSN(BPF_JMP | BPF_OP((_op)) | BPF_K, _dst, 0, _off, _imm)
 
@@ -27,10 +28,52 @@
 
 #define LDXDW(_dst, _off, _src) INSN(BPF_LDX | BPF_SIZE(BPF_DW) | BPF_MEM, _dst, _src, _off, 0)
 
-struct sym;
-struct symtable;
+#define RET_ON_ERR(_err, _fmt, ...)					\
+	if (_err) {							\
+		fprintf(stderr, "error(%s:%d): " _fmt, __func__, _err,	\
+			##__VA_ARGS__);					\
+	}
+
 struct provider;
-struct fs_node;
+
+struct sym {
+	const char *name;
+	ssize_t     addr;
+	size_t      size;
+
+	struct reg *reg;
+	
+	struct fs_annot annot;
+	struct fs_node *keys;
+	int mapfd;
+};
+
+struct reg {
+	const int reg;
+
+	enum {
+		REG_EMPTY,
+		REG_SYM,
+		REG_NODE,
+	} type;
+
+	int age;
+	
+	union {
+		void           *obj;
+		struct sym     *sym;
+		struct fs_node *n;
+	};
+};
+
+struct symtable {
+	size_t cap, len;
+	struct sym *table;
+
+	int         age;
+	struct reg  reg[__MAX_BPF_REG];
+	ssize_t     stack_top;
+};
 
 struct ebpf {
 	struct provider *provider;
@@ -41,6 +84,14 @@ struct ebpf {
 	struct bpf_insn *ip;
 	struct bpf_insn  prog[BPF_MAXINSNS];
 };
+
+void        ebpf_emit(struct ebpf *e, struct bpf_insn insn);
+int         ebpf_push(struct ebpf *e, ssize_t at, void *data, size_t size);
+struct reg *ebpf_reg_find(struct ebpf *e, struct fs_node *n);
+int         ebpf_reg_bind(struct ebpf *e, struct reg * r, struct fs_node *n);
+int         ebpf_reg_load(struct ebpf *e, struct reg *r, struct fs_node *n);
+void        ebpf_reg_put(struct ebpf *e, struct reg *r);
+struct reg *ebpf_reg_get(struct ebpf *e);
 
 struct ebpf *fs_compile(struct fs_node *probe, struct provider *provider);
 
