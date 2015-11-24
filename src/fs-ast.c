@@ -83,12 +83,48 @@ void fs_ast_dump(struct fs_node *n)
 	fs_walk(n, _fs_ast_dump, _unindent, &indent);
 }
 
+static char *str_escape(char *str)
+{
+	char *in, *out;
+
+	for (in = out = str; *in; in++, out++) {
+		if (*in != '\\')
+			continue;
+
+		in++;
+		switch (*in) {
+		case 'n':
+			*out = '\n';
+			break;
+		case 'r':
+			*out = '\r';
+			break;
+		case 't':
+			*out = '\t';
+			break;
+		case '\\':
+			*out = '\\';
+			break;
+		default:
+			break;
+		}
+	}
+
+	if (out < in)
+		*out = '\0';
+
+	return str;
+}
 
 struct fs_node *fs_str_new(char *val)
 {
 	struct fs_node *n = fs_node_new(FS_STR);
+	char *escaped = str_escape(val);
 
-	n->string = val;
+	n->annot.size = _ALIGNED(strlen(escaped) + 1);
+	n->string = calloc(1, n->annot.size);
+	memcpy(n->string, escaped, n->annot.size);
+	free(escaped);
 	return n;
 }
 

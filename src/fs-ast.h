@@ -8,6 +8,9 @@
 
 #include <linux/bpf.h>
 
+#define _ALIGN 4
+#define _ALIGNED(_size) (((_size) + _ALIGN - 1) & ~(_ALIGN - 1))
+
 static inline void insque_tail(void *elem, void *prev)
 {
 	struct { void *next, *prev; } *le = elem, *pe = prev;

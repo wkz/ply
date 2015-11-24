@@ -25,24 +25,53 @@ struct fs_node *fs_load(FILE *fp)
 
 int main(int argc, char **argv)
 {
-	struct fs_node *script;
+	struct fs_node *script, *p;
+	struct provider *provider;
 	struct ebpf *e;
+	int err = 0;
 
 	script = fs_load(stdin);
-	if (!script)
-		return 1;
-	
-	e = fs_compile(script->script.probes, &kprobe_provider);
-
-	fs_ast_dump(script);
-	fs_free(script);
-
-	if (e) {
-		if (write(1, e->prog, (e->ip - e->prog) << 3) <= 0)
-			return 1;
-	
-		free(e);
+	if (!script) {
+		err = -EINVAL;
+		goto err;
 	}
 
-	return 0;
+	p = script->script.probes;
+
+	provider = &kprobe_provider; /* provider_find(p->probe.pspecs->string); */
+	if (!provider) {
+		fprintf(stderr, "error: no provider for \"%s\"\n",
+			p->probe.pspecs->string);
+		err = -ENOENT;
+		goto err_free_script;
+	}
+
+	e = fs_compile(p, provider);
+	if (!e) {
+		fprintf(stderr, "error: compilation error\n");
+		err = -EINVAL;
+		goto err_free_script;
+	}
+
+	err = provider->setup(provider, e, p);
+	if (err)
+		goto err_free_ebpf;
+
+	system("echo 1 >/sys/kernel/debug/tracing/events/kprobes/enable");
+	system("echo 1 >/sys/kernel/debug/tracing/tracing_on");
+	system("cat /sys/kernel/debug/tracing/trace_pipe");
+
+	/* err = provider->teardown(provider, p, e); */
+	/* if (err) */
+	/* 	goto err_free_ebpf; */
+	
+err_free_ebpf:
+	free(e);
+err_free_script:
+	if (err)
+		fs_ast_dump(script);
+
+	fs_free(script);
+err:
+	return err;
 }

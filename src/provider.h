@@ -10,6 +10,7 @@ struct provider {
 	
 	int (*annotate)(struct provider *p, struct fs_node *n);
 	int  (*compile)(struct provider *p, struct ebpf *e, struct fs_node *n);
+	int    (*setup)(struct provider *p, struct ebpf *e, struct fs_node *n);
 };
 
 

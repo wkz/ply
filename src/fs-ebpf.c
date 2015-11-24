@@ -11,9 +11,6 @@
 #include "fs-ebpf.h"
 #include "provider.h"
 
-#define _ALIGN 4
-#define _ALIGNED(_size) (((_size) + _ALIGN - 1) & ~(_ALIGN - 1))
-
 
 void symtable_dump(struct symtable *st)
 {
@@ -152,14 +149,14 @@ int symtable_add(struct symtable *st, struct fs_node *n)
 	sym = &st->table[st->len++];
 	sym->name  = n->string;
 	sym->annot = n->annot;
-	sym->size  = _ALIGNED(n->annot.size);
+	sym->size  = n->annot.size;
 
 	if (n->type == FS_MAP) {		
 		struct fs_node *key;
 
 		sym->keys = n->map.vargs;
 		fs_foreach(key, sym->keys)
-			sym->size += _ALIGNED(key->annot.size);
+			sym->size += key->annot.size;
 	}
 
 	sym->addr = symtable_reserve(st, sym->size);
@@ -175,7 +172,7 @@ static void symtable_add_global(struct symtable *st)
 	sym->annot.size = 8;
 	sym->name = "@$";
 	sym->size = sym->annot.size;
-	sym->keys = fs_str_new("0123456789abcdef");
+	sym->keys = fs_str_new(strdup("0123456789abcdef"));
 }
 
 struct symtable *symtable_new(void)
@@ -204,14 +201,14 @@ struct symtable *symtable_new(void)
 
 void ebpf_emit(struct ebpf *e, struct bpf_insn insn)
 {
-	FILE *dasm = popen("ebpf-dasm >&2", "w");
+	/* FILE *dasm = popen("ebpf-dasm >&2", "w"); */
 
-	if (dasm) {
-		fwrite(&insn, sizeof(insn), 1, dasm);
-		pclose(dasm);
-	} else {
-		assert(0);
-	}
+	/* if (dasm) { */
+	/* 	fwrite(&insn, sizeof(insn), 1, dasm); */
+	/* 	pclose(dasm); */
+	/* } else { */
+	/* 	assert(0); */
+	/* } */
 
 	*(e->ip)++ = insn;
 }
@@ -219,7 +216,7 @@ void ebpf_emit(struct ebpf *e, struct bpf_insn insn)
 int ebpf_push(struct ebpf *e, ssize_t at, void *data, size_t size)
 {
 	uint32_t *wdata = data;	/* TODO: ENSURE ALIGNMENT */
-	size_t left = _ALIGNED(size) / sizeof(*wdata);
+	size_t left = size / sizeof(*wdata);
 
 	for (; left; left--, wdata++, at += sizeof(*wdata))
 		ebpf_emit(e, STW_IMM(BPF_REG_10, at, *wdata));
@@ -420,8 +417,8 @@ static int _fs_compile_post(struct fs_node *n, void *_e)
 	int err;
 	/* struct sym *sym; */
 	
-	fprintf(stderr, ";; <- %s(%s)\n",
-		n->string ? : "anon", fs_typestr(n->type));
+	/* fprintf(stderr, ";; <- %s(%s)\n", */
+	/* 	n->string ? : "anon", fs_typestr(n->type)); */
 
 	switch (n->type) {
 	case FS_STR:
@@ -549,7 +546,6 @@ static int _fs_annotate_post(struct fs_node *n, void *_e)
 	switch (n->type) {
 	case FS_STR:
 		n->annot.type = FS_STR;
-		n->annot.size = _ALIGNED(strlen(n->string));
 		n->annot.addr = symtable_reserve(e->st, n->annot.size);
 		break;
 	case FS_INT:
@@ -635,7 +631,7 @@ static int fs_annotate(struct fs_node *probe, struct ebpf *e)
 {
 	fs_walk(probe, _fs_annotate_pre, _fs_annotate_post, e);
 
-	symtable_dump(e->st);
+	/* symtable_dump(e->st); */
 	return 0;
 }
 
