@@ -3,8 +3,9 @@
 #CFLAGS ?= -O3 -Wall -Werror
 CFLAGS ?= -O0 -g -Wall -Werror -I/home/wkz/code/github/troglobit/troglos/staging/include
 
-HEADERS = fs-ast.h fs-ebpf.h
-SRCS = fs-lex.c fs-parse.c fs-ast.c fs-ebpf.c provider-kprobe.c dtl.c
+HEADERS = fs-ast.h fs-ebpf.h provider.h
+SRCS  = fs-lex.c fs-parse.c fs-ast.c fs-ebpf.c fs-ebpf-global.c
+SRCS += provider.c provider-kprobe.c dtl.c
 OBJS = $(patsubst %.c, %.o, $(SRCS))
 
 %.o: %.c $(HEADERS)

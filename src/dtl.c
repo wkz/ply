@@ -38,7 +38,7 @@ int main(int argc, char **argv)
 
 	p = script->script.probes;
 
-	provider = &kprobe_provider; /* provider_find(p->probe.pspecs->string); */
+	provider = provider_find(p->probe.pspecs->string);
 	if (!provider) {
 		fprintf(stderr, "error: no provider for \"%s\"\n",
 			p->probe.pspecs->string);

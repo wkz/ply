@@ -15,13 +15,6 @@
 
 #include "provider.h"
 
-struct builtin {
-	const char *name;
-
-	int (*annotate)(struct provider *p, struct fs_node *n);
-	int  (*compile)(struct provider *p, struct ebpf *e, struct fs_node *n);
-};
-
 
 static long
 perf_event_open(struct perf_event_attr *hw_event, pid_t pid,
@@ -120,82 +113,15 @@ static int kprobes_setup(struct provider *p, struct ebpf *e, struct fs_node *n)
 	return 0;
 }
 
-static int trace_compile(struct provider *p, struct ebpf *e, struct fs_node *n)
-{
-	struct fs_node *arg, *fmtlen;
-	struct reg *r = e->st->reg;
-	int err, reg;
-
-	reg = BPF_REG_1;
-	arg = n->call.vargs;
-
-	err = ebpf_reg_load(e, &r[reg++], arg);
-	RET_ON_ERR(err, "trace/compile/load fmt\n");
-
-	fmtlen = fs_int_new(strlen(arg->string) + 1);
-	err = ebpf_reg_load(e, &r[reg++], fmtlen);
-	free(fmtlen);
-	RET_ON_ERR(err, "trace/compile/load fmtlen\n");
-
-	arg = arg->next;
-	for (; !err && arg && reg <= BPF_REG_5; arg = arg->next, reg++)
-		err = ebpf_reg_load(e, &r[reg], arg);
-
-	ebpf_emit(e, CALL(BPF_FUNC_trace_printk));
-	ebpf_reg_bind(e, &r[0], n);
-
-	reg = BPF_REG_1;
-	ebpf_reg_put(e, &r[reg++]);
-	ebpf_reg_put(e, &r[reg++]);
-
-	arg = n->call.vargs->next;
-	for (; arg && reg <= BPF_REG_5; arg = arg->next, reg++)
-		ebpf_reg_put(e, &r[reg]);
-
-	return 0;
-}
-
-static int trace_annotate(struct provider *p, struct fs_node *n)
-{
-	if (!n->call.vargs)
-		return -EINVAL;
-
-	if (n->call.vargs->type != FS_STR)
-		return -EINVAL;
-
-	return 0;
-}
-
-struct builtin kprobes_builtins[] = {
-	{
-		.name = "trace",
-		.annotate = trace_annotate,
-		.compile  = trace_compile,
-	},
-
-	{ .name = NULL }
-};
 
 static int kprobes_compile(struct provider *p, struct ebpf *e, struct fs_node *n)
 {
-	struct builtin *bi;
-
-	for (bi = kprobes_builtins; bi->name; bi++)
-		if (!strcmp(bi->name, n->string))
-			return bi->compile(p, e, n);
-
-	return -ENOENT;	
+	return global_compile(p, e, n);
 }
 
 static int kprobes_annotate(struct provider *p, struct fs_node *n)
 {
-	struct builtin *bi;
-
-	for (bi = kprobes_builtins; bi->name; bi++)
-		if (!strcmp(bi->name, n->string))
-			return bi->annotate(p, n);
-
-	return -ENOENT;
+	return global_annotate(p, n);
 }
 
 struct provider kprobe_provider = {
@@ -204,3 +130,9 @@ struct provider kprobe_provider = {
 	.compile  = kprobes_compile,
 	.setup    = kprobes_setup,
 };
+
+__attribute__((constructor))
+static void kprobe_provider_register(void)
+{
+	provider_register(&kprobe_provider);
+}
