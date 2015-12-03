@@ -201,14 +201,14 @@ struct symtable *symtable_new(void)
 
 void ebpf_emit(struct ebpf *e, struct bpf_insn insn)
 {
-	/* FILE *dasm = popen("ebpf-dasm >&2", "w"); */
+	FILE *dasm = popen("ebpf-dasm >&2", "w");
 
-	/* if (dasm) { */
-	/* 	fwrite(&insn, sizeof(insn), 1, dasm); */
-	/* 	pclose(dasm); */
-	/* } else { */
-	/* 	assert(0); */
-	/* } */
+	if (dasm) {
+		fwrite(&insn, sizeof(insn), 1, dasm);
+		pclose(dasm);
+	} else {
+		assert(0);
+	}
 
 	*(e->ip)++ = insn;
 }
@@ -379,13 +379,13 @@ static int ebpf_pred(struct ebpf *e, int dst, enum fs_jmp jmp, struct fs_node *e
 	struct reg *r;
 
 	if (expr->type == FS_INT) {
-		ebpf_emit(e, JMP_IMM(jmp, dst, expr->integer, 16));
+		ebpf_emit(e, JMP_IMM(jmp, dst, expr->integer, 2));
 	} else {
 		r = ebpf_reg_find(e, expr);
 		if (!r)
 			return -ENOENT;
 
-		ebpf_emit(e, JMP(jmp, dst, r->reg, 16));
+		ebpf_emit(e, JMP(jmp, dst, r->reg, 2));
 	}
 
 	ebpf_emit(e, MOV_IMM(BPF_REG_0, 0));
@@ -417,8 +417,8 @@ static int _fs_compile_post(struct fs_node *n, void *_e)
 	int err;
 	/* struct sym *sym; */
 	
-	/* fprintf(stderr, ";; <- %s(%s)\n", */
-	/* 	n->string ? : "anon", fs_typestr(n->type)); */
+	fprintf(stderr, ";; <- %s(%s)\n",
+		n->string ? : "anon", fs_typestr(n->type));
 
 	switch (n->type) {
 	case FS_STR:

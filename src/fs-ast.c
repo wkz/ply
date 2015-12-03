@@ -247,18 +247,18 @@ struct fs_node *fs_pred_new(struct fs_node *left, char *opstr,
 
 	switch (opstr[0]) {
 	case '=':
-		n->pred.jmp = FS_JNE;
-		break;
-	case '!':
 		n->pred.jmp = FS_JEQ;
 		break;
-	case '<':
-		if (opstr[1] == '=')
-			n->pred.jmp = FS_JGT;
-		else
-			n->pred.jmp = FS_JGE;
+	case '!':
+		n->pred.jmp = FS_JNE;
 		break;
 	case '>':
+		if (opstr[1] == '=')
+			n->pred.jmp = FS_JGE;
+		else
+			n->pred.jmp = FS_JGT;
+		break;
+	case '<':
 		inv = 1;
 		if (opstr[1] == '=')
 			n->pred.jmp = FS_JGT;
@@ -369,6 +369,11 @@ int fs_walk(struct fs_node *n,
 		if (n->probe.pred)
 			do_walk(n->probe.pred);
 		do_list(n->probe.stmts);
+		break;
+
+	case FS_PRED:
+		do_walk(n->pred.left);
+		do_walk(n->pred.right);
 		break;
 
 	case FS_CALL:

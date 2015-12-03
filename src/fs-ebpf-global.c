@@ -4,36 +4,66 @@
 
 #include "provider.h"
 
+enum extract_op {
+	EXTRACT_OP_NONE,
+	EXTRACT_OP_MASK,
+	EXTRACT_OP_SHIFT,
+};
+
+static int int32_void_func(enum bpf_func_id func, enum extract_op op,
+			   struct ebpf *e, struct fs_node *n)
+{
+	struct reg *dst;
+
+	ebpf_emit(e, CALL(func));
+	switch (op) {
+	case EXTRACT_OP_MASK:
+		ebpf_emit(e, ALU_IMM(FS_AND, BPF_REG_0, 0xffffffff));
+		break;
+	case EXTRACT_OP_SHIFT:
+		ebpf_emit(e, ALU_IMM(FS_RSH, BPF_REG_0, 32));
+		break;
+	default:
+		break;
+	}
+
+	dst = ebpf_reg_get(e);
+	if (!dst)
+		RET_ON_ERR(-EBUSY, "no free regs\n");
+
+	ebpf_emit(e, MOV(dst->reg, 0));
+	ebpf_reg_bind(e, dst, n);	
+	return 0;
+}
+
 static int gid_compile(struct provider *p, struct ebpf *e, struct fs_node *n)
 {
-	ebpf_emit(e, CALL(BPF_FUNC_get_current_uid_gid));
-	ebpf_emit(e, ALU_IMM(FS_RSH, BPF_REG_0, 32));
-	ebpf_reg_bind(e, &e->st->reg[0], n);
-	return 0;
+	return int32_void_func(BPF_FUNC_get_current_uid_gid,
+			       EXTRACT_OP_SHIFT, e, n);
 }
 
 static int uid_compile(struct provider *p, struct ebpf *e, struct fs_node *n)
 {
-	ebpf_emit(e, CALL(BPF_FUNC_get_current_uid_gid));
-	ebpf_emit(e, ALU_IMM(FS_AND, BPF_REG_0, 0xffffffff));
-	ebpf_reg_bind(e, &e->st->reg[0], n);
-	return 0;
+	return int32_void_func(BPF_FUNC_get_current_uid_gid,
+			       EXTRACT_OP_MASK, e, n);
 }
 
 static int tgid_compile(struct provider *p, struct ebpf *e, struct fs_node *n)
 {
-	ebpf_emit(e, CALL(BPF_FUNC_get_current_pid_tgid));
-	ebpf_emit(e, ALU_IMM(FS_RSH, BPF_REG_0, 32));
-	ebpf_reg_bind(e, &e->st->reg[0], n);
-	return 0;
+	return int32_void_func(BPF_FUNC_get_current_pid_tgid,
+			       EXTRACT_OP_SHIFT, e, n);
 }
 
 static int pid_compile(struct provider *p, struct ebpf *e, struct fs_node *n)
 {
-	ebpf_emit(e, CALL(BPF_FUNC_get_current_pid_tgid));
-	ebpf_emit(e, ALU_IMM(FS_AND, BPF_REG_0, 0xffffffff));
-	ebpf_reg_bind(e, &e->st->reg[0], n);
-	return 0;
+	return int32_void_func(BPF_FUNC_get_current_pid_tgid,
+			       EXTRACT_OP_MASK, e, n);
+}
+
+static int ns_compile(struct provider *p, struct ebpf *e, struct fs_node *n)
+{
+	return int32_void_func(BPF_FUNC_ktime_get_ns,
+			       EXTRACT_OP_NONE, e, n);
 }
 
 static int noargs_annotate(struct provider *p, struct fs_node *n)
@@ -46,35 +76,39 @@ static int noargs_annotate(struct provider *p, struct fs_node *n)
 
 static int trace_compile(struct provider *p, struct ebpf *e, struct fs_node *n)
 {
-	struct fs_node *arg, *fmtlen;
-	struct reg *r = e->st->reg;
-	int err, reg;
+	struct reg *first = &e->st->reg[BPF_REG_1];
+	struct reg *last  = &e->st->reg[BPF_REG_5];
 
-	reg = BPF_REG_1;
-	arg = n->call.vargs;
+	struct fs_node *len, *arg = n->call.vargs;
+	struct reg *r;
+	int err;
 
-	err = ebpf_reg_load(e, &r[reg++], arg);
-	RET_ON_ERR(err, "trace/compile/load fmt\n");
+	for (r = first; arg && r <= last; arg = arg->next) {
+		err = ebpf_reg_load(e, r++, arg);
+		RET_ON_ERR(err, "load arg\n");
 
-	fmtlen = fs_int_new(strlen(arg->string) + 1);
-	err = ebpf_reg_load(e, &r[reg++], fmtlen);
-	free(fmtlen);
-	RET_ON_ERR(err, "trace/compile/load fmtlen\n");
+		if (arg->annot.type != FS_STR)
+			continue;
 
-	arg = arg->next;
-	for (; !err && arg && reg <= BPF_REG_5; arg = arg->next, reg++)
-		err = ebpf_reg_load(e, &r[reg], arg);
+		if (r > last)
+			break;
+
+		len = fs_int_new(strlen(arg->string) + 1);
+		err = ebpf_reg_load(e, r++, len);
+		free(len);
+		RET_ON_ERR(err, "load arg len\n");
+	}
+
+	if (arg)
+		RET_ON_ERR(-ENOSPC, "out of arguments\n");
 
 	ebpf_emit(e, CALL(BPF_FUNC_trace_printk));
-	ebpf_reg_bind(e, &r[0], n);
+	ebpf_reg_bind(e, &e->st->reg[BPF_REG_0], n);
 
-	reg = BPF_REG_1;
-	ebpf_reg_put(e, &r[reg++]);
-	ebpf_reg_put(e, &r[reg++]);
-
-	arg = n->call.vargs->next;
-	for (; arg && reg <= BPF_REG_5; arg = arg->next, reg++)
-		ebpf_reg_put(e, &r[reg]);
+	for (; r >= first; r--) {
+		if (r->type == REG_NODE)
+			ebpf_reg_put(e, r);
+	}
 
 	return 0;
 }
@@ -110,6 +144,11 @@ static struct builtin global_builtins[] = {
 		.name = "pid",
 		.annotate = noargs_annotate,
 		.compile  = pid_compile,
+	},
+	{
+		.name = "ns",
+		.annotate = noargs_annotate,
+		.compile  = ns_compile,
 	},
 	{
 		.name = "trace",
