@@ -84,14 +84,16 @@ struct ebpf {
 	struct bpf_insn *ip;
 	struct bpf_insn  prog[BPF_MAXINSNS];
 };
+ssize_t     symtable_reserve(struct symtable *st, size_t size);
+struct sym *symtable_get    (struct symtable *st, const char *name);
 
-void        ebpf_emit(struct ebpf *e, struct bpf_insn insn);
-int         ebpf_push(struct ebpf *e, ssize_t at, void *data, size_t size);
+void        ebpf_emit    (struct ebpf *e, struct bpf_insn insn);
+int         ebpf_push    (struct ebpf *e, ssize_t at, void *data, size_t size);
 struct reg *ebpf_reg_find(struct ebpf *e, struct fs_node *n);
 int         ebpf_reg_bind(struct ebpf *e, struct reg * r, struct fs_node *n);
 int         ebpf_reg_load(struct ebpf *e, struct reg *r, struct fs_node *n);
-void        ebpf_reg_put(struct ebpf *e, struct reg *r);
-struct reg *ebpf_reg_get(struct ebpf *e);
+void        ebpf_reg_put (struct ebpf *e, struct reg *r);
+struct reg *ebpf_reg_get (struct ebpf *e);
 
 struct ebpf *fs_compile(struct fs_node *probe, struct provider *provider);
 

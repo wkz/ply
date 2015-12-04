@@ -119,9 +119,9 @@ static int kprobes_compile(struct provider *p, struct ebpf *e, struct fs_node *n
 	return global_compile(p, e, n);
 }
 
-static int kprobes_annotate(struct provider *p, struct fs_node *n)
+static int kprobes_annotate(struct provider *p, struct ebpf *e, struct fs_node *n)
 {
-	return global_annotate(p, n);
+	return global_annotate(p, e, n);
 }
 
 struct provider kprobe_provider = {

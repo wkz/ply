@@ -78,9 +78,11 @@ static int _fs_ast_dump(struct fs_node *n, void *indent)
 
 void fs_ast_dump(struct fs_node *n)
 {
-	int indent = 0;
+	int indent = 3;
 
+	fprintf(stderr, "ast:\n");
 	fs_walk(n, _fs_ast_dump, _unindent, &indent);
+	fputc('\n', stderr);
 }
 
 static char *str_escape(char *str)

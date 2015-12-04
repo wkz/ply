@@ -8,6 +8,8 @@ SRCS  = fs-lex.c fs-parse.c fs-ast.c fs-ebpf.c fs-ebpf-global.c
 SRCS += provider.c provider-kprobe.c dtl.c
 OBJS = $(patsubst %.c, %.o, $(SRCS))
 
+all: dtl
+
 %.o: %.c $(HEADERS)
 	@echo "  CC     $@"
 	@$(CC) $(CFLAGS) -c $< -o $@

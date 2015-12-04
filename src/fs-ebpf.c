@@ -11,18 +11,22 @@
 #include "fs-ebpf.h"
 #include "provider.h"
 
+extern int dump;
 
 void symtable_dump(struct symtable *st)
 {
 	struct sym *sym;
 	size_t i;
 
-	fprintf(stderr, "syms:%zu stack_top:-%#zx\n", st->len, (size_t)-st->stack_top);
+	fprintf(stderr, "symtable: syms:%zu stack_top:-%#zx\n",
+		st->len, (size_t)-st->stack_top);
 	
 	for (i = 0, sym = st->table; i < st->len; i++, sym++)
-		fprintf(stderr, "  name:%-10.10s type:%s/%#zx  addr:-%#zx+%#zx\n", sym->name,
-			fs_typestr(sym->annot.type), sym->annot.size,
+		fprintf(stderr, "   name:%-10.10s type:%s/%#zx  addr:-%#zx+%#zx\n",
+			sym->name, fs_typestr(sym->annot.type), sym->annot.size,
 			(size_t)-sym->addr, sym->size);
+
+	fputc('\n', stderr);
 }
 
 ssize_t symtable_reserve(struct symtable *st, size_t size)
@@ -201,13 +205,15 @@ struct symtable *symtable_new(void)
 
 void ebpf_emit(struct ebpf *e, struct bpf_insn insn)
 {
-	FILE *dasm = popen("ebpf-dasm >&2", "w");
+	if (dump) {
+		FILE *dasm = popen("ebpf-dasm >&2", "w");
 
-	if (dasm) {
-		fwrite(&insn, sizeof(insn), 1, dasm);
-		pclose(dasm);
-	} else {
-		assert(0);
+		if (dasm) {
+			fwrite(&insn, sizeof(insn), 1, dasm);
+			pclose(dasm);
+		} else {
+			assert(0);
+		}
 	}
 
 	*(e->ip)++ = insn;
@@ -416,9 +422,10 @@ static int _fs_compile_post(struct fs_node *n, void *_e)
 	struct reg  *dst = NULL;
 	int err;
 	/* struct sym *sym; */
-	
-	fprintf(stderr, ";; <- %s(%s)\n",
-		n->string ? : "anon", fs_typestr(n->type));
+
+	if (dump)
+		fprintf(stderr, ";; %s(%s)\n",
+			n->string ? : "", fs_typestr(n->type));
 
 	switch (n->type) {
 	case FS_STR:
@@ -606,7 +613,7 @@ static int _fs_annotate_post(struct fs_node *n, void *_e)
 			return err;
 		break;
 	case FS_CALL:
-		err = e->provider->annotate(e->provider, n);
+		err = e->provider->annotate(e->provider, e, n);
 		RET_ON_ERR(err, "fs_annotate: call(%s): unknown function or invalid parameters\n",
 			   n->string);
 		break;
@@ -631,7 +638,8 @@ static int fs_annotate(struct fs_node *probe, struct ebpf *e)
 {
 	fs_walk(probe, _fs_annotate_pre, _fs_annotate_post, e);
 
-	/* symtable_dump(e->st); */
+	if (dump)
+		symtable_dump(e->st);
 	return 0;
 }
 
@@ -643,6 +651,9 @@ struct ebpf *fs_compile(struct fs_node *probe, struct provider *provider)
 	err = fs_annotate(probe, e);
 	if (err)
 		goto err;
+
+	if (dump)
+		fprintf(stderr, "compilation output:\n");
 
 	err = fs_walk(probe, _fs_compile_pre, _fs_compile_post, e);
 	if (err)
