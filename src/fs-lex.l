@@ -46,7 +46,7 @@ cmp		[!=<>]=|<|>
 {op}			{ yylval->string = strdup(yytext); return OP; }
 {op}?=			{ yylval->string = strdup(yytext); return AOP; }
 {cmp}			{ yylval->string = strdup(yytext); return CMP; }
-@=			{ return AGG; }
+@			{ return AGG; }
 
 [$.,;+\-*/!()\[\]{}]	{ return *yytext; }
 \"(\\.|[^\\"])*\"	{ yylval->string = strndup(&yytext[1], strlen(yytext) - 2); return STRING; }

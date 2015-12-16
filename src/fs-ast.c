@@ -18,6 +18,17 @@ const char *fs_typestr(enum fs_type type)
 	return strs[type];
 }
 
+void fs_dyn_dump(struct fs_dyn *dyn)
+{
+	fprintf(stderr, "%s [%s/%zx", dyn->string ? : "",
+		fs_typestr(dyn->type), dyn->size);
+
+	if (dyn->ksize)
+		fprintf(stderr, "/%zx", dyn->ksize);
+
+	fputc(']', stderr);
+}
+
 static void _indent(int *indent)
 {
 	int left = *indent;
@@ -38,39 +49,40 @@ static int _fs_ast_dump(struct fs_node *n, void *indent)
 {
 	_indent((int *)indent);
 
-	fputs(fs_typestr(n->type), stderr);
+	fprintf(stderr, "(%s) ", fs_typestr(n->type));
 
 	switch (n->type) {
-	case FS_UNKNOWN:
+	case FS_NONE:
 	case FS_SCRIPT:
-	case FS_PROBE:		
+	case FS_AGG:
 	case FS_RETURN:
 	case FS_NOT:
+	case FS_MAP:
+	case FS_VAR:
 		break;
 		
-	case FS_PSPEC:
+	case FS_PROBE:		
 	case FS_PRED:
 	case FS_CALL:
 	case FS_ASSIGN:
 	case FS_BINOP:
-	case FS_MAP:
-	case FS_VAR:
-		fprintf(stderr, "(%s)", n->string);
+		fprintf(stderr, "%s", n->string);
 		break;
 
 	case FS_INT:
-		fprintf(stderr, "(%" PRIx64 ")", n->integer);
+		fprintf(stderr, "%" PRIx64, n->integer);
 		break;
 		
 	case FS_STR:
-		fprintf(stderr, "(\"%s\")", n->string);
+		fprintf(stderr, "\"%s\"", n->string);
 		break;
 	}
 
-	if (n->annot.type != FS_UNKNOWN)
-		fprintf(stderr, " $(type:%s/%zx parent:%s)",
-			fs_typestr(n->annot.type), n->annot.size,
-			n->parent? fs_typestr(n->parent->type) : "none");
+	if (n->dyn->size)
+		fs_dyn_dump(n->dyn);
+
+	if (n->parent)
+		fprintf(stderr, " <%s>", fs_typestr(n->parent->type));
 
 	fputc('\n', stderr);
 	return 0;
@@ -79,54 +91,34 @@ static int _fs_ast_dump(struct fs_node *n, void *indent)
 void fs_ast_dump(struct fs_node *n)
 {
 	int indent = 3;
+	struct fs_dyn *dyn;
+	struct fs_node *s;
 
 	fprintf(stderr, "ast:\n");
 	fs_walk(n, _fs_ast_dump, _unindent, &indent);
 	fputc('\n', stderr);
-}
 
-static char *str_escape(char *str)
-{
-	char *in, *out;
+	for (s = n; s && s->type != FS_SCRIPT; s = s->parent);
 
-	for (in = out = str; *in; in++, out++) {
-		if (*in != '\\')
+	if (!s)
+		return;
+	
+	fprintf(stderr, "syms:\n");
+	for (dyn = s->script.dyns; dyn; dyn = dyn->next) {
+		if (!dyn->string)
 			continue;
 
-		in++;
-		switch (*in) {
-		case 'n':
-			*out = '\n';
-			break;
-		case 'r':
-			*out = '\r';
-			break;
-		case 't':
-			*out = '\t';
-			break;
-		case '\\':
-			*out = '\\';
-			break;
-		default:
-			break;
-		}
+		fprintf(stderr, "-%.2zx ", -dyn->loc.addr);
+		fs_dyn_dump(dyn);
+		fputc('\n', stderr);
 	}
-
-	if (out < in)
-		*out = '\0';
-
-	return str;
 }
 
 struct fs_node *fs_str_new(char *val)
 {
 	struct fs_node *n = fs_node_new(FS_STR);
-	char *escaped = str_escape(val);
 
-	n->annot.size = _ALIGNED(strlen(escaped) + 1);
-	n->string = calloc(1, n->annot.size);
-	memcpy(n->string, escaped, n->annot.size);
-	free(escaped);
+	n->string = val;
 	return n;
 }
 
@@ -218,6 +210,15 @@ struct fs_node *fs_binop_new(struct fs_node *left, char *opstr, struct fs_node *
 	return n;
 }
 
+struct fs_node *fs_agg_new(struct fs_node *map, struct fs_node *func)
+{
+	struct fs_node *n = fs_node_new(FS_AGG);
+
+	n->agg.map  = map;
+	n->agg.func = func;
+	return n;
+}
+
 struct fs_node *fs_assign_new(struct fs_node *lval, char *opstr, struct fs_node *expr)
 {
 	struct fs_node *n = fs_node_new(FS_ASSIGN);
@@ -277,20 +278,12 @@ struct fs_node *fs_pred_new(struct fs_node *left, char *opstr,
 	return n;
 }
 
-struct fs_node *fs_pspec_new(char *spec)
-{
-	struct fs_node *n = fs_node_new(FS_PSPEC);
-
-	n->string = spec;
-	return n;
-}
-
-struct fs_node *fs_probe_new(struct fs_node *pspecs, struct fs_node *pred,
+struct fs_node *fs_probe_new(char *pspec, struct fs_node *pred,
 			     struct fs_node *stmts)
 {
 	struct fs_node *n = fs_node_new(FS_PROBE);
 
-	n->probe.pspecs = pspecs;
+	n->string = pspec;
 	n->probe.pred   = pred;
 	n->probe.stmts  = stmts;
 	return n;
@@ -307,12 +300,22 @@ struct fs_node *fs_script_new(struct fs_node *probes)
 
 static int _fs_free(struct fs_node *n, void *ctx)
 {
+	struct fs_dyn *dyn, *dyn_next;
+
 	switch (n->type) {
+	case FS_SCRIPT:
+		for (dyn = n->script.dyns; dyn; dyn = dyn_next) {
+			if (dyn->string)
+				free(dyn->string);
+			dyn_next = dyn->next;
+			free(dyn);
+		}
+		break;
+	case FS_PROBE:
 	case FS_CALL:
 	case FS_ASSIGN:
 	case FS_BINOP:
 	case FS_MAP:
-	case FS_PSPEC:
 	case FS_PRED:
 	case FS_VAR:
 	case FS_STR:
@@ -367,7 +370,6 @@ int fs_walk(struct fs_node *n,
 		break;
 
 	case FS_PROBE:
-		do_list(n->probe.pspecs);
 		if (n->probe.pred)
 			do_walk(n->probe.pred);
 		do_list(n->probe.stmts);
@@ -387,6 +389,11 @@ int fs_walk(struct fs_node *n,
 		do_walk(n->assign.expr);
 		break;
 
+	case FS_AGG:
+		do_walk(n->agg.map);
+		do_walk(n->agg.func);
+		break;
+
 	case FS_RETURN:
 		do_walk(n->ret);
 		break;
@@ -404,7 +411,7 @@ int fs_walk(struct fs_node *n,
 		do_list(n->map.vargs);
 		break;
 
-	case FS_UNKNOWN:
+	case FS_NONE:
 		return -1;
 
 	default:

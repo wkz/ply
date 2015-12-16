@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <unistd.h>
 
+#include "dtl.h"
 #include "fs-ast.h"
 #include "fs-ebpf.h"
 #include "fs-parse.h"
@@ -47,12 +48,12 @@ int parse_opts(int argc, char **argv)
 		case 'f':
 			scriptfp = fopen(optarg, "r");
 			if (!scriptfp) {
-				fprintf(stderr, "unable to open '%s'\n", optarg);
+				_e("unable to open '%s'", optarg);
 				return -EIO;
 			}
 			break;
 		default:
-			fprintf(stderr, "unknown option '%c'\n", opt);
+			_e("unknown option '%c'", opt);
 			return -EINVAL;
 		}
 	}
@@ -78,25 +79,32 @@ int main(int argc, char **argv)
 		goto err;
 	}
 
-	if (dump)
-		fs_ast_dump(script);
-
 	p = script->script.probes;
 
-	provider = provider_find(p->probe.pspecs->string);
+	provider = provider_find(p->string);
 	if (!provider) {
-		fprintf(stderr, "error: no provider for \"%s\"\n",
-			p->probe.pspecs->string);
+		_e("no provider for \"%s\"", p->string);
 		err = -ENOENT;
 		goto err_free_script;
 	}
 
-	e = fs_compile(p, provider);
-	if (!e) {
-		fprintf(stderr, "error: compilation error\n");
+	err = fs_annotate(script, provider);
+	if (err) {
+		_e("annotation error");
 		err = -EINVAL;
 		goto err_free_script;
 	}
+
+	if (dump)
+		fs_ast_dump(script);
+
+	e = NULL;
+	/* e = fs_compile(p, provider); */
+	/* if (!e) { */
+	/* 	_e("compilation error"); */
+	/* 	err = -EINVAL; */
+	/* 	goto err_free_script; */
+	/* } */
 
 	if (dump)
 		goto done;

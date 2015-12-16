@@ -1,10 +1,10 @@
 .PHONY: all clean
 
 #CFLAGS ?= -O3 -Wall -Werror
-CFLAGS ?= -O0 -g -Wall -Werror -I/home/wkz/code/github/troglobit/troglos/staging/include
+CFLAGS ?= -O0 -g -Wall -Wextra -Werror -Wno-unused-parameter -I/home/wkz/code/github/troglobit/troglos/staging/include
 
-HEADERS = fs-ast.h fs-ebpf.h provider.h
-SRCS  = fs-lex.c fs-parse.c fs-ast.c fs-ebpf.c fs-ebpf-global.c
+HEADERS = dtl.h fs-ast.h fs-ebpf.h provider.h
+SRCS  = fs-lex.c fs-parse.c fs-ast.c fs-sema.c fs-ebpf-global.c
 SRCS += provider.c provider-kprobe.c dtl.c
 OBJS = $(patsubst %.c, %.o, $(SRCS))
 

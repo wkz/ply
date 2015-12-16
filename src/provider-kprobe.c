@@ -77,7 +77,7 @@ static int kprobes_setup(struct provider *p, struct ebpf *e, struct fs_node *n)
 	int bd, ed, eventid;
 	struct perf_event_attr attr = {};
 
-	eventid = _eventid(n->probe.pspecs->string);
+	eventid = _eventid(n->string);
 	if (eventid <= 0)
 		return eventid;
 	

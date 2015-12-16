@@ -43,7 +43,7 @@ struct sym {
 
 	struct reg *reg;
 	
-	struct fs_annot annot;
+	struct fs_dyn dyn;
 	struct fs_node *keys;
 	int mapfd;
 };
