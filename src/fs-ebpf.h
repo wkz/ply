@@ -26,6 +26,7 @@
 #define STW_IMM(_dst, _off, _imm) INSN(BPF_ST | BPF_SIZE(BPF_W) | BPF_MEM, _dst, 0, _off, _imm)
 #define STXDW(_dst, _off, _src)   INSN(BPF_STX | BPF_SIZE(BPF_DW) | BPF_MEM, _dst, _src, _off, 0)
 
+#define LDXB(_dst, _off, _src)  INSN(BPF_LDX | BPF_SIZE(BPF_B)  | BPF_MEM, _dst, _src, _off, 0)
 #define LDXDW(_dst, _off, _src) INSN(BPF_LDX | BPF_SIZE(BPF_DW) | BPF_MEM, _dst, _src, _off, 0)
 
 #define RET_ON_ERR(_err, _fmt, ...)					\
@@ -36,64 +37,24 @@
 
 struct provider;
 
-struct sym {
-	const char *name;
-	ssize_t     addr;
-	size_t      size;
-
-	struct reg *reg;
-	
-	struct fs_dyn dyn;
-	struct fs_node *keys;
-	int mapfd;
-};
-
-struct reg {
-	const int reg;
-
-	enum {
-		REG_EMPTY,
-		REG_SYM,
-		REG_NODE,
-	} type;
-
-	int age;
-	
-	union {
-		void           *obj;
-		struct sym     *sym;
-		struct fs_node *n;
-	};
-};
-
-struct symtable {
-	size_t cap, len;
-	struct sym *table;
-
-	int         age;
-	struct reg  reg[__MAX_BPF_REG];
-	ssize_t     stack_top;
-};
-
 struct ebpf {
 	struct provider *provider;
-	struct symtable *st;
+	struct fs_dyn *regs[__MAX_BPF_REG];
 
-	struct fs_node  *parent;
-	
 	struct bpf_insn *ip;
 	struct bpf_insn  prog[BPF_MAXINSNS];
 };
-ssize_t     symtable_reserve(struct symtable *st, size_t size);
-struct sym *symtable_get    (struct symtable *st, const char *name);
 
-void        ebpf_emit    (struct ebpf *e, struct bpf_insn insn);
-int         ebpf_push    (struct ebpf *e, ssize_t at, void *data, size_t size);
-struct reg *ebpf_reg_find(struct ebpf *e, struct fs_node *n);
-int         ebpf_reg_bind(struct ebpf *e, struct reg * r, struct fs_node *n);
-int         ebpf_reg_load(struct ebpf *e, struct reg *r, struct fs_node *n);
-void        ebpf_reg_put (struct ebpf *e, struct reg *r);
-struct reg *ebpf_reg_get (struct ebpf *e);
+/* ssize_t     symtable_reserve(struct symtable *st, size_t size); */
+/* struct sym *symtable_get    (struct symtable *st, const char *name); */
+
+/* void        ebpf_emit    (struct ebpf *e, struct bpf_insn insn); */
+/* int         ebpf_push    (struct ebpf *e, ssize_t at, void *data, size_t size); */
+/* struct reg *ebpf_reg_find(struct ebpf *e, struct fs_node *n); */
+/* int         ebpf_reg_bind(struct ebpf *e, struct reg * r, struct fs_node *n); */
+/* int         ebpf_reg_load(struct ebpf *e, struct reg *r, struct fs_node *n); */
+/* void        ebpf_reg_put (struct ebpf *e, struct reg *r); */
+/* struct reg *ebpf_reg_get (struct ebpf *e); */
 
 struct ebpf *fs_compile(struct fs_node *probe, struct provider *provider);
 

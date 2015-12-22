@@ -26,6 +26,8 @@ enum fs_jmp {
 	FS_JNE = BPF_JNE,
 	FS_JSGT = BPF_JSGT,
 	FS_JSGE = BPF_JSGE,
+
+	FS_JA = BPF_JA,
 };
 
 enum fs_op {
@@ -78,6 +80,7 @@ struct fs_probe {
 struct fs_script {
 	struct fs_node *probes;
 	struct fs_dyn  *dyns;
+	int globals;
 };
 
 #define FS_TYPE_TABLE \
@@ -125,7 +128,10 @@ struct fs_dyn {
 	enum fs_type    type;
 	size_t          size;
 	size_t          ksize;
+	size_t          ssize;
 
+	int             varkey;
+	
 	struct fs_loc   loc;
 };
 

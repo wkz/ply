@@ -27,6 +27,9 @@ void fs_dyn_dump(struct fs_dyn *dyn)
 		fprintf(stderr, "/%zx", dyn->ksize);
 
 	fputc(']', stderr);
+
+	if (dyn->varkey)
+		fprintf(stderr, " (varkey:%x)", dyn->varkey);
 }
 
 static void _indent(int *indent)
@@ -78,7 +81,7 @@ static int _fs_ast_dump(struct fs_node *n, void *indent)
 		break;
 	}
 
-	if (n->dyn->size)
+	if (n->dyn->type)
 		fs_dyn_dump(n->dyn);
 
 	if (n->parent)
@@ -103,9 +106,9 @@ void fs_ast_dump(struct fs_node *n)
 	if (!s)
 		return;
 	
-	fprintf(stderr, "syms:\n");
+	fprintf(stderr, "stack:\n");
 	for (dyn = s->script.dyns; dyn; dyn = dyn->next) {
-		if (!dyn->string)
+		if (!dyn->loc.addr)
 			continue;
 
 		fprintf(stderr, "-%.2zx ", -dyn->loc.addr);

@@ -1,3 +1,6 @@
+kprobe:SyS_open / comm() == "ash" / {
+	trace("open from ash\n");
+}
 
 kprobe:SyS_read {
 	/* a = pid() + (5 * 9); */
@@ -10,3 +13,4 @@ kprobe:SyS_read {
 kprobe:SyS_write {
 	a = 1;
 }
+

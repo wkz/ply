@@ -98,13 +98,14 @@ int main(int argc, char **argv)
 	if (dump)
 		fs_ast_dump(script);
 
-	e = NULL;
-	/* e = fs_compile(p, provider); */
-	/* if (!e) { */
-	/* 	_e("compilation error"); */
-	/* 	err = -EINVAL; */
-	/* 	goto err_free_script; */
-	/* } */
+	e = fs_compile(p, provider);
+	if (!e) {
+		_e("compilation error");
+		err = -EINVAL;
+		goto err_free_script;
+	}
+
+	_d("compilation ok");
 
 	if (dump)
 		goto done;
