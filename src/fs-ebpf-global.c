@@ -87,13 +87,10 @@ static int int_noargs_annotate(struct provider *p, struct ebpf *e, struct fs_nod
 
 static int comm_compile(struct provider *p, struct ebpf *e, struct fs_node *n)
 {
-	/* ebpf_reg_put(e, &e->st->reg[BPF_REG_1]); */
-	/* ebpf_reg_put(e, &e->st->reg[BPF_REG_2]); */
-
-	/* ebpf_emit(e, MOV(BPF_REG_1, BPF_REG_10)); */
-	/* ebpf_emit(e, ALU_IMM(FS_ADD, BPF_REG_1, n->dyn->addr)); */
-	/* ebpf_emit(e, MOV_IMM(2, n->dyn->size)); */
-	/* ebpf_emit(e, CALL(BPF_FUNC_get_current_comm)); */
+	emit(e, MOV(BPF_REG_1, BPF_REG_10));
+	emit(e, ALU_IMM(FS_ADD, BPF_REG_1, n->dyn->loc.addr));
+	emit(e, MOV_IMM(BPF_REG_2, n->dyn->ssize));
+	emit(e, CALL(BPF_FUNC_get_current_comm));
 	return 0;
 }
 
@@ -103,8 +100,7 @@ static int comm_annotate(struct provider *p, struct ebpf *e, struct fs_node *n)
 		return -EINVAL;
 
 	n->dyn->type = FS_STR;
-	n->dyn->size = 16;
-	/* n->dyn->addr = symtable_reserve(e->st, n->dyn->size); */
+	n->dyn->ssize = 16;
 	return 0;
 }
 

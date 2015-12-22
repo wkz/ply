@@ -3,6 +3,7 @@
 #include "dtl.h"
 #include "fs-ast.h"
 #include "fs-ebpf.h"
+#include "provider.h"
 
 extern int dump;
 
@@ -67,20 +68,21 @@ done:
  */
 void emit_strncmp(struct ebpf *e, ssize_t left, ssize_t right, size_t n)
 {
+	_d(">");
 	/* setup arguments */
 	emit(e, MOV_IMM(BPF_REG_0, 0));
 	emit(e, MOV_IMM(BPF_REG_1, n));
 	emit(e, MOV(BPF_REG_2, BPF_REG_10));
 	emit(e, ALU_IMM(FS_ADD, BPF_REG_2, left));
 	emit(e, MOV(BPF_REG_3, BPF_REG_10));
-	emit(e, ALU_IMM(FS_ADD, BPF_REG_3, left));
+	emit(e, ALU_IMM(FS_ADD, BPF_REG_3, right));
 
 	/* check bounds */
 	emit(e, JMP_IMM(FS_JEQ, BPF_REG_1, 0, 10));
 
 	/* load next bytes */
-	emit(e, LDXB(BPF_REG_0, BPF_REG_2));
-	emit(e, LDXB(BPF_REG_4, BPF_REG_3));
+	emit(e, LDXB(BPF_REG_0, BPF_REG_2, 0));
+	emit(e, LDXB(BPF_REG_4, BPF_REG_3, 0));
 
 	/* compare */
 	emit(e, ALU(FS_SUB, BPF_REG_0, BPF_REG_4));
@@ -91,20 +93,85 @@ void emit_strncmp(struct ebpf *e, ssize_t left, ssize_t right, size_t n)
 	emit(e, ALU_IMM(FS_SUB, BPF_REG_1, 1));
 	emit(e, ALU_IMM(FS_ADD, BPF_REG_2, 1));
 	emit(e, ALU_IMM(FS_ADD, BPF_REG_3, 1));
-	emit(e, JMP(FS_JA, 0, -9));
+	emit(e, JMP(FS_JA, 0, 0, -9));
+	_d("<");
+}
+
+int emit_push(struct ebpf *e, ssize_t at, void *data, size_t size)
+{
+	uint32_t *wdata = data;	/* TODO: ENSURE ALIGNMENT */
+	size_t left = size / sizeof(*wdata);
+
+	for (; left; left--, wdata++, at += sizeof(*wdata))
+		emit(e, STW_IMM(BPF_REG_10, at, *wdata));
+
+	return 0;
+}
+
+int compile_call(struct ebpf *e, struct fs_node *call, struct fs_dyn *dst)
+{
+	return e->provider->compile(e->provider, e, call);
+}
+
+struct walk_ctx {
+	struct ebpf *e;
+	struct fs_dyn *dst;
+};
+
+static int compile_walk_post(struct fs_node *n, void *_ctx)
+{
+	struct walk_ctx *ctx = _ctx;
+	struct ebpf *e = ctx->e;
+	struct fs_dyn *dst = ctx->dst;
+	int err = -ENOSYS;
+
+	_d("%s", fs_typestr(n->type));
+
+	switch (n->type) {
+	case FS_INT:
+		err = 0;
+		break;
+	case FS_STR:
+		if (n->dyn->loc.type == FS_LOC_NOWHERE) {
+			err = emit_push(e, n->dyn->loc.addr, n->string,
+					n->dyn->ssize);
+			if (err)
+				break;
+
+			n->dyn->loc.type = FS_LOC_STACK;
+		} else
+			err = 0;
+		
+		break;
+	case FS_CALL:
+		err = compile_call(e, n, dst);
+		break;
+	default:
+		_e("unsupported node %s", fs_typestr(n->type));
+		break;
+	}
+	return err;
+}
+
+int compile_walk(struct ebpf *e, struct fs_node *n, struct fs_dyn *dst)
+{
+	struct walk_ctx ctx = { .e = e, .dst = dst };
+
+	return fs_walk(n, NULL, compile_walk_post, &ctx);
 }
 
 int compile_pred(struct ebpf *e, struct fs_node *pred)
 {
 	struct fs_node *l = pred->pred.left, *r = pred->pred.right;
-	size_t strsz;
 	int err;
+
+	_d(">");
 
 	if (!pred)
 		return 0;
 
-	err =         compile_walk(e, l, -1);
-	err = err ? : compile_walk(e, r, -1);
+	err =         compile_walk(e, l, NULL);
+	err = err ? : compile_walk(e, r, NULL);
 	if (err)
 		return err;
 
@@ -137,11 +204,7 @@ int compile_pred(struct ebpf *e, struct fs_node *pred)
 
 	emit(e, MOV_IMM(BPF_REG_0, 0));
 	emit(e, EXIT);
-	return 0;
-}
-
-int compile_call(struct ebpf *e, struct fs_node *agg, struct fs_dyn *dst)
-{
+	_d("<");
 	return 0;
 }
 
@@ -157,6 +220,7 @@ int compile_agg(struct ebpf *e, struct fs_node *agg)
 
 int compile_return(struct ebpf *e, struct fs_node *ret)
 {
+	_d(">");
 	if (!ret) {
 		emit(e, MOV_IMM(BPF_REG_0, 0));
 	} else {
@@ -164,6 +228,7 @@ int compile_return(struct ebpf *e, struct fs_node *ret)
 	}
 
 	emit(e, EXIT);
+	_d("<");
 	return 0;
 }
 
