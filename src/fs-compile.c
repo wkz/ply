@@ -1,9 +1,12 @@
 #include <errno.h>
+#include <string.h>
 
 #include "dtl.h"
 #include "fs-ast.h"
 #include "fs-ebpf.h"
 #include "provider.h"
+
+int compile_walk(struct ebpf *e, struct fs_node *n, struct fs_dyn *dst);
 
 extern int dump;
 
@@ -66,34 +69,26 @@ next:	jeq	r1, #0, done
 done:	
 
  */
-void emit_strncmp(struct ebpf *e, ssize_t left, ssize_t right, size_t n)
+void emit_strncmp(struct ebpf *e, ssize_t s1, ssize_t s2, size_t n)
 {
+	ssize_t i;
+
+	/* n = 3; */
 	_d(">");
-	/* setup arguments */
-	emit(e, MOV_IMM(BPF_REG_0, 0));
-	emit(e, MOV_IMM(BPF_REG_1, n));
-	emit(e, MOV(BPF_REG_2, BPF_REG_10));
-	emit(e, ALU_IMM(FS_ADD, BPF_REG_2, left));
-	emit(e, MOV(BPF_REG_3, BPF_REG_10));
-	emit(e, ALU_IMM(FS_ADD, BPF_REG_3, right));
 
-	/* check bounds */
-	emit(e, JMP_IMM(FS_JEQ, BPF_REG_1, 0, 10));
+	if (!n) {
+		emit(e, MOV_IMM(BPF_REG_0, 0));
+		return;
+	}
 
-	/* load next bytes */
-	emit(e, LDXB(BPF_REG_0, BPF_REG_2, 0));
-	emit(e, LDXB(BPF_REG_4, BPF_REG_3, 0));
+	for (i = 0; n; i++, n--) {
+		emit(e, LDXB(BPF_REG_0, s1 + i, BPF_REG_10));
+		emit(e, LDXB(BPF_REG_1, s2 + i, BPF_REG_10));
 
-	/* compare */
-	emit(e, ALU(FS_SUB, BPF_REG_0, BPF_REG_4));
-	emit(e, JMP_IMM(FS_JEQ, BPF_REG_4, 0, 6));
-	emit(e, JMP_IMM(FS_JNE, BPF_REG_0, 0, 5));
-
-	/* bytes equal, prepare next bytes */
-	emit(e, ALU_IMM(FS_SUB, BPF_REG_1, 1));
-	emit(e, ALU_IMM(FS_ADD, BPF_REG_2, 1));
-	emit(e, ALU_IMM(FS_ADD, BPF_REG_3, 1));
-	emit(e, JMP(FS_JA, 0, 0, -9));
+		emit(e, ALU(FS_SUB, BPF_REG_0, BPF_REG_1));
+		emit(e, JMP_IMM(FS_JEQ, BPF_REG_1, 0, 5 * (n - 1) + 1));
+		emit(e, JMP_IMM(FS_JNE, BPF_REG_0, 0, 5 * (n - 1) + 0));
+	}
 	_d("<");
 }
 
@@ -110,6 +105,15 @@ int emit_push(struct ebpf *e, ssize_t at, void *data, size_t size)
 
 int compile_call(struct ebpf *e, struct fs_node *call, struct fs_dyn *dst)
 {
+	struct fs_node *varg;
+	int err;
+
+	fs_foreach(varg, call->call.vargs) {
+		err = compile_walk(e, varg, NULL);
+		if (err)
+			return err;
+	}
+
 	return e->provider->compile(e->provider, e, call);
 }
 
@@ -162,13 +166,16 @@ int compile_walk(struct ebpf *e, struct fs_node *n, struct fs_dyn *dst)
 
 int compile_pred(struct ebpf *e, struct fs_node *pred)
 {
-	struct fs_node *l = pred->pred.left, *r = pred->pred.right;
+	struct fs_node *l, *r;
 	int err;
 
 	_d(">");
 
 	if (!pred)
 		return 0;
+
+	l = pred->pred.left;
+	r = pred->pred.right;
 
 	err =         compile_walk(e, l, NULL);
 	err = err ? : compile_walk(e, r, NULL);
@@ -185,6 +192,11 @@ int compile_pred(struct ebpf *e, struct fs_node *pred)
 		else
 			len = l->dyn->ssize;
 
+		if (l->type == FS_STR && (strlen(l->string) + 1) < len)
+			len = strlen(l->string) + 1;
+		if (r->type == FS_STR && (strlen(r->string) + 1) < len)
+			len = strlen(r->string) + 1;
+
 		emit_strncmp(e, l->dyn->loc.addr, r->dyn->loc.addr, len);
 		emit(e, JMP_IMM(pred->pred.jmp, BPF_REG_0, 0, 2));
 	} else if (l->dyn->type == FS_INT) {
@@ -192,7 +204,7 @@ int compile_pred(struct ebpf *e, struct fs_node *pred)
 			emit(e, MOV_IMM(BPF_REG_0, l->integer));
 			l->dyn->loc.reg = 0;
 		}
-
+		
 		if (r->type == FS_INT)
 			emit(e, JMP_IMM(pred->pred.jmp, l->dyn->loc.reg, r->integer, 2));
 		else
@@ -210,6 +222,21 @@ int compile_pred(struct ebpf *e, struct fs_node *pred)
 
 int compile_assign(struct ebpf *e, struct fs_node *assign)
 {
+	struct fs_node *lval = assign->assign.lval, *expr = assign->assign.expr;
+	int err;
+
+	if (lval->dyn->loc.type == FS_LOC_NOWHERE) {
+		err = compile_walk(e, lval, NULL);
+		if (err)
+			return err;
+	}
+
+	if (expr->dyn->loc.type == FS_LOC_NOWHERE) {
+		err = compile_walk(e, expr, NULL);
+		if (err)
+			return err;
+	}
+
 	return 0;
 }
 
@@ -257,6 +284,7 @@ int compile_stmt(struct ebpf *e, struct fs_node *stmt)
 	}
 }
 
+static char zeroes[256] = { 0 };
 
 struct ebpf *fs_compile(struct fs_node *p, struct provider *provider)
 {
@@ -272,9 +300,11 @@ struct ebpf *fs_compile(struct fs_node *p, struct provider *provider)
 	e->ip = e->prog;
 	e->provider = provider;
 
-	for (dyn = p->parent->script.dyns; dyn; dyn = dyn->next)
+	for (dyn = p->parent->script.dyns; dyn; dyn = dyn->next) {
 		dyn->loc.type = FS_LOC_NOWHERE;
-
+		if (dyn->type == FS_STR)
+			emit_push(e, dyn->loc.addr, zeroes, dyn->ssize);
+	}
 	err = compile_pred(e, p->probe.pred);
 	if (err) {
 		_e("%s: unable to compile predicate (%d)", p->string, err);

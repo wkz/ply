@@ -3,9 +3,9 @@
 #CFLAGS ?= -O3 -Wall -Werror
 CFLAGS ?= -O0 -g -Wall -Wextra -Werror -Wno-unused-parameter -I/home/wkz/code/github/troglobit/troglos/staging/include
 
-HEADERS = dtl.h fs-ast.h fs-ebpf.h provider.h
+HEADERS = dtl.h fs-ast.h fs-ebpf.h libbpf.h provider.h
 SRCS  = fs-lex.c fs-parse.c fs-ast.c fs-sema.c fs-compile.c fs-ebpf-global.c
-SRCS += provider.c provider-kprobe.c dtl.c
+SRCS += provider.c provider-kprobe.c dtl.c libbpf.c
 OBJS = $(patsubst %.c, %.o, $(SRCS))
 
 all: dtl

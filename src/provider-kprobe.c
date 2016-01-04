@@ -13,6 +13,7 @@
 #include <sys/syscall.h>
 #include <sys/types.h>
 
+#include "libbpf.h"
 #include "provider.h"
 
 
@@ -25,30 +26,6 @@ perf_event_open(struct perf_event_attr *hw_event, pid_t pid,
 	ret = syscall(__NR_perf_event_open, hw_event, pid, cpu,
 		      group_fd, flags);
 	return ret;
-}
-
-static __u64 ptr_to_u64(const void *ptr)
-{
-        return (__u64) (unsigned long) ptr;
-}
-
-#define LOG_BUF_SIZE 0x1000
-char bpf_log_buf[LOG_BUF_SIZE];
-
-int bpf_prog_load(const struct bpf_insn *insns, int insn_cnt)
-{
-	union bpf_attr attr = {
-		.prog_type = BPF_PROG_TYPE_KPROBE,
-		.insns     = ptr_to_u64(insns),
-		.insn_cnt  = insn_cnt,
-		.license   = ptr_to_u64("GPL"),
-		.log_buf   = ptr_to_u64(bpf_log_buf),
-		.log_size  = LOG_BUF_SIZE,
-		.log_level = 1,
-		.kern_version = LINUX_VERSION_CODE,
-	};
-	
-	return syscall(__NR_bpf, BPF_PROG_LOAD, &attr, sizeof(attr));
 }
 
 static int _eventid(char *pspec)

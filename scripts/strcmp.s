@@ -15,3 +15,16 @@ next:	jeq	r1, #0, done
 	add	r3, #1
 	ja	next
 done:	
+
+
+strncmp:
+	mov	r1, r10
+	add	r1, #S1
+	mov	r2, r10
+	add	r2, #S2
+
+	ldxb	r0, [r1]
+	ldxb	r3, [r2]
+	sub	r0, r3
+	jeq	r3, #0, done
+	jne	r0, #0, done

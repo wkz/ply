@@ -8,6 +8,7 @@
 #include "fs-parse.h"
 #include "fs-lex.h"
 
+#include "libbpf.h"
 #include "provider.h"
 
 FILE *scriptfp;
@@ -61,6 +62,37 @@ int parse_opts(int argc, char **argv)
 	return 0;
 }
 
+int map_setup(struct fs_node *script)
+{
+	struct fs_dyn *dyn;
+
+	for (dyn = script->script.dyns; dyn; dyn = dyn->next) {
+		if (!dyn->ksize)
+			continue;
+
+		dyn->mapfd = bpf_map_create(BPF_MAP_TYPE_UNSPEC,
+					    dyn->ksize, dyn->size, 1024);
+		if (dyn->mapfd <= 0)
+			return dyn->mapfd;
+
+		_d("created map with fd %d\n", dyn->mapfd);
+	}
+
+	return 0;
+}
+
+int map_teardown(struct fs_node *script)
+{
+	struct fs_dyn *dyn;
+
+	for (dyn = script->script.dyns; dyn; dyn = dyn->next) {
+		if (dyn->mapfd)
+			close(dyn->mapfd);
+	}
+
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
 	struct fs_node *script, *p;
@@ -95,6 +127,12 @@ int main(int argc, char **argv)
 		goto err_free_script;
 	}
 
+	err = dump ? 0 : map_setup(script);
+	if (err) {
+		_e("unable to allocate maps");
+		goto err_free_script;
+	}
+		
 	if (dump)
 		fs_ast_dump(script);
 
@@ -107,8 +145,12 @@ int main(int argc, char **argv)
 
 	_d("compilation ok");
 
-	if (dump)
+	if (dump) {
+		FILE *fp = fopen("/tmp/dtl.bin", "w");
+		fwrite(e->prog, sizeof(e->prog[0]), e->ip - &e->prog[0], fp);
+		fclose(fp);
 		goto done;
+	}
 
 	err = provider->setup(provider, e, p);
 	if (err)
@@ -121,6 +163,8 @@ int main(int argc, char **argv)
 	/* err = provider->teardown(provider, p, e); */
 	/* if (err) */
 	/* 	goto err_free_ebpf; */
+
+	map_teardown(script);
 
 done:
 err_free_ebpf:

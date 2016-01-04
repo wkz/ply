@@ -131,7 +131,9 @@ struct fs_dyn {
 	size_t          ssize;
 
 	int             varkey;
-	
+
+	int		mapfd;
+
 	struct fs_loc   loc;
 };
 
