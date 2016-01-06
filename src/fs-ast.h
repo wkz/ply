@@ -59,10 +59,6 @@ struct fs_assign {
 	struct fs_node *lval, *expr;
 };
 
-struct fs_agg {
-	struct fs_node *map, *func;
-};
-
 struct fs_pred {
 	enum fs_jmp jmp;
 	struct fs_node *left, *right;
@@ -87,15 +83,12 @@ struct fs_script {
 	TYPE(FS_NONE, "none")			\
 	TYPE(FS_SCRIPT, "script")		\
 	TYPE(FS_PROBE, "probe")			\
-	TYPE(FS_PRED, "pred")			\
 	TYPE(FS_CALL, "call")			\
 	TYPE(FS_ASSIGN, "assign")		\
-	TYPE(FS_AGG, "agg")			\
 	TYPE(FS_RETURN, "return")		\
 	TYPE(FS_BINOP, "binop")			\
 	TYPE(FS_NOT, "not")			\
 	TYPE(FS_MAP, "map")			\
-	TYPE(FS_VAR, "var")			\
 	TYPE(FS_INT, "int")			\
 	TYPE(FS_STR, "str")
 
@@ -123,16 +116,14 @@ struct fs_loc {
 struct fs_dyn {
 	struct fs_dyn *next, *prev;
 
+	struct fs_node *node;
 	char           *string;
 
 	enum fs_type    type;
 	size_t          size;
-	size_t          ksize;
-	size_t          ssize;
-
-	int             varkey;
 
 	int		mapfd;
+	size_t          ksize;
 
 	struct fs_loc   loc;
 };
@@ -149,10 +140,8 @@ struct fs_node {
 	union {
 		struct fs_script script;
 		struct fs_probe  probe;
-		struct fs_pred   pred;
 		struct fs_call   call;
 		struct fs_assign assign;
-		struct fs_agg    agg;
 		struct fs_binop  binop;
 		struct fs_map    map;
 		struct fs_node  *not;
@@ -167,7 +156,7 @@ struct fs_node {
 
 static inline int fs_node_is_sym(struct fs_node *n)
 {
-	return n->type == FS_VAR || n->type == FS_MAP;
+	return n->type == FS_MAP;
 }
 
 static inline struct fs_node *fs_node_new(enum fs_type type) {
@@ -182,15 +171,12 @@ void fs_ast_dump(struct fs_node *n);
 
 struct fs_node *fs_str_new   (char *val);
 struct fs_node *fs_int_new   (int64_t val);
-struct fs_node *fs_var_new   (char *name);
 struct fs_node *fs_map_new   (char *name, struct fs_node *vargs);
 struct fs_node *fs_not_new   (struct fs_node *expr);
 struct fs_node *fs_return_new(struct fs_node *expr);
 struct fs_node *fs_binop_new (struct fs_node *left, char *opstr, struct fs_node *right);
-struct fs_node *fs_agg_new   (struct fs_node *map, struct fs_node *func);
 struct fs_node *fs_assign_new(struct fs_node *lval, char *opstr, struct fs_node *expr);
 struct fs_node *fs_call_new  (char *func, struct fs_node *vargs);
-struct fs_node *fs_pred_new  (struct fs_node *left, char *opstr, struct fs_node *right);
 struct fs_node *fs_probe_new (char *pspec, struct fs_node *pred, struct fs_node *stmts);
 struct fs_node *fs_script_new(struct fs_node *probes);
 

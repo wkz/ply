@@ -27,9 +27,6 @@ void fs_dyn_dump(struct fs_dyn *dyn)
 		fprintf(stderr, "/%zx", dyn->ksize);
 
 	fputc(']', stderr);
-
-	if (dyn->varkey)
-		fprintf(stderr, " (varkey:%x)", dyn->varkey);
 }
 
 static void _indent(int *indent)
@@ -57,15 +54,12 @@ static int _fs_ast_dump(struct fs_node *n, void *indent)
 	switch (n->type) {
 	case FS_NONE:
 	case FS_SCRIPT:
-	case FS_AGG:
 	case FS_RETURN:
 	case FS_NOT:
 	case FS_MAP:
-	case FS_VAR:
 		break;
 		
 	case FS_PROBE:		
-	case FS_PRED:
 	case FS_CALL:
 	case FS_ASSIGN:
 	case FS_BINOP:
@@ -133,14 +127,6 @@ struct fs_node *fs_int_new(int64_t val)
 	return n;
 }
 
-struct fs_node *fs_var_new(char *name)
-{
-	struct fs_node *n = fs_node_new(FS_VAR);
-
-	n->string = name;
-	return n;
-}
-
 struct fs_node *fs_map_new(char *name, struct fs_node *vargs)
 {
 	struct fs_node *n = fs_node_new(FS_MAP);
@@ -148,11 +134,6 @@ struct fs_node *fs_map_new(char *name, struct fs_node *vargs)
 	n->string = name;
 	n->map.vargs = vargs;
 	return n;
-}
-
-struct fs_node *fs_global_new(char *name)
-{
-	return fs_map_new(strdup("@$"), fs_str_new(name));
 }
 
 struct fs_node *fs_not_new(struct fs_node *expr)
@@ -213,15 +194,6 @@ struct fs_node *fs_binop_new(struct fs_node *left, char *opstr, struct fs_node *
 	return n;
 }
 
-struct fs_node *fs_agg_new(struct fs_node *map, struct fs_node *func)
-{
-	struct fs_node *n = fs_node_new(FS_AGG);
-
-	n->agg.map  = map;
-	n->agg.func = func;
-	return n;
-}
-
 struct fs_node *fs_assign_new(struct fs_node *lval, char *opstr, struct fs_node *expr)
 {
 	struct fs_node *n = fs_node_new(FS_ASSIGN);
@@ -239,45 +211,6 @@ struct fs_node *fs_call_new(char *func, struct fs_node *vargs)
 
 	n->string = func;
 	n->call.vargs = vargs;
-	return n;
-}
-
-struct fs_node *fs_pred_new(struct fs_node *left, char *opstr,
-			   struct fs_node *right)
-{
-	/* TODO: signed or unsigned compares? */
-	struct fs_node *n = fs_node_new(FS_PRED);
-	int inv = 0;
-
-	n->string = opstr;
-
-	switch (opstr[0]) {
-	case '=':
-		n->pred.jmp = FS_JEQ;
-		break;
-	case '!':
-		n->pred.jmp = FS_JNE;
-		break;
-	case '>':
-		if (opstr[1] == '=')
-			n->pred.jmp = FS_JGE;
-		else
-			n->pred.jmp = FS_JGT;
-		break;
-	case '<':
-		inv = 1;
-		if (opstr[1] == '=')
-			n->pred.jmp = FS_JGT;
-		else
-			n->pred.jmp = FS_JGE;
-		break;
-	default:
-		assert(0);
-		break;
-	}
-
-	n->pred.left  = inv ? right : left;
-	n->pred.right = inv ? left : right;
 	return n;
 }
 
@@ -319,8 +252,6 @@ static int _fs_free(struct fs_node *n, void *ctx)
 	case FS_ASSIGN:
 	case FS_BINOP:
 	case FS_MAP:
-	case FS_PRED:
-	case FS_VAR:
 	case FS_STR:
 		free(n->string);
 		break;
@@ -378,11 +309,6 @@ int fs_walk(struct fs_node *n,
 		do_list(n->probe.stmts);
 		break;
 
-	case FS_PRED:
-		do_walk(n->pred.left);
-		do_walk(n->pred.right);
-		break;
-
 	case FS_CALL:
 		do_list(n->call.vargs);
 		break;
@@ -390,11 +316,6 @@ int fs_walk(struct fs_node *n,
 	case FS_ASSIGN:
 		do_walk(n->assign.lval);
 		do_walk(n->assign.expr);
-		break;
-
-	case FS_AGG:
-		do_walk(n->agg.map);
-		do_walk(n->agg.func);
 		break;
 
 	case FS_RETURN:

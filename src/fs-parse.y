@@ -36,10 +36,10 @@ typedef void* yyscan_t;
 %parse-param { yyscan_t scanner }
 
 %token RETURN
-%token <string> PSPEC IDENT STRING OP AOP CMP AGG
+%token <string> PSPEC IDENT STRING OP AOP
 %token <integer> INT
 
-%type <node> script probes probe pred stmts stmt
+%type <node> script probes probe stmts stmt
 %type <node> block expr variable call vargs
 
 %left OP
@@ -61,15 +61,15 @@ probes : probe
 
 probe : PSPEC block
 		{ $$ = fs_probe_new($1, NULL, $2); }
-      | PSPEC '/' pred '/' block
+      | PSPEC '/' expr '/' block
 		{ $$ = fs_probe_new($1, $3, $5); }
 ;
 
-pred : expr
-		{ $$ = fs_pred_new($1, strdup("!="), fs_int_new(0)); }
-     | expr CMP expr
-		{ $$ = fs_pred_new($1, $2, $3); }
-;
+/* pred : expr */
+/* 		{ $$ = fs_pred_new($1, strdup("!="), fs_int_new(0)); } */
+/*      | expr CMP expr */
+/* 		{ $$ = fs_pred_new($1, $2, $3); } */
+/* ; */
 
 stmts : stmt
 		{ $$ = $1; }
@@ -79,8 +79,8 @@ stmts : stmt
 
 stmt : variable AOP expr
 		{ $$ = fs_assign_new($1, $2, $3); }
-     | variable AGG call
-		{ $$ = fs_agg_new($1, $3); }
+     /* | variable AGG call */
+     /* 		{ $$ = fs_agg_new($1, $3); } */
      | expr
 		{ $$ = $1; }
      | RETURN expr
@@ -109,9 +109,9 @@ expr : INT
 		{ $$ = $1; }
 ;
 
-variable : IDENT
-		{ $$ = fs_var_new($1); }
-         | IDENT '[' vargs ']'
+variable :/*  IDENT */
+	 /* 	{ $$ = fs_var_new($1); } */
+         /* | */ IDENT '[' vargs ']'
 		{ $$ = fs_map_new($1, $3); }
 ;
 

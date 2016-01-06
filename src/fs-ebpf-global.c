@@ -19,7 +19,7 @@ static int int32_void_func(enum bpf_func_id func, enum extract_op op,
 	emit(e, CALL(func));
 	switch (op) {
 	case EXTRACT_OP_MASK:
-		/* TODO fix kernel to cast imm to u32 on bitwise operators */
+		/* TODO [kernel] cast imm to u32 on bitwise operators */
 		emit(e, ALU_IMM(FS_AND, BPF_REG_0, 0x7fffffff));
 		break;
 	case EXTRACT_OP_SHIFT:
@@ -31,12 +31,6 @@ static int int32_void_func(enum bpf_func_id func, enum extract_op op,
 
 	n->dyn->loc.type = FS_LOC_REG;
 	n->dyn->loc.reg = 0;
-	/* dst = ebpf_reg_get(e); */
-	/* if (!dst) */
-	/* 	RET_ON_ERR(-EBUSY, "no free regs\n"); */
-
-	/* ebpf_emit(e, MOV(dst->reg, 0)); */
-	/* ebpf_reg_bind(e, dst, n);	 */
 	return 0;
 }
 
@@ -80,19 +74,17 @@ static int int_noargs_annotate(struct provider *p, struct ebpf *e, struct fs_nod
 	return 0;
 }
 
-/* static int void_noargs_annotate(struct provider *p, struct ebpf *e, struct fs_node *n) */
-/* { */
-/* 	if (n->call.vargs) */
-/* 		return -EINVAL; */
-
-/* 	return 0; */
-/* } */
-
 static int comm_compile(struct provider *p, struct ebpf *e, struct fs_node *n)
 {
+	size_t i;
+
+	/* TODO [kernel] recognize that argument is an out parameter */
+	for (i = 0; i < n->dyn->size; i += 4)
+		emit(e, STW_IMM(BPF_REG_10, n->dyn->loc.addr + i, 0));
+
 	emit(e, MOV(BPF_REG_1, BPF_REG_10));
 	emit(e, ALU_IMM(FS_ADD, BPF_REG_1, n->dyn->loc.addr));
-	emit(e, MOV_IMM(BPF_REG_2, n->dyn->ssize));
+	emit(e, MOV_IMM(BPF_REG_2, n->dyn->size));
 	emit(e, CALL(BPF_FUNC_get_current_comm));
 	n->dyn->loc.type = FS_LOC_STACK;
 	return 0;
@@ -104,7 +96,54 @@ static int comm_annotate(struct provider *p, struct ebpf *e, struct fs_node *n)
 		return -EINVAL;
 
 	n->dyn->type = FS_STR;
-	n->dyn->ssize = 16;
+	n->dyn->size = 16;
+	return 0;
+}
+
+static int strcmp_compile(struct provider *p, struct ebpf *e, struct fs_node *n)
+{
+	struct fs_node *s1 = n->call.vargs, *s2 = n->call.vargs->next;
+	ssize_t i, l;
+
+	if ((s1->dyn->loc.type != FS_LOC_STACK) ||
+	    (s2->dyn->loc.type != FS_LOC_STACK))
+		return -EINVAL;
+
+	l = s1->dyn->size < s2->dyn->size ? s1->dyn->size : s2->dyn->size;
+	if (!l)
+		emit(e, MOV_IMM(BPF_REG_0, 0));
+
+	for (i = 0; l; i++, l--) {
+		emit(e, LDXB(BPF_REG_0, s1->dyn->loc.addr + i, BPF_REG_10));
+		emit(e, LDXB(BPF_REG_1, s2->dyn->loc.addr + i, BPF_REG_10));
+
+		emit(e, ALU(FS_SUB, BPF_REG_0, BPF_REG_1));
+		emit(e, JMP_IMM(FS_JEQ, BPF_REG_1, 0, 5 * (l - 1) + 1));
+		emit(e, JMP_IMM(FS_JNE, BPF_REG_0, 0, 5 * (l - 1) + 0));
+	}
+
+	n->dyn->loc.type = FS_LOC_REG;
+	n->dyn->loc.reg = BPF_REG_0;
+	return 0;
+}
+
+static int strcmp_annotate(struct provider *p, struct ebpf *e, struct fs_node *n)
+{
+	struct fs_node *arg = n->call.vargs;
+
+	
+	if (!arg || arg->dyn->type != FS_STR)
+		return -EINVAL;
+
+	arg = arg->next;
+	if (!arg || arg->dyn->type != FS_STR)
+		return -EINVAL;
+
+	if (arg->next)
+		return -EINVAL;
+
+	n->dyn->type = FS_INT;
+	n->dyn->size = 8;	
 	return 0;
 }
 
@@ -138,7 +177,7 @@ static int generic_load_arg(struct ebpf *e, struct fs_node *arg, int *reg)
 			if (arg->type == FS_STR)
 				emit(e, MOV_IMM(*reg, strlen(arg->string) + 1));
 			else
-				emit(e, MOV_IMM(*reg, arg->dyn->ssize));
+				emit(e, MOV_IMM(*reg, arg->dyn->size));
 
 			return 0;
 
@@ -216,6 +255,11 @@ static struct builtin global_builtins[] = {
 		.name = "execname",
 		.annotate = comm_annotate,
 		.compile  = comm_compile,
+	},
+	{
+		.name = "strcmp",
+		.annotate = strcmp_annotate,
+		.compile  = strcmp_compile,
 	},
 	{
 		.name = "trace",

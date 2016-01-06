@@ -1,14 +1,22 @@
 kprobe:SyS_open {
 	opens[pid()] += 1;
-	/* trace("opens[%d] = %d\n", pid(), opens[pid()]); */
+	trace("%d\n", opens[pid()]);
 }
+
+/* kprobe:SyS_* { */
+/* 	sc[func()] += 1; */
+/* } */
+
+/* ply:END { */
+/* 	hbar(sc); */
+/* } */
 
 /* kprobe:SyS_open / pid() != 63 / { */
 /*         trace("open from %d\n", pid()); */
 /* } */
 
-/* kprobe:SyS_open / comm() == "sh" / { */
-/* 	trace("open from ash\n"); */
+/* kprobe:SyS_open / !strcmp("sh", comm()) / { */
+/* 	trace("open from sh\n"); */
 /* } */
 
 /* kprobe:SyS_read { */

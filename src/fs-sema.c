@@ -15,8 +15,7 @@ static int type_sync(struct fs_node *from, struct fs_node *to)
 			return -EINVAL;
 		}
 	} else {
-		if (to->type != FS_STR)
-			to->dyn->size = from->dyn->size;
+		to->dyn->size = from->dyn->size;
 	}
 
 	if (from->dyn->type && !to->dyn->type) {
@@ -51,15 +50,10 @@ static int type_bubble(struct fs_node *from)
 		return 0;
 
 	switch (p->type) {
-	case FS_PRED:
-		to = (from == p->pred.left) ? p->pred.right : p->pred.left;
-		break;
 	case FS_ASSIGN:
 		to = (from == p->assign.lval) ? p->assign.expr : p->assign.lval;
 		break;
-	case FS_AGG:
-		to = (from == p->agg.map) ? p->agg.func : p->agg.map;
-		break;
+	case FS_NOT:
 	case FS_RETURN:
 		to = p;
 		break;
@@ -69,9 +63,6 @@ static int type_bubble(struct fs_node *from)
 		if (err)
 			return err;
 
-		to = p;
-		break;
-	case FS_NOT:
 		to = p;
 		break;
 	default:
@@ -90,34 +81,10 @@ static int type_bubble(struct fs_node *from)
 
 static int type_infer_post(struct fs_node *n, void *_null)
 {
-	/* struct fs_node *k; */
-	/* size_t ksize; */
-	/* int err = 0; */
-
 	if (n->dyn->size)
 		return type_bubble(n);
 
 	return 0;
-
-	/* if (err || n->type != FS_MAP) */
-	/* 	return err; */
-
-	/* fs_foreach(k, n->map.vargs) { */
-	/* 	if (!k->dyn->size) */
-	/* 		return 0; */
-
-	/* 	ksize += k->dyn->size; */
-	/* } */
-
-	/* if (!n->dyn->ksize) { */
-	/* 	n->dyn->ksize = ksize; */
-	/* 	return 0; */
-	/* } else if (ksize == n->dyn->ksize) { */
-	/* 	return 0; */
-	/* } */
-
-	/* _e("map key size mismatch: %zx != %zx", ksize, n->dyn->ksize); */
-	/* return -EINVAL; */
 }
 
 static struct fs_dyn *dyn_get(struct fs_node *n)
@@ -128,7 +95,7 @@ static struct fs_dyn *dyn_get(struct fs_node *n)
 	for (s = n; s && s->type != FS_SCRIPT; s = s->parent);
 	assert(s);
 
-	if (n->type != FS_VAR && n->type != FS_MAP)
+	if (n->type != FS_MAP)
 		goto new;
 		
 	for (dyn = s->script.dyns; dyn; dyn = dyn->next)
@@ -142,22 +109,19 @@ new:
 	else
 		insque_tail(dyn, s->script.dyns);
 
-	if (!(n->type == FS_VAR || n->type == FS_MAP))
+	dyn->node = n;
+
+	if (n->type != FS_MAP)
 		return dyn;
 
 	dyn->string = strdup(n->string);
-	if (n->type == FS_VAR) {
-		dyn->ksize = 8;
-		dyn->varkey = ++s->script.globals;
-		return dyn;
-	} else if (n->type == FS_MAP) {	
-		fs_foreach(k, n->map.vargs) {
-			if (!k->dyn->size) {
-				dyn->ksize = 0;
-				break;
-			}
-			dyn->ksize += k->dyn->size;
+
+	fs_foreach(k, n->map.vargs) {
+		if (!k->dyn->size) {
+			dyn->ksize = 0;
+			break;
 		}
+		dyn->ksize += k->dyn->size;
 	}
 	return dyn;
 }
@@ -211,10 +175,6 @@ static int static_pre(struct fs_node *n, void *_prov)
 		fs_foreach(c, n->probe.stmts)
 			c->parent = n;
 		break;
-	case FS_PRED:
-		n->pred.left->parent  = n;
-		n->pred.right->parent = n;
-		break;
 	case FS_CALL:		
 		fs_foreach(c, n->call.vargs)
 			c->parent = n;
@@ -222,10 +182,6 @@ static int static_pre(struct fs_node *n, void *_prov)
 	case FS_ASSIGN:
 		n->assign.lval->parent = n;
 		n->assign.expr->parent = n;
-		break;
-	case FS_AGG:
-		n->agg.map->parent  = n;
-		n->agg.func->parent = n;
 		break;
 	case FS_RETURN:
 		n->ret->parent = n;
@@ -265,10 +221,10 @@ static int static_post(struct fs_node *n, void *_prov)
 		escaped = str_escape(n->string);
 
 		n->dyn->type = FS_STR;
-		n->dyn->ssize = _ALIGNED(strlen(escaped) + 1);
+		n->dyn->size = _ALIGNED(strlen(escaped) + 1);
 
-		n->string = calloc(1, n->dyn->ssize);
-		memcpy(n->string, escaped, n->dyn->ssize);
+		n->string = calloc(1, n->dyn->size);
+		memcpy(n->string, escaped, n->dyn->size);
 		free(escaped);
 		break;
 	case FS_RETURN:
@@ -315,12 +271,17 @@ int fs_annotate(struct fs_node *script, struct provider *prov)
 
 	/* allocate stack locations for symbols */
 	for (dyn = script->script.dyns; dyn; dyn = dyn->next) {
-		if (dyn->ssize)
-			stack -= dyn->ssize;
-		else if (dyn->string)
+		switch (dyn->node->type) {
+		case FS_CALL:
+		case FS_STR:
+			stack -= dyn->size;
+			break;
+		case FS_MAP:
 			stack -= dyn->size + dyn->ksize;
-		else
+			break;
+		default:
 			continue;
+		}
 
 		dyn->loc.addr = stack;
 	}

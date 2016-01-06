@@ -65,17 +65,22 @@ int parse_opts(int argc, char **argv)
 int map_setup(struct fs_node *script)
 {
 	struct fs_dyn *dyn;
+	int dumpfd = 0xfd00;
 
 	for (dyn = script->script.dyns; dyn; dyn = dyn->next) {
 		if (!dyn->ksize)
 			continue;
 
-		dyn->mapfd = bpf_map_create(BPF_MAP_TYPE_UNSPEC,
-					    dyn->ksize, dyn->size, 1024);
+		if (dump)
+			dyn->mapfd = dumpfd++;
+		else
+			dyn->mapfd = bpf_map_create(BPF_MAP_TYPE_HASH,
+						    dyn->ksize, dyn->size, 1024);
+
+		_d("created map with fd %d(%d)\n", dyn->mapfd, errno);
 		if (dyn->mapfd <= 0)
 			return dyn->mapfd;
 
-		_d("created map with fd %d\n", dyn->mapfd);
 	}
 
 	return 0;
@@ -84,6 +89,9 @@ int map_setup(struct fs_node *script)
 int map_teardown(struct fs_node *script)
 {
 	struct fs_dyn *dyn;
+
+	if (dump)
+		return 0;
 
 	for (dyn = script->script.dyns; dyn; dyn = dyn->next) {
 		if (dyn->mapfd)
@@ -127,7 +135,7 @@ int main(int argc, char **argv)
 		goto err_free_script;
 	}
 
-	err = dump ? 0 : map_setup(script);
+	err = map_setup(script);
 	if (err) {
 		_e("unable to allocate maps");
 		goto err_free_script;
