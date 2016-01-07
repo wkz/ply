@@ -102,13 +102,17 @@ int compile_map_load(struct ebpf *e, struct fs_node *n)
 		offs += varg->dyn->size;
 	}
 
+	/* zero stack area */
+	for (i = 0; i < (ssize_t)n->dyn->size; i += 4)
+		emit(e, STW_IMM(BPF_REG_10, n->dyn->loc.addr + i, 0));
+
 	/* lookup key */
 	emit_ld_mapfd(e, BPF_REG_1, n->dyn->mapfd);
 	emit(e, MOV(BPF_REG_2, BPF_REG_10));
-	emit(e, ALU_IMM(FS_ADD, BPF_REG_2, n->dyn->loc.addr));
+	emit(e, ALU_IMM(FS_ADD, BPF_REG_2, n->dyn->loc.addr + n->dyn->size));
 	emit(e, CALL(BPF_FUNC_map_lookup_elem));
 
-	emit(e, JMP_IMM(FS_JEQ, BPF_REG_0, 0, 6));
+	emit(e, JMP_IMM(FS_JEQ, BPF_REG_0, 0, 5));
 
 	/* if key existed, copy it to the stack */
 	emit(e, MOV(BPF_REG_1, BPF_REG_10));
@@ -116,11 +120,6 @@ int compile_map_load(struct ebpf *e, struct fs_node *n)
 	emit(e, MOV_IMM(BPF_REG_2, n->dyn->size));
 	emit(e, MOV(BPF_REG_3, BPF_REG_0));
 	emit(e, CALL(BPF_FUNC_probe_read));
-	emit(e, JMP_IMM(FS_JA, 0, 0, n->dyn->size / 4));
-
-	/* else, zero stack area */
-	for (i = 0; i < (ssize_t)n->dyn->size; i += 4)
-		emit(e, STW_IMM(BPF_REG_10, n->dyn->loc.addr + i, 0));
 
 	n->dyn->loc.type = FS_LOC_STACK;
 	return 0;
