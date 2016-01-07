@@ -49,6 +49,13 @@ struct ebpf {
 /* struct sym *symtable_get    (struct symtable *st, const char *name); */
 
 void        emit    (struct ebpf *e, struct bpf_insn insn);
+
+static inline void emit_ld_mapfd(struct ebpf *e, int reg, int fd)
+{
+	emit(e, INSN(BPF_LD | BPF_DW | BPF_IMM, reg, BPF_PSEUDO_MAP_FD, 0, fd));
+	emit(e, INSN(0, 0, 0, 0, 0));
+}
+
 /* int         ebpf_push    (struct ebpf *e, ssize_t at, void *data, size_t size); */
 /* struct reg *ebpf_reg_find(struct ebpf *e, struct fs_node *n); */
 /* int         ebpf_reg_bind(struct ebpf *e, struct reg * r, struct fs_node *n); */

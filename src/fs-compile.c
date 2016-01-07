@@ -103,7 +103,7 @@ int compile_map_load(struct ebpf *e, struct fs_node *n)
 	}
 
 	/* lookup key */
-	emit(e, MOV_IMM(BPF_REG_1, n->dyn->mapfd));
+	emit_ld_mapfd(e, BPF_REG_1, n->dyn->mapfd);
 	emit(e, MOV(BPF_REG_2, BPF_REG_10));
 	emit(e, ALU_IMM(FS_ADD, BPF_REG_2, n->dyn->loc.addr));
 	emit(e, CALL(BPF_FUNC_map_lookup_elem));
@@ -116,7 +116,7 @@ int compile_map_load(struct ebpf *e, struct fs_node *n)
 	emit(e, MOV_IMM(BPF_REG_2, n->dyn->size));
 	emit(e, MOV(BPF_REG_3, BPF_REG_0));
 	emit(e, CALL(BPF_FUNC_probe_read));
-	emit(e, JMP(FS_JA, 0, 0, n->dyn->size / 4));
+	emit(e, JMP_IMM(FS_JA, 0, 0, n->dyn->size / 4));
 
 	/* else, zero stack area */
 	for (i = 0; i < (ssize_t)n->dyn->size; i += 4)
@@ -268,7 +268,7 @@ int compile_assign(struct ebpf *e, struct fs_node *assign)
 		return -ENOSYS;
 	}
 
-	emit(e, MOV_IMM(BPF_REG_1, lval->dyn->mapfd));
+	emit_ld_mapfd(e, BPF_REG_1, lval->dyn->mapfd);
 	emit(e, MOV(BPF_REG_2, BPF_REG_10));
 	emit(e, ALU_IMM(FS_ADD, BPF_REG_2, lval->dyn->loc.addr + lval->dyn->size));
 	emit(e, MOV(BPF_REG_3, BPF_REG_10));
