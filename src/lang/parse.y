@@ -3,9 +3,9 @@
 %{
 #include <stdio.h>
 
-#include "fs-ast.h"
-#include "fs-parse.h"
-#include "fs-lex.h"
+#include "ast.h"
+#include "parse.h"
+#include "lex.h"
 
 extern int lineno;
 

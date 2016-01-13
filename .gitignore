@@ -1,7 +1,7 @@
 *~
 .#*
 *.o
-
+.gdb_history
 /src/fs-lex.[ch]
 /src/fs-parse.[ch]
 /src/dtl

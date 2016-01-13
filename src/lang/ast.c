@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "fs-ast.h"
+#include "ast.h"
 
 const char *type_str(type_t type)
 {

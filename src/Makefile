@@ -1,11 +1,14 @@
 .PHONY: all clean
 
 #CFLAGS ?= -O3 -Wall -Werror
-CFLAGS ?= -O0 -g -Wall -Wextra -Werror -Wno-unused-parameter -I/home/wkz/code/github/troglobit/troglos/staging/include
+CFLAGS ?= -O0 -g -Wall -Wextra -Werror -Wno-unused-parameter
+# CFLAGS += -I.
+CFLAGS += -I/home/wkz/code/github/troglobit/troglos/staging/include
 
-HEADERS = dtl.h fs-ast.h fs-ebpf.h libbpf.h provider.h
-SRCS  = fs-lex.c fs-parse.c fs-ast.c fs-sema.c fs-compile.c fs-ebpf-global.c
-SRCS += provider.c provider-kprobe.c dtl.c libbpf.c
+HEADERS = dtl.h lang/ast.h fs-ebpf.h libbpf.h provider/provider.h
+SRCS  = lang/lex.c lang/parse.c lang/ast.c
+SRCS += provider/provider.c provider/kprobe.c provider/builtins.c
+SRCS += dtl.c libbpf.c fs-sema.c fs-compile.c
 OBJS = $(patsubst %.c, %.o, $(SRCS))
 
 all: dtl
@@ -14,15 +17,15 @@ all: dtl
 	@echo "  CC     $@"
 	@$(CC) $(CFLAGS) -c $< -o $@
 
-fs-parse.c: fs-parse.y
+lang/parse.c: lang/parse.y
 	@echo "  BISON  $@"
-	@bison -Wall -Werror --defines=fs-parse.h --output=fs-parse.c $<
+	@bison -Wall -Werror --defines=lang/parse.h --output=$@ $<
 
-fs-parse.h: fs-parse.c
+lang/parse.h: lang/parse.c
 
-fs-lex.c: fs-lex.l fs-parse.h
+lang/lex.c: lang/lex.l lang/parse.h
 	@echo "  FLEX   $@"
-	@flex --header-file=fs-lex.h --outfile=$@ $<
+	@flex --header-file=lang/lex.h --outfile=$@ $<
 
 dtl: $(OBJS)
 	@echo "  LINK   $@"
@@ -30,6 +33,6 @@ dtl: $(OBJS)
 
 clean:
 	@echo "  CLEAN"
-	@rm fs-lex.[och] fs-parse.[och] $(OBJS) dtl 2>/dev/null || true
+	@rm lang/lex.[ch] lang/parse.[ch] $(OBJS) dtl 2>/dev/null || true
 
 all: dtl

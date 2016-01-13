@@ -3,8 +3,8 @@
 #include <string.h>
 
 #include "dtl.h"
-#include "fs-ast.h"
-#include "provider.h"
+#include "lang/ast.h"
+#include "provider/provider.h"
 
 static int type_sync(node_t *from, node_t *to)
 {	

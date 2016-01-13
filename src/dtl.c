@@ -4,13 +4,13 @@
 #include <unistd.h>
 
 #include "dtl.h"
-#include "fs-ast.h"
+#include "lang/ast.h"
+#include "lang/parse.h"
+#include "lang/lex.h"
 #include "fs-ebpf.h"
-#include "fs-parse.h"
-#include "fs-lex.h"
 
 #include "libbpf.h"
-#include "provider.h"
+#include "provider/provider.h"
 
 FILE *scriptfp;
 int dump = 0;

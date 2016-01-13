@@ -3,8 +3,8 @@
 
 #include <sys/queue.h>
 
-#include "fs-ast.h"
-#include "fs-ebpf.h"
+#include "../lang/ast.h"
+#include "../fs-ebpf.h"
 
 struct builtin {
 	const char *name;

@@ -4,7 +4,7 @@
 %{
 #include <stdio.h>
 
-#include "fs-parse.h"
+#include "parse.h"
 
 int lineno = 1;
 

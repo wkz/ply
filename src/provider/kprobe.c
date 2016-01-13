@@ -13,7 +13,7 @@
 #include <sys/syscall.h>
 #include <sys/types.h>
 
-#include "libbpf.h"
+#include "../libbpf.h"
 #include "provider.h"
 
 /* typedef struct evlist { */

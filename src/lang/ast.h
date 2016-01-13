@@ -1,5 +1,4 @@
-#ifndef __FS_AST_H
-#define __FS_AST_H
+#pragma once
 
 #include <assert.h>
 #include <search.h>
@@ -173,5 +172,3 @@ int  node_walk(node_t *n,
 
 struct provider;
 int script_annotate(node_t *script, struct provider *prov);
-
-#endif	/* __FS_AST_H */

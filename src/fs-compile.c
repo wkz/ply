@@ -2,9 +2,9 @@
 #include <string.h>
 
 #include "dtl.h"
-#include "fs-ast.h"
+#include "lang/ast.h"
 #include "fs-ebpf.h"
-#include "provider.h"
+#include "provider/provider.h"
 
 int compile_walk(struct ebpf *e, node_t *n, dyn_t *dst);
 
