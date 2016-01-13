@@ -6,7 +6,7 @@
 #include "fs-ebpf.h"
 #include "provider.h"
 
-int compile_walk(struct ebpf *e, struct fs_node *n, struct fs_dyn *dst);
+int compile_walk(struct ebpf *e, node_t *n, dyn_t *dst);
 
 extern int dump;
 
@@ -53,18 +53,18 @@ int emit_push(struct ebpf *e, ssize_t at, void *data, size_t size)
 	return 0;
 }
 
-int emit_node_to_reg(struct ebpf *e, struct fs_node *n, int reg)
+int emit_node_to_reg(struct ebpf *e, node_t *n, int reg)
 {
-	if (n->dyn->type != FS_INT)
+	if (n->dyn->type != TYPE_INT)
 		return -EINVAL;
 
 	switch (n->dyn->loc.type) {
-	case FS_LOC_REG:
+	case LOC_REG:
 		if (n->dyn->loc.reg == reg)
 			return 0;
 		emit(e, MOV(reg, n->dyn->loc.reg));
 		return 0;
-	case FS_LOC_STACK:
+	case LOC_STACK:
 		emit(e, LDXDW(reg, n->dyn->loc.addr, BPF_REG_10));
 		return 0;
 	default:
@@ -74,11 +74,24 @@ int emit_node_to_reg(struct ebpf *e, struct fs_node *n, int reg)
 	return -EINVAL;
 }
 
-int emit_node_to_stack(struct ebpf *e, struct fs_node *n, ssize_t at)
+int emit_node_to_stack(struct ebpf *e, node_t *n, ssize_t at)
 {
+	ssize_t i, sz;
+
 	switch (n->dyn->loc.type) {
-	case FS_LOC_REG:
+	case LOC_REG:
 		emit(e, STXDW(BPF_REG_10, at, n->dyn->loc.reg));
+		return 0;
+	case LOC_STACK:		
+		for (i = 0, sz = n->dyn->size; sz >= 8; i += 8, sz -= 8) {
+			emit(e, LDXDW(BPF_REG_0, n->dyn->loc.addr + i, BPF_REG_10));
+			emit(e, STXDW(BPF_REG_10, at + i, BPF_REG_0));
+		}
+
+		if (sz > 0) {
+			emit(e, LDXW(BPF_REG_0, n->dyn->loc.addr + i, BPF_REG_10));
+			emit(e, STXW(BPF_REG_10, at + i, BPF_REG_0));
+		}
 		return 0;
 	default:
 		break;
@@ -87,14 +100,14 @@ int emit_node_to_stack(struct ebpf *e, struct fs_node *n, ssize_t at)
 	return -ENOSYS;
 }
 
-int compile_map_load(struct ebpf *e, struct fs_node *n)
+int compile_map_load(struct ebpf *e, node_t *n)
 {
-	struct fs_node *varg;
+	node_t *varg;
 	ssize_t i, offs;
 	int err;
 
 	offs = n->dyn->loc.addr + n->dyn->size;
-	fs_foreach(varg, n->map.vargs) {
+	node_foreach(varg, n->map.vargs) {
 		err = emit_node_to_stack(e, varg, offs);
 		if (err)
 			return err;
@@ -109,60 +122,60 @@ int compile_map_load(struct ebpf *e, struct fs_node *n)
 	/* lookup key */
 	emit_ld_mapfd(e, BPF_REG_1, n->dyn->mapfd);
 	emit(e, MOV(BPF_REG_2, BPF_REG_10));
-	emit(e, ALU_IMM(FS_ADD, BPF_REG_2, n->dyn->loc.addr + n->dyn->size));
+	emit(e, ALU_IMM(ALU_OP_ADD, BPF_REG_2, n->dyn->loc.addr + n->dyn->size));
 	emit(e, CALL(BPF_FUNC_map_lookup_elem));
 
-	emit(e, JMP_IMM(FS_JEQ, BPF_REG_0, 0, 5));
+	emit(e, JMP_IMM(JMP_JEQ, BPF_REG_0, 0, 5));
 
 	/* if key existed, copy it to the stack */
 	emit(e, MOV(BPF_REG_1, BPF_REG_10));
-	emit(e, ALU_IMM(FS_ADD, BPF_REG_1, n->dyn->loc.addr));
+	emit(e, ALU_IMM(ALU_OP_ADD, BPF_REG_1, n->dyn->loc.addr));
 	emit(e, MOV_IMM(BPF_REG_2, n->dyn->size));
 	emit(e, MOV(BPF_REG_3, BPF_REG_0));
 	emit(e, CALL(BPF_FUNC_probe_read));
 
-	n->dyn->loc.type = FS_LOC_STACK;
+	n->dyn->loc.type = LOC_STACK;
 	return 0;
 }
 
 struct walk_ctx {
 	struct ebpf *e;
-	struct fs_dyn *dst;
+	dyn_t *dst;
 };
 
-static int compile_walk_post(struct fs_node *n, void *_ctx)
+static int compile_walk_post(node_t *n, void *_ctx)
 {
 	struct walk_ctx *ctx = _ctx;
 	struct ebpf *e = ctx->e;
-	/* struct fs_dyn *dst = ctx->dst; */
+	/* struct dyn_t *dst = ctx->dst; */
 	int err = -ENOSYS, reg;
 
-	_d("%s (%s)", fs_typestr(n->type), n->string ? : "<none>");
+	_d("%s (%s)", type_str(n->type), n->string ? : "<none>");
 
 	switch (n->type) {
-	case FS_INT:
+	case TYPE_INT:
 		err = 0;
 		break;
 
-	case FS_STR:
-		if (n->dyn->loc.type == FS_LOC_NOWHERE) {
+	case TYPE_STR:
+		if (n->dyn->loc.type == LOC_NOWHERE) {
 			err = emit_push(e, n->dyn->loc.addr, n->string,
 					n->dyn->size);
 			if (err)
 				return err;
 
-			n->dyn->loc.type = FS_LOC_STACK;
+			n->dyn->loc.type = LOC_STACK;
 		} else
 			err = 0;
 		
 		break;
 
-	case FS_NOT:
+	case TYPE_NOT:
 		switch (n->not->dyn->loc.type) {
-		case FS_LOC_REG:
+		case LOC_REG:
 			reg = n->not->dyn->loc.reg;
 			break;
-		case FS_LOC_STACK:
+		case LOC_STACK:
 			reg = BPF_REG_0;
 			emit(e, LDXDW(reg, n->not->dyn->loc.addr, BPF_REG_10));
 			break;
@@ -171,36 +184,36 @@ static int compile_walk_post(struct fs_node *n, void *_ctx)
 		}
 
 		err = 0;
-		emit(e, JMP_IMM(FS_JEQ, reg, 0, 2));
+		emit(e, JMP_IMM(JMP_JEQ, reg, 0, 2));
 		emit(e, MOV_IMM(reg, 0));
-		emit(e, JMP_IMM(FS_JA, 0, 0, 1));
+		emit(e, JMP_IMM(JMP_JA, 0, 0, 1));
 		emit(e, MOV_IMM(reg, 1));
-		n->dyn->loc.type = FS_LOC_REG;
+		n->dyn->loc.type = LOC_REG;
 		n->dyn->loc.reg = reg;
 		break;
 
-	case FS_MAP:
+	case TYPE_MAP:
 		err = compile_map_load(e, n);
 		break;
 
-	case FS_CALL:
+	case TYPE_CALL:
 		err = e->provider->compile(e->provider, e, n);
 		break;
 	default:
-		_e("unsupported node %s", fs_typestr(n->type));
+		_e("unsupported node %s", type_str(n->type));
 		break;
 	}
 	return err;
 }
 
-int compile_walk(struct ebpf *e, struct fs_node *n, struct fs_dyn *dst)
+int compile_walk(struct ebpf *e, node_t *n, dyn_t *dst)
 {
 	struct walk_ctx ctx = { .e = e, .dst = dst };
 
-	return fs_walk(n, NULL, compile_walk_post, &ctx);
+	return node_walk(n, NULL, compile_walk_post, &ctx);
 }
 
-int compile_pred(struct ebpf *e, struct fs_node *pred)
+int compile_pred(struct ebpf *e, node_t *pred)
 {
 	int err;
 
@@ -214,12 +227,12 @@ int compile_pred(struct ebpf *e, struct fs_node *pred)
 		return err;
 
 	switch (pred->dyn->loc.type) {
-	case FS_LOC_REG:
-		emit(e, JMP_IMM(FS_JNE, pred->dyn->loc.reg, 0, 2));
+	case LOC_REG:
+		emit(e, JMP_IMM(JMP_JNE, pred->dyn->loc.reg, 0, 2));
 		break;
-	case FS_LOC_STACK:
+	case LOC_STACK:
 		emit(e, LDXDW(BPF_REG_0, pred->dyn->loc.addr, BPF_REG_10));
-		emit(e, JMP_IMM(FS_JNE, BPF_REG_0, 0, 2));
+		emit(e, JMP_IMM(JMP_JNE, BPF_REG_0, 0, 2));
 		break;
 	default:
 		_e("unknown predicate location");
@@ -232,9 +245,9 @@ int compile_pred(struct ebpf *e, struct fs_node *pred)
 	return 0;
 }
 
-int compile_assign(struct ebpf *e, struct fs_node *assign)
+int compile_assign(struct ebpf *e, node_t *assign)
 {
-	struct fs_node *lval = assign->assign.lval, *expr = assign->assign.expr;
+	node_t *lval = assign->assign.lval, *expr = assign->assign.expr;
 	int err;
 
 	_d(">");
@@ -248,12 +261,12 @@ int compile_assign(struct ebpf *e, struct fs_node *assign)
 		return err;
 
 	switch (lval->dyn->type) {
-	case FS_INT:
+	case TYPE_INT:
 		emit_node_to_reg(e, lval, BPF_REG_0);
-		if (expr->type == FS_INT)
+		if (expr->type == TYPE_INT)
 			emit(e, ALU_IMM(assign->assign.op, BPF_REG_0, expr->integer));
 		else {
-			if (expr->dyn->loc.type != FS_LOC_REG) {
+			if (expr->dyn->loc.type != LOC_REG) {
 				emit_node_to_reg(e, expr, BPF_REG_1);
 				emit(e, ALU(assign->assign.op, BPF_REG_0, BPF_REG_1));
 			} else {
@@ -269,9 +282,9 @@ int compile_assign(struct ebpf *e, struct fs_node *assign)
 
 	emit_ld_mapfd(e, BPF_REG_1, lval->dyn->mapfd);
 	emit(e, MOV(BPF_REG_2, BPF_REG_10));
-	emit(e, ALU_IMM(FS_ADD, BPF_REG_2, lval->dyn->loc.addr + lval->dyn->size));
+	emit(e, ALU_IMM(ALU_OP_ADD, BPF_REG_2, lval->dyn->loc.addr + lval->dyn->size));
 	emit(e, MOV(BPF_REG_3, BPF_REG_10));
-	emit(e, ALU_IMM(FS_ADD, BPF_REG_3, lval->dyn->loc.addr));
+	emit(e, ALU_IMM(ALU_OP_ADD, BPF_REG_3, lval->dyn->loc.addr));
 	emit(e, MOV_IMM(BPF_REG_4, 0));
 	emit(e, CALL(BPF_FUNC_map_update_elem));
 
@@ -279,12 +292,12 @@ int compile_assign(struct ebpf *e, struct fs_node *assign)
 	return 0;
 }
 
-int compile_agg(struct ebpf *e, struct fs_node *agg)
+int compile_agg(struct ebpf *e, node_t *agg)
 {
 	return 0;
 }
 
-int compile_return(struct ebpf *e, struct fs_node *ret)
+int compile_return(struct ebpf *e, node_t *ret)
 {
 	_d(">");
 	if (!ret) {
@@ -298,20 +311,20 @@ int compile_return(struct ebpf *e, struct fs_node *ret)
 	return 0;
 }
 
-int compile_stmt(struct ebpf *e, struct fs_node *stmt)
+int compile_stmt(struct ebpf *e, node_t *stmt)
 {
 	switch (stmt->type) {
-	case FS_CALL:
+	case TYPE_CALL:
 		return compile_walk(e, stmt, NULL);
-	case FS_ASSIGN:
+	case TYPE_ASSIGN:
 		return compile_assign(e, stmt);
-	case FS_RETURN:
+	case TYPE_RETURN:
 		return compile_return(e, stmt);
-	case FS_BINOP:
-	case FS_NOT:
-	case FS_MAP:
-	case FS_INT:
-	case FS_STR:
+	case TYPE_BINOP:
+	case TYPE_NOT:
+	case TYPE_MAP:
+	case TYPE_INT:
+	case TYPE_STR:
 		_e("%s: useless statement", stmt->string);
 		return 0;
 	default:
@@ -320,10 +333,10 @@ int compile_stmt(struct ebpf *e, struct fs_node *stmt)
 	}
 }
 
-struct ebpf *fs_compile(struct fs_node *p, struct provider *provider)
+struct ebpf *node_compile(node_t *p, struct provider *provider)
 {
 	struct ebpf *e;
-	struct fs_node *stmt;
+	node_t *stmt;
 	int err;
 
 	e = calloc(1, sizeof(*e));
@@ -339,7 +352,7 @@ struct ebpf *fs_compile(struct fs_node *p, struct provider *provider)
 		goto err_free;
 	}
 
-	fs_foreach(stmt, p->probe.stmts) {
+	node_foreach(stmt, p->probe.stmts) {
 		err = compile_stmt(e, stmt);
 		if (err) {
 			_e("%s: unable to compile statement (%d)", p->string, err);
@@ -350,7 +363,7 @@ struct ebpf *fs_compile(struct fs_node *p, struct provider *provider)
 			break;
 	}
 
-	if (stmt->type != FS_RETURN) {
+	if (stmt->type != TYPE_RETURN) {
 		err = compile_return(e, NULL);
 		if (err) {
 			_e("unable to compile implicit return (%d)", err);

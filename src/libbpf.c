@@ -74,7 +74,7 @@ int bpf_map_delete(int fd, void *key, void *val)
 	return bpf_map_op(BPF_MAP_DELETE_ELEM, fd, key, val, 0);
 }
 
-int bpf_map_next_key(int fd, void *key, void *next_key)
+int bpf_map_next(int fd, void *key, void *next_key)
 {
 	return bpf_map_op(BPF_MAP_GET_NEXT_KEY, fd, key, next_key, 0);
 }

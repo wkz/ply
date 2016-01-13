@@ -1,4 +1,5 @@
 #include <getopt.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <unistd.h>
 
@@ -14,9 +15,9 @@
 FILE *scriptfp;
 int dump = 0;
 
-struct fs_node *fs_load(FILE *fp)
+node_t *fs_load(FILE *fp)
 {
-	struct fs_node *script = NULL;
+	node_t *script = NULL;
 	yyscan_t scanner;
 	
 	if (yylex_init(&scanner))
@@ -62,9 +63,9 @@ int parse_opts(int argc, char **argv)
 	return 0;
 }
 
-int map_setup(struct fs_node *script)
+int map_setup(node_t *script)
 {
-	struct fs_dyn *dyn;
+	dyn_t *dyn;
 	int dumpfd = 0xfd00;
 
 	for (dyn = script->script.dyns; dyn; dyn = dyn->next) {
@@ -86,16 +87,58 @@ int map_setup(struct fs_node *script)
 	return 0;
 }
 
-int map_teardown(struct fs_node *script)
+void map_dump(dyn_t *dyn)
 {
-	struct fs_dyn *dyn;
+	node_t *k = dyn->node->map.vargs;
+	char *key = calloc(1, dyn->ksize), *val = malloc(dyn->size);
+	int err;
+
+	printf("%s:\n", dyn->node->string);
+	
+	for (err = bpf_map_next(dyn->mapfd, key, key); !err;
+	     err = bpf_map_next(dyn->mapfd, key, key)) {
+		err = bpf_map_lookup(dyn->mapfd, key, val);
+		if (err)
+			return;
+
+		switch (k->dyn->type) {
+		case TYPE_INT:
+			printf("  %-20" PRId64, *((int64_t *)key));
+			break;
+		case TYPE_STR:
+			printf("  %-*.*s", (int)k->dyn->size, (int)k->dyn->size, key);
+			break;
+		default:
+			err = -EINVAL;
+			continue;
+		}
+
+		switch (dyn->type) {
+		case TYPE_INT:
+			printf("  %-20" PRId64 "\n", *((int64_t *)val));
+			break;
+		case TYPE_STR:
+			printf("  %-*.*s\n", (int)dyn->size, (int)dyn->size, val);
+			break;
+		default:
+			err = -EINVAL;
+			continue;
+		}		
+	}
+}
+
+int map_teardown(node_t *script)
+{
+	dyn_t *dyn;
 
 	if (dump)
 		return 0;
 
 	for (dyn = script->script.dyns; dyn; dyn = dyn->next) {
-		if (dyn->mapfd)
+		if (dyn->mapfd) {
+			map_dump(dyn);
 			close(dyn->mapfd);
+		}
 	}
 
 	return 0;
@@ -103,7 +146,7 @@ int map_teardown(struct fs_node *script)
 
 int main(int argc, char **argv)
 {
-	struct fs_node *script, *p;
+	node_t *script, *p;
 	struct provider *provider;
 	struct ebpf *e;
 	int err = 0;
@@ -128,7 +171,7 @@ int main(int argc, char **argv)
 		goto err_free_script;
 	}
 
-	err = fs_annotate(script, provider);
+	err = script_annotate(script, provider);
 	if (err) {
 		_e("annotation error");
 		err = -EINVAL;
@@ -142,9 +185,9 @@ int main(int argc, char **argv)
 	}
 		
 	if (dump)
-		fs_ast_dump(script);
+		node_ast_dump(script);
 
-	e = fs_compile(p, provider);
+	e = node_compile(p, provider);
 	if (!e) {
 		_e("compilation error");
 		err = -EINVAL;
@@ -167,6 +210,8 @@ int main(int argc, char **argv)
 	system("echo 1 >/sys/kernel/debug/tracing/events/kprobes/enable");
 	system("echo 1 >/sys/kernel/debug/tracing/tracing_on");
 	system("cat /sys/kernel/debug/tracing/trace_pipe");
+	system("echo 0 >/sys/kernel/debug/tracing/tracing_on");
+	system("echo 0 >/sys/kernel/debug/tracing/events/kprobes/enable");
 
 	/* err = provider->teardown(provider, p, e); */
 	/* if (err) */
@@ -178,7 +223,7 @@ done:
 err_free_ebpf:
 	free(e);
 err_free_script:
-	fs_free(script);
+	node_free(script);
 err:
 	return err;
 }

@@ -7,21 +7,21 @@
 
 #include "fs-ast.h"
 
-const char *fs_typestr(enum fs_type type)
+const char *type_str(type_t type)
 {
 #define TYPE(_type, _typestr) [_type] = _typestr,
 	static const char *strs[] = {
-		FS_TYPE_TABLE
+		NODE_TYPE_TABLE
 	};
 #undef TYPE
 
 	return strs[type];
 }
 
-void fs_dyn_dump(struct fs_dyn *dyn)
+void node_dyn_dump(dyn_t *dyn)
 {
 	fprintf(stderr, "%s [%s/%zx", dyn->string ? : "",
-		fs_typestr(dyn->type), dyn->size);
+		type_str(dyn->type), dyn->size);
 
 	if (dyn->ksize)
 		fprintf(stderr, "/%zx", dyn->ksize);
@@ -39,63 +39,63 @@ static void _indent(int *indent)
 	*indent += 3;
 }
 
-static int _unindent(struct fs_node *n, void *indent)
+static int _unindent(node_t *n, void *indent)
 {
 	*((int *)indent) -= 3;
 	return 0;
 }
 
-static int _fs_ast_dump(struct fs_node *n, void *indent)
+static int _node_ast_dump(node_t *n, void *indent)
 {
 	_indent((int *)indent);
 
-	fprintf(stderr, "(%s) ", fs_typestr(n->type));
+	fprintf(stderr, "(%s) ", type_str(n->type));
 
 	switch (n->type) {
-	case FS_NONE:
-	case FS_SCRIPT:
-	case FS_RETURN:
-	case FS_NOT:
-	case FS_MAP:
+	case TYPE_NONE:
+	case TYPE_SCRIPT:
+	case TYPE_RETURN:
+	case TYPE_NOT:
+	case TYPE_MAP:
 		break;
 		
-	case FS_PROBE:		
-	case FS_CALL:
-	case FS_ASSIGN:
-	case FS_BINOP:
+	case TYPE_PROBE:		
+	case TYPE_CALL:
+	case TYPE_ASSIGN:
+	case TYPE_BINOP:
 		fprintf(stderr, "%s", n->string);
 		break;
 
-	case FS_INT:
+	case TYPE_INT:
 		fprintf(stderr, "%" PRIx64, n->integer);
 		break;
 		
-	case FS_STR:
+	case TYPE_STR:
 		fprintf(stderr, "\"%s\"", n->string);
 		break;
 	}
 
 	if (n->dyn->type)
-		fs_dyn_dump(n->dyn);
+		node_dyn_dump(n->dyn);
 
 	if (n->parent)
-		fprintf(stderr, " <%s>", fs_typestr(n->parent->type));
+		fprintf(stderr, " <%s>", type_str(n->parent->type));
 
 	fputc('\n', stderr);
 	return 0;
 }
 
-void fs_ast_dump(struct fs_node *n)
+void node_ast_dump(node_t *n)
 {
 	int indent = 3;
-	struct fs_dyn *dyn;
-	struct fs_node *s;
+	dyn_t *dyn;
+	node_t *s;
 
 	fprintf(stderr, "ast:\n");
-	fs_walk(n, _fs_ast_dump, _unindent, &indent);
+	node_walk(n, _node_ast_dump, _unindent, &indent);
 	fputc('\n', stderr);
 
-	for (s = n; s && s->type != FS_SCRIPT; s = s->parent);
+	for (s = n; s && s->type != TYPE_SCRIPT; s = s->parent);
 
 	if (!s)
 		return;
@@ -106,118 +106,126 @@ void fs_ast_dump(struct fs_node *n)
 			continue;
 
 		fprintf(stderr, "-%.2zx ", -dyn->loc.addr);
-		fs_dyn_dump(dyn);
+		node_dyn_dump(dyn);
 		fputc('\n', stderr);
 	}
 }
 
-struct fs_node *fs_str_new(char *val)
+static inline node_t *node_new(type_t type) {
+	node_t *n = calloc(1, sizeof(*n));
+
+	assert(n);
+	n->type = type;
+	return n;
+}
+
+node_t *node_str_new(char *val)
 {
-	struct fs_node *n = fs_node_new(FS_STR);
+	node_t *n = node_new(TYPE_STR);
 
 	n->string = val;
 	return n;
 }
 
-struct fs_node *fs_int_new(int64_t val)
+node_t *node_int_new(int64_t val)
 {
-	struct fs_node *n = fs_node_new(FS_INT);
+	node_t *n = node_new(TYPE_INT);
 
 	n->integer = val;
 	return n;
 }
 
-struct fs_node *fs_map_new(char *name, struct fs_node *vargs)
+node_t *node_map_new(char *name, node_t *vargs)
 {
-	struct fs_node *n = fs_node_new(FS_MAP);
+	node_t *n = node_new(TYPE_MAP);
 
 	n->string = name;
 	n->map.vargs = vargs;
 	return n;
 }
 
-struct fs_node *fs_not_new(struct fs_node *expr)
+node_t *node_not_new(node_t *expr)
 {
-	struct fs_node *n = fs_node_new(FS_NOT);
+	node_t *n = node_new(TYPE_NOT);
 
 	n->not = expr;
 	return n;
 }
 
-struct fs_node *fs_return_new(struct fs_node *expr)
+node_t *node_return_new(node_t *expr)
 {
-	struct fs_node *n = fs_node_new(FS_RETURN);
+	node_t *n = node_new(TYPE_RETURN);
 
 	n->ret = expr;
 	return n;
 }
 
-static enum fs_op fs_op_from_str(const char *opstr)
+static alu_op_t alu_op_from_str(const char *opstr)
 {
 	switch (opstr[0]) {
 	case '+':
-		return FS_ADD;
+		return ALU_OP_ADD;
 	case '-':
-		return FS_SUB;
+		return ALU_OP_SUB;
 	case '*':
-		return FS_MUL;
+		return ALU_OP_MUL;
 	case '/':
-		return FS_DIV;
+		return ALU_OP_DIV;
 	case '|':
-		return FS_OR;
+		return ALU_OP_OR;
 	case '&':
-		return FS_AND;
+		return ALU_OP_AND;
 	case '<':
-		return FS_LSH;
+		return ALU_OP_LSH;
 	case '>':
-		return FS_RSH;
+		return ALU_OP_RSH;
 	case '%':
-		return FS_MOD;
+		return ALU_OP_MOD;
 	case '^':
-		return FS_XOR;
+		return ALU_OP_XOR;
 	case '=':
-		return FS_MOV;
+		return ALU_OP_MOV;
 	default:
 		assert(0);
 		return 0;
 	}
 }
 
-struct fs_node *fs_binop_new(struct fs_node *left, char *opstr, struct fs_node *right)
+node_t *node_binop_new(node_t *left, char *opstr, node_t *right)
 {
-	struct fs_node *n = fs_node_new(FS_BINOP);
+	node_t *n = node_new(TYPE_BINOP);
 
 	n->string = opstr;
-	n->binop.op    = fs_op_from_str(opstr);
+	n->binop.op    = alu_op_from_str(opstr);
 	n->binop.left  = left;
 	n->binop.right = right;
 	return n;
 }
 
-struct fs_node *fs_assign_new(struct fs_node *lval, char *opstr, struct fs_node *expr)
+node_t *node_assign_new(node_t *lval, char *opstr, node_t *expr)
 {
-	struct fs_node *n = fs_node_new(FS_ASSIGN);
+	node_t *n = node_new(TYPE_ASSIGN);
 
 	n->string = opstr;
-	n->assign.op   = fs_op_from_str(opstr);
+	n->assign.op   = alu_op_from_str(opstr);
 	n->assign.lval = lval;
 	n->assign.expr = expr;
 	return n;
 }
 
-struct fs_node *fs_call_new(char *func, struct fs_node *vargs)
+node_t *node_call_new(char *func, node_t *vargs)
 {
-	struct fs_node *n = fs_node_new(FS_CALL);
+	node_t *n = node_new(TYPE_CALL);
 
 	n->string = func;
 	n->call.vargs = vargs;
 	return n;
 }
 
-struct fs_node *fs_probe_new(char *pspec, struct fs_node *pred,
-			     struct fs_node *stmts)
+node_t *node_probe_new(char *pspec, node_t *pred,
+			     node_t *stmts)
 {
-	struct fs_node *n = fs_node_new(FS_PROBE);
+	node_t *n = node_new(TYPE_PROBE);
 
 	n->string = pspec;
 	n->probe.pred   = pred;
@@ -225,21 +233,21 @@ struct fs_node *fs_probe_new(char *pspec, struct fs_node *pred,
 	return n;
 }
 
-struct fs_node *fs_script_new(struct fs_node *probes)
+node_t *node_script_new(node_t *probes)
 {
-	struct fs_node *n = fs_node_new(FS_SCRIPT);
+	node_t *n = node_new(TYPE_SCRIPT);
 
 	n->script.probes = probes;
 	return n;
 }
 
 
-static int _fs_free(struct fs_node *n, void *ctx)
+static int _node_free(node_t *n, void *ctx)
 {
-	struct fs_dyn *dyn, *dyn_next;
+	dyn_t *dyn, *dyn_next;
 
 	switch (n->type) {
-	case FS_SCRIPT:
+	case TYPE_SCRIPT:
 		for (dyn = n->script.dyns; dyn; dyn = dyn_next) {
 			if (dyn->string)
 				free(dyn->string);
@@ -247,12 +255,12 @@ static int _fs_free(struct fs_node *n, void *ctx)
 			free(dyn);
 		}
 		break;
-	case FS_PROBE:
-	case FS_CALL:
-	case FS_ASSIGN:
-	case FS_BINOP:
-	case FS_MAP:
-	case FS_STR:
+	case TYPE_PROBE:
+	case TYPE_CALL:
+	case TYPE_ASSIGN:
+	case TYPE_BINOP:
+	case TYPE_MAP:
+	case TYPE_STR:
 		free(n->string);
 		break;
 
@@ -264,21 +272,21 @@ static int _fs_free(struct fs_node *n, void *ctx)
 	return 0;
 }
 
-void fs_free(struct fs_node *n)
+void node_free(node_t *n)
 {
-	fs_walk(n, NULL, _fs_free, NULL);
+	node_walk(n, NULL, _node_free, NULL);
 }
 
-static int _fs_walk_list(struct fs_node *head,
-			 int (*pre) (struct fs_node *n, void *ctx),
-			 int (*post)(struct fs_node *n, void *ctx), void *ctx)
+static int _node_walk_list(node_t *head,
+			 int (*pre) (node_t *n, void *ctx),
+			 int (*post)(node_t *n, void *ctx), void *ctx)
 {
-	struct fs_node *elem, *next = head;
+	node_t *elem, *next = head;
 	int err = 0;
 	
 	for (elem = next; !err && elem;) {
 		next = elem->next;
-		err = fs_walk(elem, pre, post, ctx);
+		err = node_walk(elem, pre, post, ctx);
 		elem = next;
 	}
 
@@ -286,12 +294,12 @@ static int _fs_walk_list(struct fs_node *head,
 }
 
 
-int fs_walk(struct fs_node *n,
-	    int (*pre) (struct fs_node *n, void *ctx),
-	    int (*post)(struct fs_node *n, void *ctx), void *ctx)
+int node_walk(node_t *n,
+	    int (*pre) (node_t *n, void *ctx),
+	    int (*post)(node_t *n, void *ctx), void *ctx)
 {
-#define do_list(_head) err = _fs_walk_list(_head, pre, post, ctx); if (err) return err
-#define do_walk(_node) err =       fs_walk(_node, pre, post, ctx); if (err) return err
+#define do_list(_head) err = _node_walk_list(_head, pre, post, ctx); if (err) return err
+#define do_walk(_node) err =       node_walk(_node, pre, post, ctx); if (err) return err
 	int err = 0;
 
 	err = pre ? pre(n, ctx) : 0;
@@ -299,43 +307,43 @@ int fs_walk(struct fs_node *n,
 		return err;
 	
 	switch (n->type) {
-	case FS_SCRIPT:
+	case TYPE_SCRIPT:
 		do_list(n->script.probes);
 		break;
 
-	case FS_PROBE:
+	case TYPE_PROBE:
 		if (n->probe.pred)
 			do_walk(n->probe.pred);
 		do_list(n->probe.stmts);
 		break;
 
-	case FS_CALL:
+	case TYPE_CALL:
 		do_list(n->call.vargs);
 		break;
 
-	case FS_ASSIGN:
+	case TYPE_ASSIGN:
 		do_walk(n->assign.lval);
 		do_walk(n->assign.expr);
 		break;
 
-	case FS_RETURN:
+	case TYPE_RETURN:
 		do_walk(n->ret);
 		break;
 
-	case FS_BINOP:
+	case TYPE_BINOP:
 		do_walk(n->binop.left);
 		do_walk(n->binop.right);
 		break;
 
-	case FS_NOT:
+	case TYPE_NOT:
 		do_walk(n->not);
 		break;
 
-	case FS_MAP:
+	case TYPE_MAP:
 		do_list(n->map.vargs);
 		break;
 
-	case FS_NONE:
+	case TYPE_NONE:
 		return -1;
 
 	default:

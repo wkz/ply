@@ -9,7 +9,7 @@
 
 extern int lineno;
 
-void yyerror(struct fs_node **node, yyscan_t scanner, const char *s)
+void yyerror(node_t **node, yyscan_t scanner, const char *s)
 {
 	fprintf(stderr, "error(%d): %s\n", lineno, s);
 }
@@ -17,7 +17,7 @@ void yyerror(struct fs_node **node, yyscan_t scanner, const char *s)
 %}
 
 %union {
-	struct fs_node *node;
+	node_t *node;
 	char *string;
 	unsigned int integer;
 }
@@ -28,11 +28,14 @@ void yyerror(struct fs_node **node, yyscan_t scanner, const char *s)
 typedef void* yyscan_t;
 #endif
 
+struct node;
+typedef struct node node_t;
+
 }
  
 %define api.pure
 %lex-param   { yyscan_t scanner }
-%parse-param { struct fs_node **script }
+%parse-param { node_t **script }
 %parse-param { yyscan_t scanner }
 
 %token RETURN
@@ -50,7 +53,7 @@ typedef void* yyscan_t;
 %%
 
 script : probes
-		{ *script = fs_script_new($1); }
+		{ *script = node_script_new($1); }
 ;
 
 probes : probe
@@ -60,15 +63,15 @@ probes : probe
 ;
 
 probe : PSPEC block
-		{ $$ = fs_probe_new($1, NULL, $2); }
+		{ $$ = node_probe_new($1, NULL, $2); }
       | PSPEC '/' expr '/' block
-		{ $$ = fs_probe_new($1, $3, $5); }
+		{ $$ = node_probe_new($1, $3, $5); }
 ;
 
 /* pred : expr */
-/* 		{ $$ = fs_pred_new($1, strdup("!="), fs_int_new(0)); } */
+/* 		{ $$ = node_pred_new($1, strdup("!="), node_int_new(0)); } */
 /*      | expr CMP expr */
-/* 		{ $$ = fs_pred_new($1, $2, $3); } */
+/* 		{ $$ = node_pred_new($1, $2, $3); } */
 /* ; */
 
 stmts : stmt
@@ -78,13 +81,13 @@ stmts : stmt
 ;
 
 stmt : variable AOP expr
-		{ $$ = fs_assign_new($1, $2, $3); }
+		{ $$ = node_assign_new($1, $2, $3); }
      /* | variable AGG call */
-     /* 		{ $$ = fs_agg_new($1, $3); } */
+     /* 		{ $$ = node_agg_new($1, $3); } */
      | expr
 		{ $$ = $1; }
      | RETURN expr
-		{ $$ = fs_return_new($2); }
+		{ $$ = node_return_new($2); }
 ;
 
 block : '{' stmts '}'
@@ -94,13 +97,13 @@ block : '{' stmts '}'
 ;
 
 expr : INT
-		{ $$ = fs_int_new($1); }
+		{ $$ = node_int_new($1); }
      | STRING
-		{ $$ = fs_str_new($1); }
+		{ $$ = node_str_new($1); }
      | expr OP expr
-     		{ $$ = fs_binop_new($1, $2, $3); }
+     		{ $$ = node_binop_new($1, $2, $3); }
      | '!' expr
-		{ $$ = fs_not_new($2); }
+		{ $$ = node_not_new($2); }
      | '(' expr ')'
 		{ $$ = $2; }
      | variable
@@ -110,15 +113,15 @@ expr : INT
 ;
 
 variable :/*  IDENT */
-	 /* 	{ $$ = fs_var_new($1); } */
+	 /* 	{ $$ = node_var_new($1); } */
          /* | */ IDENT '[' vargs ']'
-		{ $$ = fs_map_new($1, $3); }
+		{ $$ = node_map_new($1, $3); }
 ;
 
 call: IDENT '(' ')'
-		{ $$ = fs_call_new($1, NULL); }
+		{ $$ = node_call_new($1, NULL); }
     | IDENT '(' vargs ')'
-		{ $$ = fs_call_new($1, $3); }
+		{ $$ = node_call_new($1, $3); }
 ;
 
 vargs : expr

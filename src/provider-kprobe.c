@@ -16,6 +16,23 @@
 #include "libbpf.h"
 #include "provider.h"
 
+/* typedef struct evlist { */
+/* 	size_t cap, len; */
+/* 	uint32_t *ids; */
+/* } evlist_t; */
+
+/* static int evlist_init(evlist_t *el, size_t cap) */
+/* { */
+/* 	if (el->ids) */
+/* 		return -EBUSY; */
+
+/* 	el->ids = malloc(cap * sizeof(*el->ids)); */
+/* 	if (!el) */
+/* 		return -ENOMEM; */
+
+/* 	el->cap = cap; */
+/* 	el->len = 0; */
+/* } */
 
 static long
 perf_event_open(struct perf_event_attr *hw_event, pid_t pid,
@@ -49,12 +66,12 @@ static int _eventid(char *pspec)
 	return strtol(str, NULL, 0);
 }
 
-static int kprobes_setup(struct provider *p, struct ebpf *e, struct fs_node *n)
+static int kprobes_setup(struct provider *p, struct ebpf *e, node_t *probe)
 {
 	int bd, ed, eventid;
 	struct perf_event_attr attr = {};
 
-	eventid = _eventid(n->string);
+	eventid = _eventid(probe->string);
 	if (eventid <= 0)
 		return eventid;
 	
@@ -91,12 +108,12 @@ static int kprobes_setup(struct provider *p, struct ebpf *e, struct fs_node *n)
 }
 
 
-static int kprobes_compile(struct provider *p, struct ebpf *e, struct fs_node *n)
+static int kprobes_compile(struct provider *p, struct ebpf *e, node_t *n)
 {
 	return global_compile(p, e, n);
 }
 
-static int kprobes_annotate(struct provider *p, struct ebpf *e, struct fs_node *n)
+static int kprobes_annotate(struct provider *p, struct ebpf *e, node_t *n)
 {
 	return global_annotate(p, e, n);
 }

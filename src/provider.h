@@ -9,8 +9,8 @@
 struct builtin {
 	const char *name;
 
-	int (*annotate)(struct provider *p, struct ebpf *e, struct fs_node *n);
-	int  (*compile)(struct provider *p, struct ebpf *e, struct fs_node *n);
+	int (*annotate)(struct provider *p, struct ebpf *e, node_t *n);
+	int  (*compile)(struct provider *p, struct ebpf *e, node_t *n);
 };
 
 struct provider {
@@ -19,15 +19,15 @@ struct provider {
 	const char *name;
 	void *priv;
 	
-	int (*annotate)(struct provider *p, struct ebpf *e, struct fs_node *n);
-	int  (*compile)(struct provider *p, struct ebpf *e, struct fs_node *n);
-	int    (*setup)(struct provider *p, struct ebpf *e, struct fs_node *n);
+	int (*annotate)(struct provider *p, struct ebpf *e, node_t *n);
+	int  (*compile)(struct provider *p, struct ebpf *e, node_t *n);
+	int    (*setup)(struct provider *p, struct ebpf *e, node_t *n);
 };
 
 struct provider *provider_find    (const char *name);
 void             provider_register(struct provider *p);
 
-int global_annotate(struct provider *p, struct ebpf *e, struct fs_node *n);
-int global_compile (struct provider *p, struct ebpf *e, struct fs_node *n);
+int global_annotate(struct provider *p, struct ebpf *e, node_t *n);
+int global_compile (struct provider *p, struct ebpf *e, node_t *n);
 
 #endif	/* _PROVIDER_H */

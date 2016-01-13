@@ -12,7 +12,7 @@ enum extract_op {
 };
 
 static int int32_void_func(enum bpf_func_id func, enum extract_op op,
-			   struct ebpf *e, struct fs_node *n)
+			   struct ebpf *e, node_t *n)
 {
 	/* struct reg *dst; */
 
@@ -20,61 +20,61 @@ static int int32_void_func(enum bpf_func_id func, enum extract_op op,
 	switch (op) {
 	case EXTRACT_OP_MASK:
 		/* TODO [kernel] cast imm to u32 on bitwise operators */
-		emit(e, ALU_IMM(FS_AND, BPF_REG_0, 0x7fffffff));
+		emit(e, ALU_IMM(ALU_OP_AND, BPF_REG_0, 0x7fffffff));
 		break;
 	case EXTRACT_OP_SHIFT:
-		emit(e, ALU_IMM(FS_RSH, BPF_REG_0, 32));
+		emit(e, ALU_IMM(ALU_OP_RSH, BPF_REG_0, 32));
 		break;
 	default:
 		break;
 	}
 
-	n->dyn->loc.type = FS_LOC_REG;
+	n->dyn->loc.type = LOC_REG;
 	n->dyn->loc.reg = 0;
 	return 0;
 }
 
-static int gid_compile(struct provider *p, struct ebpf *e, struct fs_node *n)
+static int gid_compile(struct provider *p, struct ebpf *e, node_t *n)
 {
 	return int32_void_func(BPF_FUNC_get_current_uid_gid,
 			       EXTRACT_OP_SHIFT, e, n);
 }
 
-static int uid_compile(struct provider *p, struct ebpf *e, struct fs_node *n)
+static int uid_compile(struct provider *p, struct ebpf *e, node_t *n)
 {
 	return int32_void_func(BPF_FUNC_get_current_uid_gid,
 			       EXTRACT_OP_MASK, e, n);
 }
 
-static int tgid_compile(struct provider *p, struct ebpf *e, struct fs_node *n)
+static int tgid_compile(struct provider *p, struct ebpf *e, node_t *n)
 {
 	return int32_void_func(BPF_FUNC_get_current_pid_tgid,
 			       EXTRACT_OP_SHIFT, e, n);
 }
 
-static int pid_compile(struct provider *p, struct ebpf *e, struct fs_node *n)
+static int pid_compile(struct provider *p, struct ebpf *e, node_t *n)
 {
 	return int32_void_func(BPF_FUNC_get_current_pid_tgid,
 			       EXTRACT_OP_MASK, e, n);
 }
 
-static int ns_compile(struct provider *p, struct ebpf *e, struct fs_node *n)
+static int ns_compile(struct provider *p, struct ebpf *e, node_t *n)
 {
 	return int32_void_func(BPF_FUNC_ktime_get_ns,
 			       EXTRACT_OP_NONE, e, n);
 }
 
-static int int_noargs_annotate(struct provider *p, struct ebpf *e, struct fs_node *n)
+static int int_noargs_annotate(struct provider *p, struct ebpf *e, node_t *n)
 {
 	if (n->call.vargs)
 		return -EINVAL;
 
-	n->dyn->type = FS_INT;
+	n->dyn->type = TYPE_INT;
 	n->dyn->size = 8;
 	return 0;
 }
 
-static int comm_compile(struct provider *p, struct ebpf *e, struct fs_node *n)
+static int comm_compile(struct provider *p, struct ebpf *e, node_t *n)
 {
 	size_t i;
 
@@ -83,30 +83,30 @@ static int comm_compile(struct provider *p, struct ebpf *e, struct fs_node *n)
 		emit(e, STW_IMM(BPF_REG_10, n->dyn->loc.addr + i, 0));
 
 	emit(e, MOV(BPF_REG_1, BPF_REG_10));
-	emit(e, ALU_IMM(FS_ADD, BPF_REG_1, n->dyn->loc.addr));
+	emit(e, ALU_IMM(ALU_OP_ADD, BPF_REG_1, n->dyn->loc.addr));
 	emit(e, MOV_IMM(BPF_REG_2, n->dyn->size));
 	emit(e, CALL(BPF_FUNC_get_current_comm));
-	n->dyn->loc.type = FS_LOC_STACK;
+	n->dyn->loc.type = LOC_STACK;
 	return 0;
 }
 
-static int comm_annotate(struct provider *p, struct ebpf *e, struct fs_node *n)
+static int comm_annotate(struct provider *p, struct ebpf *e, node_t *n)
 {
 	if (n->call.vargs)
 		return -EINVAL;
 
-	n->dyn->type = FS_STR;
+	n->dyn->type = TYPE_STR;
 	n->dyn->size = 16;
 	return 0;
 }
 
-static int strcmp_compile(struct provider *p, struct ebpf *e, struct fs_node *n)
+static int strcmp_compile(struct provider *p, struct ebpf *e, node_t *n)
 {
-	struct fs_node *s1 = n->call.vargs, *s2 = n->call.vargs->next;
+	node_t *s1 = n->call.vargs, *s2 = n->call.vargs->next;
 	ssize_t i, l;
 
-	if ((s1->dyn->loc.type != FS_LOC_STACK) ||
-	    (s2->dyn->loc.type != FS_LOC_STACK))
+	if ((s1->dyn->loc.type != LOC_STACK) ||
+	    (s2->dyn->loc.type != LOC_STACK))
 		return -EINVAL;
 
 	l = s1->dyn->size < s2->dyn->size ? s1->dyn->size : s2->dyn->size;
@@ -117,46 +117,46 @@ static int strcmp_compile(struct provider *p, struct ebpf *e, struct fs_node *n)
 		emit(e, LDXB(BPF_REG_0, s1->dyn->loc.addr + i, BPF_REG_10));
 		emit(e, LDXB(BPF_REG_1, s2->dyn->loc.addr + i, BPF_REG_10));
 
-		emit(e, ALU(FS_SUB, BPF_REG_0, BPF_REG_1));
-		emit(e, JMP_IMM(FS_JEQ, BPF_REG_1, 0, 5 * (l - 1) + 1));
-		emit(e, JMP_IMM(FS_JNE, BPF_REG_0, 0, 5 * (l - 1) + 0));
+		emit(e, ALU(ALU_OP_SUB, BPF_REG_0, BPF_REG_1));
+		emit(e, JMP_IMM(JMP_JEQ, BPF_REG_1, 0, 5 * (l - 1) + 1));
+		emit(e, JMP_IMM(JMP_JNE, BPF_REG_0, 0, 5 * (l - 1) + 0));
 	}
 
-	n->dyn->loc.type = FS_LOC_REG;
+	n->dyn->loc.type = LOC_REG;
 	n->dyn->loc.reg = BPF_REG_0;
 	return 0;
 }
 
-static int strcmp_annotate(struct provider *p, struct ebpf *e, struct fs_node *n)
+static int strcmp_annotate(struct provider *p, struct ebpf *e, node_t *n)
 {
-	struct fs_node *arg = n->call.vargs;
+	node_t *arg = n->call.vargs;
 
 	
-	if (!arg || arg->dyn->type != FS_STR)
+	if (!arg || arg->dyn->type != TYPE_STR)
 		return -EINVAL;
 
 	arg = arg->next;
-	if (!arg || arg->dyn->type != FS_STR)
+	if (!arg || arg->dyn->type != TYPE_STR)
 		return -EINVAL;
 
 	if (arg->next)
 		return -EINVAL;
 
-	n->dyn->type = FS_INT;
+	n->dyn->type = TYPE_INT;
 	n->dyn->size = 8;	
 	return 0;
 }
 
-static int generic_load_arg(struct ebpf *e, struct fs_node *arg, int *reg)
+static int generic_load_arg(struct ebpf *e, node_t *arg, int *reg)
 {
 	switch (arg->dyn->type) {
-	case FS_INT:
+	case TYPE_INT:
 		switch (arg->dyn->loc.type) {
-		case FS_LOC_REG:
+		case LOC_REG:
 			if (arg->dyn->loc.reg != *reg)
 				emit(e, MOV(*reg, arg->dyn->loc.reg));
 			return 0;
-		case FS_LOC_STACK:
+		case LOC_STACK:
 			emit(e, LDXDW(*reg, arg->dyn->loc.addr, BPF_REG_10));
 			return 0;
 
@@ -164,17 +164,17 @@ static int generic_load_arg(struct ebpf *e, struct fs_node *arg, int *reg)
 			return -EINVAL;
 
 		}
-	case FS_STR:
+	case TYPE_STR:
 		switch (arg->dyn->loc.type) {
-		case FS_LOC_STACK:
+		case LOC_STACK:
 			emit(e, MOV(*reg, BPF_REG_10));
-			emit(e, ALU_IMM(FS_ADD, *reg, arg->dyn->loc.addr));
+			emit(e, ALU_IMM(ALU_OP_ADD, *reg, arg->dyn->loc.addr));
 
 			(*reg)++;
 			if (*reg > BPF_REG_5)
 				return -ENOMEM;
 
-			if (arg->type == FS_STR)
+			if (arg->type == TYPE_STR)
 				emit(e, MOV_IMM(*reg, strlen(arg->string) + 1));
 			else
 				emit(e, MOV_IMM(*reg, arg->dyn->size));
@@ -190,12 +190,12 @@ static int generic_load_arg(struct ebpf *e, struct fs_node *arg, int *reg)
 	}
 }
 
-static int trace_compile(struct provider *p, struct ebpf *e, struct fs_node *n)
+static int trace_compile(struct provider *p, struct ebpf *e, node_t *n)
 {
-	struct fs_node *varg;
+	node_t *varg;
 	int err, reg = BPF_REG_0;
 
-	fs_foreach(varg, n->call.vargs) {
+	node_foreach(varg, n->call.vargs) {
 		reg++;
 		if (reg > BPF_REG_5)
 			return -ENOMEM;
@@ -209,12 +209,12 @@ static int trace_compile(struct provider *p, struct ebpf *e, struct fs_node *n)
 	return 0;
 }
 
-static int trace_annotate(struct provider *p, struct ebpf *e, struct fs_node *n)
+static int trace_annotate(struct provider *p, struct ebpf *e, node_t *n)
 {
 	if (!n->call.vargs)
 		return -EINVAL;
 
-	if (n->call.vargs->type != FS_STR)
+	if (n->call.vargs->type != TYPE_STR)
 		return -EINVAL;
 
 	return 0;
@@ -276,7 +276,7 @@ static struct builtin global_builtins[] = {
 	{ .name = NULL }
 };
 
-int global_compile(struct provider *p, struct ebpf *e, struct fs_node *n)
+int global_compile(struct provider *p, struct ebpf *e, node_t *n)
 {
 	struct builtin *bi;
 	
@@ -288,7 +288,7 @@ int global_compile(struct provider *p, struct ebpf *e, struct fs_node *n)
 	return -ENOENT;	
 }
 
-int global_annotate(struct provider *p, struct ebpf *e, struct fs_node *n)
+int global_annotate(struct provider *p, struct ebpf *e, node_t *n)
 {
 	struct builtin *bi;
 

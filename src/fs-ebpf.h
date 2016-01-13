@@ -23,10 +23,12 @@
 #define ALU(_op, _dst, _src)     INSN(BPF_ALU64 | BPF_OP((_op)) | BPF_X, _dst, _src, 0, 0)
 #define ALU_IMM(_op, _dst, _imm) INSN(BPF_ALU64 | BPF_OP((_op)) | BPF_K, _dst, 0, 0, _imm)
 
-#define STW_IMM(_dst, _off, _imm) INSN(BPF_ST | BPF_SIZE(BPF_W) | BPF_MEM, _dst, 0, _off, _imm)
+#define STW_IMM(_dst, _off, _imm) INSN(BPF_ST  | BPF_SIZE(BPF_W)  | BPF_MEM, _dst, 0, _off, _imm)
+#define STXW(_dst, _off, _src)    INSN(BPF_STX | BPF_SIZE(BPF_W)  | BPF_MEM, _dst, _src, _off, 0)
 #define STXDW(_dst, _off, _src)   INSN(BPF_STX | BPF_SIZE(BPF_DW) | BPF_MEM, _dst, _src, _off, 0)
 
 #define LDXB(_dst, _off, _src)  INSN(BPF_LDX | BPF_SIZE(BPF_B)  | BPF_MEM, _dst, _src, _off, 0)
+#define LDXW(_dst, _off, _src)  INSN(BPF_LDX | BPF_SIZE(BPF_W)  | BPF_MEM, _dst, _src, _off, 0)
 #define LDXDW(_dst, _off, _src) INSN(BPF_LDX | BPF_SIZE(BPF_DW) | BPF_MEM, _dst, _src, _off, 0)
 
 #define RET_ON_ERR(_err, _fmt, ...)					\
@@ -39,7 +41,7 @@ struct provider;
 
 struct ebpf {
 	struct provider *provider;
-	struct fs_dyn *regs[__MAX_BPF_REG];
+	dyn_t *regs[__MAX_BPF_REG];
 
 	struct bpf_insn *ip;
 	struct bpf_insn  prog[BPF_MAXINSNS];
@@ -53,6 +55,6 @@ static inline void emit_ld_mapfd(struct ebpf *e, int reg, int fd)
 	emit(e, INSN(0, 0, 0, 0, 0));
 }
 
-struct ebpf *fs_compile(struct fs_node *probe, struct provider *provider);
+struct ebpf *node_compile(node_t *probe, struct provider *provider);
 
 #endif	/* _FS_EBPF_H */

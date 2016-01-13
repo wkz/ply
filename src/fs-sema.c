@@ -6,7 +6,7 @@
 #include "fs-ast.h"
 #include "provider.h"
 
-static int type_sync(struct fs_node *from, struct fs_node *to)
+static int type_sync(node_t *from, node_t *to)
 {	
 	if (to->dyn->size) {
 		if (from->dyn->size != to->dyn->size) {
@@ -34,30 +34,30 @@ static int type_sync(struct fs_node *from, struct fs_node *to)
 	
 	if (from->dyn->type != to->dyn->type) {
 		_e("%s: type mismatch: %s != %s", from->string,
-		   fs_typestr(from->dyn->type), fs_typestr(to->dyn->type));
+		   type_str(from->dyn->type), type_str(to->dyn->type));
 		return -EINVAL;
 	}
 
 	return 0;
 }
 
-static int type_bubble(struct fs_node *from)
+static int type_bubble(node_t *from)
 {
-	struct fs_node *p = from->parent, *to = NULL;
+	node_t *p = from->parent, *to = NULL;
 	int err;
 
 	if (!p)
 		return 0;
 
 	switch (p->type) {
-	case FS_ASSIGN:
+	case TYPE_ASSIGN:
 		to = (from == p->assign.lval) ? p->assign.expr : p->assign.lval;
 		break;
-	case FS_NOT:
-	case FS_RETURN:
+	case TYPE_NOT:
+	case TYPE_RETURN:
 		to = p;
 		break;
-	case FS_BINOP:
+	case TYPE_BINOP:
 		to = (from == p->binop.left) ? p->binop.right : p->binop.left;
 		err = type_sync(from, to);
 		if (err)
@@ -79,7 +79,7 @@ static int type_bubble(struct fs_node *from)
 	return type_bubble(p);
 }
 
-static int type_infer_post(struct fs_node *n, void *_null)
+static int type_infer_post(node_t *n, void *_null)
 {
 	if (n->dyn->size)
 		return type_bubble(n);
@@ -87,15 +87,15 @@ static int type_infer_post(struct fs_node *n, void *_null)
 	return 0;
 }
 
-static struct fs_dyn *dyn_get(struct fs_node *n)
+static dyn_t *dyn_get(node_t *n)
 {
-	struct fs_dyn *dyn;
-	struct fs_node *s, *k;
+	dyn_t *dyn;
+	node_t *s, *k;
 
-	for (s = n; s && s->type != FS_SCRIPT; s = s->parent);
+	for (s = n; s && s->type != TYPE_SCRIPT; s = s->parent);
 	assert(s);
 
-	if (n->type != FS_MAP)
+	if (n->type != TYPE_MAP)
 		goto new;
 		
 	for (dyn = s->script.dyns; dyn; dyn = dyn->next)
@@ -111,12 +111,12 @@ new:
 
 	dyn->node = n;
 
-	if (n->type != FS_MAP)
+	if (n->type != TYPE_MAP)
 		return dyn;
 
 	dyn->string = strdup(n->string);
 
-	fs_foreach(k, n->map.vargs) {
+	node_foreach(k, n->map.vargs) {
 		if (!k->dyn->size) {
 			dyn->ksize = 0;
 			break;
@@ -159,42 +159,42 @@ static char *str_escape(char *str)
 	return str;
 }
 
-static int static_pre(struct fs_node *n, void *_prov)
+static int static_pre(node_t *n, void *_prov)
 {
-	struct fs_node *c;
+	node_t *c;
 
 	switch (n->type) {
-	case FS_SCRIPT:
-		fs_foreach(c, n->script.probes)
+	case TYPE_SCRIPT:
+		node_foreach(c, n->script.probes)
 			c->parent = n;
 		break;
-	case FS_PROBE:
+	case TYPE_PROBE:
 		if (n->probe.pred)
 			n->probe.pred->parent = n;
 
-		fs_foreach(c, n->probe.stmts)
+		node_foreach(c, n->probe.stmts)
 			c->parent = n;
 		break;
-	case FS_CALL:		
-		fs_foreach(c, n->call.vargs)
+	case TYPE_CALL:		
+		node_foreach(c, n->call.vargs)
 			c->parent = n;
 		break;
-	case FS_ASSIGN:
+	case TYPE_ASSIGN:
 		n->assign.lval->parent = n;
 		n->assign.expr->parent = n;
 		break;
-	case FS_RETURN:
+	case TYPE_RETURN:
 		n->ret->parent = n;
 		break;
-	case FS_BINOP:
+	case TYPE_BINOP:
 		n->binop.left->parent  = n;
 		n->binop.right->parent = n;
 		break;
-	case FS_NOT:
+	case TYPE_NOT:
 		n->not->parent = n;
 		break;
-	case FS_MAP:
-		fs_foreach(c, n->map.vargs)
+	case TYPE_MAP:
+		node_foreach(c, n->map.vargs)
 			c->parent = n;
 		break;
 	default:
@@ -204,7 +204,7 @@ static int static_pre(struct fs_node *n, void *_prov)
 	return 0;
 }
 
-static int static_post(struct fs_node *n, void *_prov)
+static int static_post(node_t *n, void *_prov)
 {
 	struct provider *prov = _prov;
 	char *escaped;
@@ -213,25 +213,25 @@ static int static_post(struct fs_node *n, void *_prov)
 	n->dyn = dyn_get(n);
 
 	switch (n->type) {
-	case FS_INT:
-		n->dyn->type = FS_INT;
+	case TYPE_INT:
+		n->dyn->type = TYPE_INT;
 		n->dyn->size = 8;
 		break;
-	case FS_STR:
+	case TYPE_STR:
 		escaped = str_escape(n->string);
 
-		n->dyn->type = FS_STR;
+		n->dyn->type = TYPE_STR;
 		n->dyn->size = _ALIGNED(strlen(escaped) + 1);
 
 		n->string = calloc(1, n->dyn->size);
 		memcpy(n->string, escaped, n->dyn->size);
 		free(escaped);
 		break;
-	case FS_RETURN:
-		n->dyn->type = FS_INT;
+	case TYPE_RETURN:
+		n->dyn->type = TYPE_INT;
 		n->dyn->size = 8;
 		break;
-	case FS_CALL:
+	case TYPE_CALL:
 		err = prov->annotate(prov, NULL, n);
 		if (err)
 			return err;
@@ -243,27 +243,27 @@ static int static_post(struct fs_node *n, void *_prov)
 	return 0;
 }
 
-int fs_annotate(struct fs_node *script, struct provider *prov)
+int script_annotate(node_t *script, struct provider *prov)
 {
-	struct fs_dyn *dyn;
+	dyn_t *dyn;
 	ssize_t stack = 0;
 	int err;
 
 	/* insert all statically known types */
-	err = fs_walk(script, static_pre, static_post, prov);
+	err = node_walk(script, static_pre, static_post, prov);
 	if (err) {
 		_e("static annotation failed (%d)", err);
 		return err;
 	}
 
 	/* infer the rest */
-	err = fs_walk(script, NULL, type_infer_post, NULL);
+	err = node_walk(script, NULL, type_infer_post, NULL);
 	if (err) {
 		_e("type inference failed (%d)", err);
 		return err;
 	}
 
-	err = fs_walk(script, NULL, type_infer_post, NULL);
+	err = node_walk(script, NULL, type_infer_post, NULL);
 	if (err) {
 		_e("type inference failed (%d)", err);
 		return err;
@@ -272,11 +272,11 @@ int fs_annotate(struct fs_node *script, struct provider *prov)
 	/* allocate stack locations for symbols */
 	for (dyn = script->script.dyns; dyn; dyn = dyn->next) {
 		switch (dyn->node->type) {
-		case FS_CALL:
-		case FS_STR:
+		case TYPE_CALL:
+		case TYPE_STR:
 			stack -= dyn->size;
 			break;
-		case FS_MAP:
+		case TYPE_MAP:
 			stack -= dyn->size + dyn->ksize;
 			break;
 		default:

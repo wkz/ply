@@ -19,173 +19,159 @@ static inline void insque_tail(void *elem, void *prev)
 	insque(le, pe);
 }
 
-enum fs_jmp {
-	FS_JEQ = BPF_JEQ,
-	FS_JGT = BPF_JGT,
-	FS_JGE = BPF_JGE,
-	FS_JNE = BPF_JNE,
-	FS_JSGT = BPF_JSGT,
-	FS_JSGE = BPF_JSGE,
+typedef enum jmp {
+	JMP_JEQ  = BPF_JEQ,
+	JMP_JGT  = BPF_JGT,
+	JMP_JGE  = BPF_JGE,
+	JMP_JNE  = BPF_JNE,
+	JMP_JSGT = BPF_JSGT,
+	JMP_JSGE = BPF_JSGE,
+	JMP_JA   = BPF_JA,
+} jmp_t;
 
-	FS_JA = BPF_JA,
-};
+typedef enum alu_op {
+	ALU_OP_ADD = BPF_ADD,
+	ALU_OP_SUB = BPF_SUB,
+	ALU_OP_MUL = BPF_MUL,
+	ALU_OP_DIV = BPF_DIV,
+	ALU_OP_OR  = BPF_OR,
+	ALU_OP_AND = BPF_AND,
+	ALU_OP_LSH = BPF_LSH,
+	ALU_OP_RSH = BPF_RSH,
+	ALU_OP_NEG = BPF_NEG,
+	ALU_OP_MOD = BPF_MOD,
+	ALU_OP_XOR = BPF_XOR,
+	ALU_OP_MOV = BPF_MOV,
+} alu_op_t;
 
-enum fs_op {
-	FS_ADD = BPF_ADD,
-	FS_SUB = BPF_SUB,
-	FS_MUL = BPF_MUL,
-	FS_DIV = BPF_DIV,
-	FS_OR  = BPF_OR,
-	FS_AND = BPF_AND,
-	FS_LSH = BPF_LSH,
-	FS_RSH = BPF_RSH,
-	FS_NEG = BPF_NEG,
-	FS_MOD = BPF_MOD,
-	FS_XOR = BPF_XOR,
-	FS_MOV = BPF_MOV,
-};
+typedef struct node node_t;
+typedef struct dyn  dyn_t;
 
-struct fs_map {
-	struct fs_node *vargs;
-};
+typedef struct map {
+	node_t *vargs;
+} map_t;
 
-struct fs_binop {
-	enum fs_op op;
-	struct fs_node *left, *right;
-};
+typedef struct binop {
+	alu_op_t op;
+	node_t *left, *right;
+} binop_t;
 
-struct fs_assign {
-	enum fs_op op;
-	struct fs_node *lval, *expr;
-};
+typedef struct assign {
+	alu_op_t op;
+	node_t *lval, *expr;
+} assign_t;
 
-struct fs_pred {
-	enum fs_jmp jmp;
-	struct fs_node *left, *right;
-};
+typedef struct call {
+	node_t *vargs;
+} call_t;
 
-struct fs_call {
-	struct fs_node *vargs;
-};
+typedef struct probe {
+	node_t *pred;
+	node_t *stmts;
+} probe_t;
 
-struct fs_probe {
-	struct fs_node *pred;
-	struct fs_node *stmts;
-};
-
-struct fs_script {
-	struct fs_node *probes;
-	struct fs_dyn  *dyns;
+typedef struct script {
+	node_t *probes;
+	dyn_t  *dyns;
 	int globals;
-};
+} script_t;
 
-#define FS_TYPE_TABLE \
-	TYPE(FS_NONE, "none")			\
-	TYPE(FS_SCRIPT, "script")		\
-	TYPE(FS_PROBE, "probe")			\
-	TYPE(FS_CALL, "call")			\
-	TYPE(FS_ASSIGN, "assign")		\
-	TYPE(FS_RETURN, "return")		\
-	TYPE(FS_BINOP, "binop")			\
-	TYPE(FS_NOT, "not")			\
-	TYPE(FS_MAP, "map")			\
-	TYPE(FS_INT, "int")			\
-	TYPE(FS_STR, "str")
+#define NODE_TYPE_TABLE \
+	TYPE(TYPE_NONE, "none")			\
+	TYPE(TYPE_SCRIPT, "script")		\
+	TYPE(TYPE_PROBE, "probe")		\
+	TYPE(TYPE_CALL, "call")			\
+	TYPE(TYPE_ASSIGN, "assign")		\
+	TYPE(TYPE_RETURN, "return")		\
+	TYPE(TYPE_BINOP, "binop")		\
+	TYPE(TYPE_NOT, "not")			\
+	TYPE(TYPE_MAP, "map")			\
+	TYPE(TYPE_INT, "int")			\
+	TYPE(TYPE_STR, "str")
 
 #define TYPE(_type, _typestr) _type,
-enum fs_type {
-	FS_TYPE_TABLE
-};
+typedef enum type {
+	NODE_TYPE_TABLE
+} type_t;
 #undef TYPE
 
-const char *fs_typestr(enum fs_type type);
+const char *type_str(type_t type);
 
-enum fs_loc_type {
-	FS_LOC_NOWHERE,
-	FS_LOC_REG,
-	FS_LOC_STACK,
-};
+typedef enum loc_type {
+	LOC_NOWHERE,
+	LOC_REG,
+	LOC_STACK,
+} loc_type_t;
 
-struct fs_loc {
-	enum fs_loc_type type;
+typedef struct loc {
+	loc_type_t type;
 
 	int reg;
 	ssize_t addr;
+} loc_t;
+
+
+struct dyn {
+	dyn_t *next, *prev;
+
+	node_t *node;
+	char   *string;
+
+	type_t type;
+	size_t size;
+
+	int    mapfd;
+	size_t ksize;
+
+	loc_t  loc;
 };
 
-struct fs_dyn {
-	struct fs_dyn *next, *prev;
-
-	struct fs_node *node;
-	char           *string;
-
-	enum fs_type    type;
-	size_t          size;
-
-	int		mapfd;
-	size_t          ksize;
-
-	struct fs_loc   loc;
-};
-
-struct fs_node {
-	struct fs_node *next, *prev;
+struct node {
+	node_t *next, *prev;
 	
-	enum fs_type type;
-	char        *string;
-
-	struct fs_node *parent;
-	struct fs_dyn  *dyn;
+	type_t  type;
+	char   *string;
+	node_t *parent;
+	dyn_t  *dyn;
 
 	union {
-		struct fs_script script;
-		struct fs_probe  probe;
-		struct fs_call   call;
-		struct fs_assign assign;
-		struct fs_binop  binop;
-		struct fs_map    map;
-		struct fs_node  *not;
-		struct fs_node  *ret;
+		script_t script;
+		probe_t  probe;
+		call_t   call;
+		assign_t assign;
+		binop_t  binop;
+		map_t    map;
+		node_t  *not;
+		node_t  *ret;
 		
-		int64_t          integer;
+		int64_t  integer;
 	};
+
+	void *pdata;		/* provider's private data */
 };
 
 
-#define fs_foreach(_n, _in) for((_n) = (_in); (_n); (_n) = (_n)->next)
+#define node_foreach(_n, _in) for((_n) = (_in); (_n); (_n) = (_n)->next)
 
-static inline int fs_node_is_sym(struct fs_node *n)
-{
-	return n->type == FS_MAP;
-}
+void node_ast_dump(node_t *n);
 
-static inline struct fs_node *fs_node_new(enum fs_type type) {
-	struct fs_node *n = calloc(1, sizeof(*n));
+node_t *node_str_new   (char *val);
+node_t *node_int_new   (int64_t val);
+node_t *node_map_new   (char *name, node_t *vargs);
+node_t *node_not_new   (node_t *expr);
+node_t *node_return_new(node_t *expr);
+node_t *node_binop_new (node_t *left, char *opstr, node_t *right);
+node_t *node_assign_new(node_t *lval, char *opstr, node_t *expr);
+node_t *node_call_new  (char *func, node_t *vargs);
+node_t *node_probe_new (char *pspec, node_t *pred, node_t *stmts);
+node_t *node_script_new(node_t *probes);
 
-	assert(n);
-	n->type = type;
-	return n;
-}
-
-void fs_ast_dump(struct fs_node *n);
-
-struct fs_node *fs_str_new   (char *val);
-struct fs_node *fs_int_new   (int64_t val);
-struct fs_node *fs_map_new   (char *name, struct fs_node *vargs);
-struct fs_node *fs_not_new   (struct fs_node *expr);
-struct fs_node *fs_return_new(struct fs_node *expr);
-struct fs_node *fs_binop_new (struct fs_node *left, char *opstr, struct fs_node *right);
-struct fs_node *fs_assign_new(struct fs_node *lval, char *opstr, struct fs_node *expr);
-struct fs_node *fs_call_new  (char *func, struct fs_node *vargs);
-struct fs_node *fs_probe_new (char *pspec, struct fs_node *pred, struct fs_node *stmts);
-struct fs_node *fs_script_new(struct fs_node *probes);
-
-void fs_free(struct fs_node *n);
-int  fs_walk(struct fs_node *n,
-	     int  (*pre)(struct fs_node *n, void *ctx),
-	     int (*post)(struct fs_node *n, void *ctx), void *ctx);
+void node_free(node_t *n);
+int  node_walk(node_t *n,
+	     int  (*pre)(node_t *n, void *ctx),
+	     int (*post)(node_t *n, void *ctx), void *ctx);
 
 struct provider;
-int fs_annotate(struct fs_node *script, struct provider *prov);
+int script_annotate(node_t *script, struct provider *prov);
 
 #endif	/* __FS_AST_H */
