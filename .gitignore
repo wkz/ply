@@ -4,4 +4,4 @@
 .gdb_history
 /src/lang/lex.[ch]
 /src/lang/parse.[ch]
-/src/dtl
+/src/ply
