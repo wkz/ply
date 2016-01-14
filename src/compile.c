@@ -1,9 +1,9 @@
 #include <errno.h>
 #include <string.h>
 
-#include "dtl.h"
+#include "ply.h"
+#include "compile.h"
 #include "lang/ast.h"
-#include "fs-ebpf.h"
 #include "provider/provider.h"
 
 int compile_walk(struct ebpf *e, node_t *n, dyn_t *dst);

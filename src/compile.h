@@ -1,7 +1,8 @@
-#ifndef _FS_EBPF_H
-#define _FS_EBPF_H
+#pragma once
 
 #include <linux/bpf.h>
+
+#include "lang/ast.h"
 
 #define INSN(_code, _dst, _src, _off, _imm)	\
 	((struct bpf_insn) {			\
@@ -56,5 +57,3 @@ static inline void emit_ld_mapfd(struct ebpf *e, int reg, int fd)
 }
 
 struct ebpf *node_compile(node_t *probe, struct provider *provider);
-
-#endif	/* _FS_EBPF_H */

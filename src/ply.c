@@ -3,13 +3,13 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include "dtl.h"
+#include "ply.h"
+#include "compile.h"
 #include "lang/ast.h"
 #include "lang/parse.h"
 #include "lang/lex.h"
-#include "fs-ebpf.h"
 
-#include "libbpf.h"
+#include "bpf-syscall.h"
 #include "provider/provider.h"
 
 FILE *scriptfp;

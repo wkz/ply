@@ -7,7 +7,7 @@
 
 #include <sys/syscall.h>
 
-#include "libbpf.h"
+#include "bpf-syscall.h"
 
 char bpf_log_buf[LOG_BUF_SIZE];
 

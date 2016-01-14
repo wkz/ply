@@ -4,7 +4,7 @@
 #include <sys/queue.h>
 
 #include "../lang/ast.h"
-#include "../fs-ebpf.h"
+#include "../compile.h"
 
 struct builtin {
 	const char *name;

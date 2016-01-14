@@ -2,6 +2,6 @@
 .#*
 *.o
 .gdb_history
-/src/fs-lex.[ch]
-/src/fs-parse.[ch]
+/src/lang/lex.[ch]
+/src/lang/parse.[ch]
 /src/dtl

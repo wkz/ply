@@ -1,5 +1,4 @@
-#ifndef _LIBBPF_H
-#define _LIBBPF_H
+#pragma once
 
 #include <linux/bpf.h>
 
@@ -15,5 +14,3 @@ int bpf_map_lookup(int fd, void *key, void *val);
 int bpf_map_update(int fd, void *key, void *val, int flags);
 int bpf_map_delete(int fd, void *key, void *val);
 int bpf_map_next  (int fd, void *key, void *next_key);
-
-#endif	/* _LIBBPF_H */
