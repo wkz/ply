@@ -1,13 +1,19 @@
 .PHONY: all clean
 
+ARCH ?= $(shell uname -m)
+
 #CFLAGS ?= -O3 -Wall -Werror
 CFLAGS ?= -O0 -g -Wall -Wextra -Werror -Wno-unused-parameter
 CFLAGS += -I/home/wkz/code/github/troglobit/troglos/staging/include
 
-HEADERS = ply.h compile.h bpf-syscall.h lang/ast.h provider/provider.h
+HEADERS = ply.h compile.h bpf-syscall.h lang/ast.h provider/arch.h provider/provider.h
 SRCS  = $(addprefix lang/, ast.c lex.c parse.c)
-SRCS += $(addprefix provider/, builtins.c kprobe.c provider.c)
+SRCS += $(addprefix provider/, arch-null.c builtins.c kprobe.c provider.c)
 SRCS += annotate.c bpf-syscall.c compile.c ply.c 
+ifeq ($(ARCH),arm)
+SRCS += provider/arch-arm.c
+endif
+
 OBJS = $(patsubst %.c, %.o, $(SRCS))
 
 all: ply

@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "../ply.h"
+#include "arch.h"
 #include "provider.h"
 
 enum extract_op {
@@ -147,6 +148,48 @@ static int strcmp_annotate(struct provider *p, struct ebpf *e, node_t *n)
 	return 0;
 }
 
+static int reg_compile(struct provider *p, struct ebpf *e, node_t *n)
+{
+	node_t *arg = n->call.vargs;
+	int reg_no = arg->type == TYPE_INT ? arg->integer : (intptr_t)n->call.priv;
+
+	emit(e, STW_IMM(BPF_REG_10, n->dyn->loc.addr, 0));
+	emit(e, STW_IMM(BPF_REG_10, n->dyn->loc.addr + 4, 0));
+
+	emit(e, MOV(BPF_REG_1, BPF_REG_10));
+	emit(e, ALU_IMM(ALU_OP_ADD, BPF_REG_1, n->dyn->loc.addr));
+	emit(e, MOV_IMM(BPF_REG_2, n->dyn->size));
+	emit(e, MOV(BPF_REG_3, BPF_REG_9));
+	emit(e, ALU_IMM(ALU_OP_ADD, BPF_REG_3, sizeof(uintptr_t)*reg_no));
+	emit(e, CALL(BPF_FUNC_probe_read));
+
+	n->dyn->loc.type = LOC_STACK;
+	return 0;
+}
+
+static int reg_annotate(struct provider *p, struct ebpf *e, node_t *n)
+{
+	node_t *arg = n->call.vargs;
+	intptr_t reg;
+
+	if (!arg || arg->next)
+		return -EINVAL;
+
+	if (arg->type == TYPE_STR) {
+		reg = arch_reg_atoi(arg->string);
+		if (reg < 0)
+			return reg;
+
+		n->call.priv = (void *)reg;
+	} else if (arg->type != TYPE_INT) {
+		return -ENOSYS;
+	}
+
+	n->dyn->type = TYPE_INT;
+	n->dyn->size = 8;
+	return 0;
+}
+
 static int generic_load_arg(struct ebpf *e, node_t *arg, int *reg)
 {
 	switch (arg->dyn->type) {
@@ -261,6 +304,12 @@ static struct builtin global_builtins[] = {
 		.annotate = strcmp_annotate,
 		.compile  = strcmp_compile,
 	},
+	{
+		.name = "reg",
+		.annotate = reg_annotate,
+		.compile  = reg_compile,
+	},
+
 	{
 		.name = "trace",
 		.annotate = trace_annotate,

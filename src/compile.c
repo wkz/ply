@@ -346,6 +346,9 @@ struct ebpf *node_compile(node_t *p, struct provider *provider)
 	e->ip = e->prog;
 	e->provider = provider;
 
+	/* context pointer is supplied in r1, store it in r9 */
+	emit(e, MOV(BPF_REG_9, BPF_REG_1));
+
 	err = compile_pred(e, p->probe.pred);
 	if (err) {
 		_e("%s: unable to compile predicate (%d)", p->string, err);

@@ -7,7 +7,7 @@
 
 #include <linux/bpf.h>
 
-#define _ALIGN 4
+#define _ALIGN sizeof(int64_t)
 #define _ALIGNED(_size) (((_size) + _ALIGN - 1) & ~(_ALIGN - 1))
 
 static inline void insque_tail(void *elem, void *prev)
@@ -62,6 +62,7 @@ typedef struct assign {
 
 typedef struct call {
 	node_t *vargs;
+	void   *priv;
 } call_t;
 
 typedef struct probe {

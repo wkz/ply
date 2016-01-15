@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <unistd.h>
 
+#include <asm/ptrace.h>
+
 #include "ply.h"
 #include "compile.h"
 #include "lang/ast.h"
@@ -11,6 +13,8 @@
 
 #include "bpf-syscall.h"
 #include "provider/provider.h"
+
+struct pt_regs regs;
 
 FILE *scriptfp;
 int dump = 0;

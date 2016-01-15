@@ -1,6 +1,6 @@
 kprobe:SyS_open {
-	opens[comm()] += 1;
-	/* trace("%d\n", opens[pid()]); */
+	/* opens[comm()] += 1; */
+	trace("pc: %p\n", reg("pc"));
 }
 
 /* kprobe:SyS_* { */
