@@ -46,8 +46,12 @@ typedef enum alu_op {
 typedef struct node node_t;
 typedef struct dyn  dyn_t;
 
-typedef struct map {
+typedef struct rec {
 	node_t *vargs;
+} rec_t;
+
+typedef struct map {
+	node_t *rec;
 } map_t;
 
 typedef struct binop {
@@ -86,6 +90,7 @@ typedef struct script {
 	TYPE(TYPE_BINOP, "binop")		\
 	TYPE(TYPE_NOT, "not")			\
 	TYPE(TYPE_MAP, "map")			\
+	TYPE(TYPE_REC, "rec")			\
 	TYPE(TYPE_INT, "int")			\
 	TYPE(TYPE_STR, "str")
 
@@ -106,7 +111,7 @@ typedef enum loc_type {
 typedef struct loc {
 	loc_type_t type;
 
-	int reg;
+	int     reg;
 	ssize_t addr;
 } loc_t;
 
@@ -114,25 +119,21 @@ typedef struct loc {
 struct dyn {
 	dyn_t *next, *prev;
 
-	node_t *node;
-	char   *string;
-
 	type_t type;
 	size_t size;
+	loc_t  loc;
 
 	int    mapfd;
-	size_t ksize;
-
-	loc_t  loc;
 };
 
 struct node {
 	node_t *next, *prev;
 	
 	type_t  type;
+	dyn_t   dyn;
+
 	char   *string;
 	node_t *parent;
-	dyn_t  *dyn;
 
 	union {
 		script_t script;
@@ -141,6 +142,7 @@ struct node {
 		assign_t assign;
 		binop_t  binop;
 		map_t    map;
+		rec_t    rec;
 		node_t  *not;
 		node_t  *ret;
 		
@@ -157,7 +159,8 @@ void node_ast_dump(node_t *n);
 
 node_t *node_str_new   (char *val);
 node_t *node_int_new   (int64_t val);
-node_t *node_map_new   (char *name, node_t *vargs);
+node_t *node_rec_new   (node_t *vargs);
+node_t *node_map_new   (char *name, node_t *rec);
 node_t *node_not_new   (node_t *expr);
 node_t *node_return_new(node_t *expr);
 node_t *node_binop_new (node_t *left, char *opstr, node_t *right);

@@ -93,7 +93,7 @@ int map_setup(node_t *script)
 
 void map_dump(dyn_t *dyn)
 {
-	node_t *k = dyn->node->map.vargs;
+	node_t *k = dyn->node->map.rec->rec.vargs;
 	char *key = calloc(1, dyn->ksize), *val = malloc(dyn->size);
 	int err;
 

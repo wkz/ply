@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <ctype.h>
 #include <inttypes.h>
 #include <search.h>
 #include <stdio.h>
@@ -45,11 +46,38 @@ static int _unindent(node_t *n, void *indent)
 	return 0;
 }
 
+static void _fputs_escape(FILE *fp, const char *s)
+{
+	fputc('\"', fp);
+	for (; *s; s++) {
+		if (isprint(*s)) {
+			fputc(*s, fp);
+			continue;
+		}
+
+		fputc('\\', fp);
+
+		switch (*s) {
+		case '\n':
+			fputc('n', fp);
+			break;
+		case '\r':
+			fputc('r', fp);
+			break;
+		case '\t':
+			fputc('t', fp);
+			break;
+		default:
+			fprintf(fp, "x%2.2x", *s);
+			break;
+		}
+	}
+	fputc('\"', fp);
+}
+
 static int _node_ast_dump(node_t *n, void *indent)
 {
 	_indent((int *)indent);
-
-	fprintf(stderr, "(%s) ", type_str(n->type));
 
 	switch (n->type) {
 	case TYPE_NONE:
@@ -57,29 +85,32 @@ static int _node_ast_dump(node_t *n, void *indent)
 	case TYPE_RETURN:
 	case TYPE_NOT:
 	case TYPE_MAP:
+	case TYPE_REC:
 		break;
 		
 	case TYPE_PROBE:		
 	case TYPE_CALL:
 	case TYPE_ASSIGN:
 	case TYPE_BINOP:
-		fprintf(stderr, "%s", n->string);
+		fprintf(stderr, "%s ", n->string);
 		break;
 
 	case TYPE_INT:
-		fprintf(stderr, "%" PRIx64, n->integer);
+		fprintf(stderr, "%" PRIx64 " ", n->integer);
 		break;
 		
 	case TYPE_STR:
-		fprintf(stderr, "\"%s\"", n->string);
+		_fputs_escape(stderr, n->string);
 		break;
 	}
+
+	fprintf(stderr, "(%s) ", type_str(n->type));
 
 	if (n->dyn->type)
 		node_dyn_dump(n->dyn);
 
 	if (n->parent)
-		fprintf(stderr, " <%s>", type_str(n->parent->type));
+		fprintf(stderr, "<%s>", type_str(n->parent->type));
 
 	fputc('\n', stderr);
 	return 0;
@@ -135,12 +166,25 @@ node_t *node_int_new(int64_t val)
 	return n;
 }
 
-node_t *node_map_new(char *name, node_t *vargs)
+node_t *node_rec_new(node_t *vargs)
+{
+	node_t *c, *n = node_new(TYPE_REC);
+
+	n->rec.vargs = vargs;
+
+	node_foreach(c, vargs)
+		c->parent = n;
+	return n;
+}
+
+node_t *node_map_new(char *name, node_t *rec)
 {
 	node_t *n = node_new(TYPE_MAP);
 
 	n->string = name;
-	n->map.vargs = vargs;
+	n->map.rec = rec;
+
+	rec->parent = n;
 	return n;
 }
 
@@ -149,6 +193,8 @@ node_t *node_not_new(node_t *expr)
 	node_t *n = node_new(TYPE_NOT);
 
 	n->not = expr;
+
+	expr->parent = n;
 	return n;
 }
 
@@ -157,6 +203,8 @@ node_t *node_return_new(node_t *expr)
 	node_t *n = node_new(TYPE_RETURN);
 
 	n->ret = expr;
+
+	expr->parent = n;
 	return n;
 }
 
@@ -210,34 +258,47 @@ node_t *node_assign_new(node_t *lval, char *opstr, node_t *expr)
 	n->assign.op   = alu_op_from_str(opstr);
 	n->assign.lval = lval;
 	n->assign.expr = expr;
+
+	lval->parent = n;
+	expr->parent = n;
 	return n;
 }
 
 node_t *node_call_new(char *func, node_t *vargs)
 {
-	node_t *n = node_new(TYPE_CALL);
+	node_t *c, *n = node_new(TYPE_CALL);
 
 	n->string = func;
 	n->call.vargs = vargs;
+
+	node_foreach(c, vargs)
+		c->parent = n;
 	return n;
 }
 
 node_t *node_probe_new(char *pspec, node_t *pred,
 			     node_t *stmts)
 {
-	node_t *n = node_new(TYPE_PROBE);
+	node_t *c, *n = node_new(TYPE_PROBE);
 
 	n->string = pspec;
 	n->probe.pred   = pred;
 	n->probe.stmts  = stmts;
+
+	pred->parent = n;
+	node_foreach(c, stmts)
+		c->parent = n;
 	return n;
 }
 
 node_t *node_script_new(node_t *probes)
 {
-	node_t *n = node_new(TYPE_SCRIPT);
+	node_t *c, *n = node_new(TYPE_SCRIPT);
 
 	n->script.probes = probes;
+
+	node_foreach(c, probes)
+		c->parent = n;
 	return n;
 }
 
@@ -340,7 +401,11 @@ int node_walk(node_t *n,
 		break;
 
 	case TYPE_MAP:
-		do_list(n->map.vargs);
+		do_walk(n->map.rec);
+		break;
+
+	case TYPE_REC:
+		do_list(n->rec.vargs);
 		break;
 
 	case TYPE_NONE:

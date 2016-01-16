@@ -43,7 +43,7 @@ typedef struct node node_t;
 %token <integer> INT
 
 %type <node> script probes probe stmts stmt
-%type <node> block expr variable call vargs
+%type <node> block expr variable record call vargs
 
 %left OP
 %precedence '!'
@@ -67,12 +67,6 @@ probe : PSPEC block
       | PSPEC '/' expr '/' block
 		{ $$ = node_probe_new($1, $3, $5); }
 ;
-
-/* pred : expr */
-/* 		{ $$ = node_pred_new($1, strdup("!="), node_int_new(0)); } */
-/*      | expr CMP expr */
-/* 		{ $$ = node_pred_new($1, $2, $3); } */
-/* ; */
 
 stmts : stmt
 		{ $$ = $1; }
@@ -100,6 +94,8 @@ expr : INT
 		{ $$ = node_int_new($1); }
      | STRING
 		{ $$ = node_str_new($1); }
+     | record
+		{ $$ = $1; }
      | expr OP expr
      		{ $$ = node_binop_new($1, $2, $3); }
      | '!' expr
@@ -112,10 +108,12 @@ expr : INT
 		{ $$ = $1; }
 ;
 
-variable :/*  IDENT */
-	 /* 	{ $$ = node_var_new($1); } */
-         /* | */ IDENT '[' vargs ']'
-		{ $$ = node_map_new($1, $3); }
+variable : IDENT record
+		{ $$ = node_map_new($1, $2); }
+;
+
+record : '[' vargs ']'
+		{ $$ = node_rec_new($2); }
 ;
 
 call: IDENT '(' ')'

@@ -107,7 +107,7 @@ int compile_map_load(struct ebpf *e, node_t *n)
 	int err;
 
 	offs = n->dyn->loc.addr + n->dyn->size;
-	node_foreach(varg, n->map.vargs) {
+	node_foreach(varg, n->map.rec->rec.vargs) {
 		err = emit_node_to_stack(e, varg, offs);
 		if (err)
 			return err;
