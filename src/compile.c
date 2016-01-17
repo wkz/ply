@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <inttypes.h>
 #include <string.h>
 
 #include "ply.h"
@@ -8,23 +9,108 @@
 
 extern int dump;
 
+static const char *bpf_func_name(enum bpf_func_id id)
+{
+	switch (id) {
+	case BPF_FUNC_map_lookup_elem:
+		return "map_lookup_elem";
+	case BPF_FUNC_map_update_elem:
+		return "map_update_elem";
+	case BPF_FUNC_map_delete_elem:
+		return "map_delete_elem";
+	case BPF_FUNC_probe_read:
+		return "probe_read";
+	case BPF_FUNC_ktime_get_ns:
+		return "ktime_get_ns";
+	case BPF_FUNC_trace_printk:
+		return "trace_printk";
+	case BPF_FUNC_get_current_pid_tgid:
+		return "get_current_pid_tgid";
+	case BPF_FUNC_get_current_uid_gid:
+		return "get_current_uid_gid";
+	case BPF_FUNC_get_current_comm:
+		return "get_current_comm";
+
+	default:
+		return NULL;
+	}
+}
+
+void dump_insn(struct bpf_insn insn)
+{
+	const char *name;
+
+	switch (insn.code) {
+	case BPF_ALU64 | BPF_MOV | BPF_X:
+		fprintf(stderr, "\tmov\tr%d, r%d\n", insn.dst_reg, insn.src_reg);
+		return;
+	case BPF_ALU64 | BPF_MOV | BPF_K:
+		fprintf(stderr, "\tmov\tr%d, #%s0x%x\n", insn.dst_reg,
+			insn.imm < 0 ? "-" : "", insn.imm < 0 ? -insn.imm : insn.imm);
+		return;
+
+	case BPF_JMP | BPF_EXIT:
+		fprintf(stderr, "\texit\n");
+
+	case BPF_JMP | BPF_CALL:
+		name = bpf_func_name(insn.imm);
+		if (name)
+			fprintf(stderr, "\tcall\t%s\n", name);
+		else
+			fprintf(stderr, "\tcall\t#%d\n", insn.imm);
+		return;
+
+	case BPF_ST | BPF_SIZE(BPF_W) | BPF_MEM:
+		fprintf(stderr, "\tstw\t[r%d%s0x%x], #%s0x%x\n", insn.dst_reg,
+			insn.off < 0 ? "-" : "", insn.off < 0 ? -insn.off : insn.off,
+			insn.imm < 0 ? "-" : "", insn.imm < 0 ? -insn.imm : insn.imm);
+		return;
+
+	case BPF_STX | BPF_SIZE(BPF_DW) | BPF_MEM:
+		fprintf(stderr, "\tstdw\t[r%d%s0x%x], r%d\n", insn.dst_reg,
+			insn.off < 0 ? "-" : "", insn.off < 0 ? -insn.off : insn.off,
+			insn.src_reg);
+		return;
+
+	case BPF_LDX | BPF_SIZE(BPF_B) | BPF_MEM:
+		fprintf(stderr, "\tldb\tr%d, [r%d%s0x%x]\n", insn.dst_reg, insn.src_reg,
+			insn.off < 0 ? "-" : "", insn.off < 0 ? -insn.off : insn.off);
+		return;
+	case BPF_LDX | BPF_SIZE(BPF_DW) | BPF_MEM:
+		fprintf(stderr, "\tlddw\tr%d, [r%d%s0x%x]\n", insn.dst_reg, insn.src_reg,
+			insn.off < 0 ? "-" : "", insn.off < 0 ? -insn.off : insn.off);
+		return;
+
+	default:
+		break;
+	}
+
+	if (insn.code & BPF_JMP) {
+		
+	}
+		
+	
+	fprintf(stderr, "\tdata\t0x%16.16" PRIx64 "\n", *((uint64_t *)&insn));
+}
+
 void emit(prog_t *prog, struct bpf_insn insn)
 {
 	if (dump) {
-		FILE *dasm = popen("ebpf-dasm >&2", "w");
+		dump_insn(insn);
+		/* FILE *dasm = popen("ebpf-dasm >&2", "w"); */
 
-		if (dasm) {
-			fwrite(&insn, sizeof(insn), 1, dasm);
-			pclose(dasm);
-		} else {
-			assert(0);
-		}
+		/* if (dasm) { */
+		/* 	fwrite(&insn, sizeof(insn), 1, dasm); */
+		/* 	pclose(dasm); */
+		/* } else { */
+		/* 	assert(0); */
+		/* } */
 	}
 
 	*(prog->ip)++ = insn;
 }
 
-void push(prog_t *prog, node_t *n)
+void emit_push(prog_t *prog, node_t *n)
 {
 	uint32_t *wdata;
 	ssize_t at;
@@ -63,7 +149,46 @@ void push(prog_t *prog, node_t *n)
 
 		break;
 	}
-	
+
+	n->dyn.loc = LOC_STACK;
+}
+
+int emit_map_load(prog_t *prog, node_t *n)
+{
+	node_t *varg;
+	size_t i;
+
+	prog->sp -= n->dyn.size;
+	n->dyn.addr = prog->sp;
+
+	node_foreach(varg, n->map.rec->rec.vargs) {
+		if (!varg->next)
+			break;
+	}
+
+	/* lookup key */
+	emit_ld_mapfd(prog, BPF_REG_1, node_map_get_fd(n));
+	emit(prog, MOV(BPF_REG_2, BPF_REG_10));
+	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_2, varg->dyn.addr));
+	emit(prog, CALL(BPF_FUNC_map_lookup_elem));
+
+	emit(prog, JMP_IMM(JMP_JNE, BPF_REG_0, 0, (n->dyn.size / 8) + 1));
+
+	/* if the key was not found, zero-fill value area */
+	for (i = 0; i < (n->dyn.size / 8); i++)
+		emit(prog, STXDW(BPF_REG_10, n->dyn.addr + i * 8, BPF_REG_0));
+
+	emit(prog, JMP_IMM(JMP_JA, 0, 0, 5));
+
+	/* if key existed, copy it to the stack */
+	emit(prog, MOV(BPF_REG_1, BPF_REG_10));
+	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_1, n->dyn.addr));
+	emit(prog, MOV_IMM(BPF_REG_2, n->dyn.size));
+	emit(prog, MOV(BPF_REG_3, BPF_REG_0));
+	emit(prog, CALL(BPF_FUNC_probe_read));
+
+	n->dyn.loc = LOC_STACK;
+	return 0;
 }
 
 static int compile_pre(node_t *n, void *_prog)
@@ -82,6 +207,7 @@ static int compile_pre(node_t *n, void *_prog)
 static int compile_post(node_t *n, void *_prog)
 {
 	prog_t *prog = _prog;
+	int err = 0;
 
 	(void)(prog);
 
@@ -95,9 +221,18 @@ static int compile_post(node_t *n, void *_prog)
 			break;
 		/* fall-through */
 	case TYPE_STR:
-		push(prog, n);
+		emit_push(prog, n);
 		break;
 
+	case TYPE_REC:
+		/* components are already pushed to the stack */
+		break;
+
+	case TYPE_MAP:
+		err = emit_map_load(prog, n);
+		if (err)
+			break;
+		
 	default:
 		break;
 	}
@@ -106,7 +241,7 @@ static int compile_post(node_t *n, void *_prog)
 	   n->string ? : type_str(n->type), n->string ? "" : ">",
 	   type_str(n->type), type_str(n->dyn.type), n->dyn.size);
 
-	return 0;
+	return err;
 }
 
 static int compile_walk(node_t *n, prog_t *prog)

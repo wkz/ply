@@ -5,12 +5,12 @@ kprobe:SyS_open {
 	/* opens[0] = "hej"; */
 	/* test[0] = opens["hoj", 0x1337, 1]; */
 	/* opens["lol", 1, 1] = ["wow", "hej"]; */
-	[1, "hej"]
+	opens[1, "hej"] = 1
 }
 
-kprobe:SyS_* {
-	opens["hej", pid(), 1] = ["BU!", 2];
-}
+/* kprobe:SyS_* { */
+/* 	opens["hej", pid(), 1] = ["BU!", 2]; */
+/* } */
 
 /* ply:END { */
 /* 	hbar(sc); */
