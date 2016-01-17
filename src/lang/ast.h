@@ -1,9 +1,11 @@
 #pragma once
 
 #include <assert.h>
+#include <errno.h>
 #include <search.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <linux/bpf.h>
 
@@ -45,6 +47,10 @@ typedef enum alu_op {
 
 typedef struct node node_t;
 typedef struct dyn  dyn_t;
+typedef struct mdyn mdyn_t;
+
+/* forward from pvdr/pvdr.h */
+typedef struct pvdr pvdr_t;
 
 typedef struct rec {
 	node_t *vargs;
@@ -72,12 +78,20 @@ typedef struct call {
 typedef struct probe {
 	node_t *pred;
 	node_t *stmts;
+
+	pvdr_t *pvdr;
 } probe_t;
+
+struct mdyn {
+	mdyn_t *next, *prev;
+
+	node_t *map;
+	int     mapfd;
+};
 
 typedef struct script {
 	node_t *probes;
-	dyn_t  *dyns;
-	int globals;
+	mdyn_t *mdyns;
 } script_t;
 
 #define NODE_TYPE_TABLE \
@@ -102,28 +116,19 @@ typedef enum type {
 
 const char *type_str(type_t type);
 
-typedef enum loc_type {
+typedef enum loc {
 	LOC_NOWHERE,
 	LOC_REG,
 	LOC_STACK,
-} loc_type_t;
-
-typedef struct loc {
-	loc_type_t type;
-
-	int     reg;
-	ssize_t addr;
 } loc_t;
 
-
 struct dyn {
-	dyn_t *next, *prev;
-
 	type_t type;
 	size_t size;
-	loc_t  loc;
 
-	int    mapfd;
+	loc_t   loc;
+	int     reg;
+	ssize_t addr;
 };
 
 struct node {
@@ -145,13 +150,47 @@ struct node {
 		rec_t    rec;
 		node_t  *not;
 		node_t  *ret;
-		
 		int64_t  integer;
 	};
 
-	void *pdata;		/* provider's private data */
+	void *priv;
 };
 
+static inline node_t *node_get_parent_of_type(type_t type, node_t *n)
+{
+	for(n = n->parent; n && n->type != type; n = n->parent);
+	return n;
+}
+
+static inline node_t *node_get_script(node_t *n)
+{
+	return node_get_parent_of_type(TYPE_SCRIPT, n);
+}
+
+static inline node_t *node_get_probe(node_t *n)
+{
+	return node_get_parent_of_type(TYPE_PROBE, n);
+}
+
+static inline pvdr_t *node_get_pvdr(node_t *n)
+{
+	node_t *probe = node_get_parent_of_type(TYPE_PROBE, n);
+
+	return probe ? probe->probe.pvdr : NULL;
+}
+
+static inline int node_map_get_fd(node_t *map)
+{
+	node_t *script = node_get_script(map);
+	mdyn_t *mdyn;
+
+	for (mdyn = script->script.mdyns; mdyn; mdyn = mdyn->next) {
+		if (!strcmp(mdyn->map->string, map->string))
+			return mdyn->mapfd;
+	}
+
+	return -ENOENT;
+}
 
 #define node_foreach(_n, _in) for((_n) = (_in); (_n); (_n) = (_n)->next)
 
@@ -173,6 +212,3 @@ void node_free(node_t *n);
 int  node_walk(node_t *n,
 	     int  (*pre)(node_t *n, void *ctx),
 	     int (*post)(node_t *n, void *ctx), void *ctx);
-
-struct provider;
-int script_annotate(node_t *script, struct provider *prov);

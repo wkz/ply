@@ -4,36 +4,106 @@
 
 #include "ply.h"
 #include "lang/ast.h"
-#include "provider/provider.h"
+#include "pvdr/pvdr.h"
 
-#define xor(_a, _b) ((!!(_a)) ^ (!!(_b)))
+#define b_xor(_a, _b) ((!!(_a)) ^ (!!(_b)))
 
-static int type_sync(node_t *from, node_t *to)
+static int type_sync(node_t *a, node_t *b)
 {
+	node_t *ac, *bc;
+	char *map_name = NULL;
+	int i;
+
 	/* if only one side is known, transfer it to the other
 	 * side. if both sides are known, they must be equal. */
 
-	if (xor(from->dyn.type, to->dyn.type)) {
-		if (from->dyn.type)
-			to->dyn.type = from->dyn.type;
+	if (b_xor(a->dyn.type, b->dyn.type)) {
+		if (a->dyn.type)
+			b->dyn.type = a->dyn.type;
 		else
-			from->dyn.type = to->dyn.type;
-	} else if (from->dyn.type != to->dyn.type) {
-		_e("%s: type mismatch: %s != %s", from->string,
-		   type_str(from->dyn.type), type_str(to->dyn.type));
+			a->dyn.type = b->dyn.type;
+	} else if (a->dyn.type != b->dyn.type) {
+		_e("%s: type mismatch: %s != %s", a->string,
+		   type_str(a->dyn.type), type_str(b->dyn.type));
 		return -EINVAL;
 	}
 
-	if (xor(from->dyn.size, to->dyn.size)) {
-		if (from->dyn.size)
-			to->dyn.size = from->dyn.size;
+	if (b_xor(a->dyn.size, b->dyn.size)) {
+		if (a->dyn.size)
+			b->dyn.size = a->dyn.size;
 		else
-			from->dyn.size = to->dyn.size;
-	} else if (from->dyn.size != to->dyn.size) {
-		_e("%s: size mismatch: %zx != %zx", from->string,
-		   from->dyn.size, to->dyn.size);
+			a->dyn.size = b->dyn.size;
+	} else if (a->dyn.size != b->dyn.size) {
+		_e("%s: size mismatch: %zx != %zx", a->string,
+		   a->dyn.size, b->dyn.size);
 		return -EINVAL;		
 	}
+
+	/* for types other than literal records, just compare the size */
+	if (!(a->type == TYPE_REC && b->type == TYPE_REC))
+		return 0;
+
+	if (a->parent->type == TYPE_MAP)
+		map_name = a->parent->string;
+
+	/* when syncing record literals, also verify each of their
+	 * respective components */
+	for (i = 1, ac = a->rec.vargs, bc = b->rec.vargs;
+	     ac && bc; i++, ac = ac->next, bc = bc->next) {
+		if (ac->dyn.type != bc->dyn.type ||
+		    ac->dyn.size != bc->dyn.size) {			
+			_e("%s%srecord mismatch, argument %d: "
+			   "%s/%#zx != %s/%#zx",
+			   map_name ? : "", map_name ? ": key " : "", i,
+			   type_str(ac->dyn.type), ac->dyn.size,
+			   type_str(bc->dyn.type), bc->dyn.size);
+			return -EINVAL;
+		}
+	}
+
+	if (ac || bc) {
+		_e("%s%srecord mismatch, expected %i argument(s)",
+		   map_name ? : "", map_name ? ": key " : "", i);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int type_sync_map(node_t *a, node_t *b)
+{
+	node_t *a_rec = a->map.rec, *b_rec = b->map.rec;
+	int err;
+
+	err = type_sync(a, b);
+	if (err)
+		return err;
+
+	if (!(a_rec->dyn.size && b_rec->dyn.size))
+		return 0;
+
+
+	return type_sync(a_rec, b_rec);
+}
+
+static int type_infer_map(node_t *script, node_t *n)
+{
+	mdyn_t *mdyn;
+
+	for (mdyn = script->script.mdyns; mdyn; mdyn = mdyn->next) {
+		if (!strcmp(mdyn->map->string, n->string))
+			return type_sync_map(n, mdyn->map);
+	}
+
+	mdyn = calloc(1, sizeof(*mdyn));
+	assert(mdyn);
+
+	mdyn->map = n;
+
+	if (!script->script.mdyns)
+		script->script.mdyns = mdyn;
+	else
+		insque_tail(mdyn, script->script.mdyns);
 
 	return 0;
 }
@@ -76,12 +146,17 @@ static int type_bubble(node_t *from)
 	return type_bubble(p);
 }
 
-static int type_infer_post(node_t *n, void *_null)
+static int type_infer_post(node_t *n, void *_script)
 {
-	if (n->type == TYPE_REC) {
-		node_t *c;
-		size_t sz = 0;
+	node_t *script = _script;
+	node_t *c;
+	size_t sz = 0;
+	int err;
 
+	switch (n->type) {
+	case TYPE_REC:
+		/* when the sizes of all arguments are known, the size
+		 * of the record is their sum. */
 		node_foreach(c, n->rec.vargs) {
 			if (c->dyn.size) {
 				sz += c->dyn.size;
@@ -93,90 +168,25 @@ static int type_infer_post(node_t *n, void *_null)
 
 		if (sz)
 			n->dyn.size = sz;
+		break;
+	case TYPE_MAP:
+		err = type_infer_map(script, n);
+		if (err)
+			return err;
+		break;
+	default:
+		break;
 	}
-
-	if (n->dyn.type || n->dyn.size)
-		return type_bubble(n);
+	
+	err = type_bubble(n);
+	if (err)
+		return err;
 
 	return 0;
 }
 
-/* static dyn_t *dyn_get(node_t *n) */
-/* { */
-/* 	dyn_t *dyn; */
-/* 	node_t *s, *k; */
-
-/* 	for (s = n; s && s->type != TYPE_SCRIPT; s = s->parent); */
-/* 	assert(s); */
-
-/* 	if (n->type != TYPE_MAP) */
-/* 		goto new; */
-
-/* 	if (n->type == TYPE_MAP) */
-/* 	for (dyn = s->script.dyns; dyn; dyn = dyn.next) */
-/* 		if (dyn.string && !strcmp(n->string, dyn.string)) */
-/* 			return dyn; */
-
-/* new: */
-/* 	dyn = calloc(1, sizeof(*dyn)); */
-/* 	if (!s->script.dyns) */
-/* 		s->script.dyns = dyn; */
-/* 	else */
-/* 		insque_tail(dyn, s->script.dyns); */
-
-/* 	dyn.node = n; */
-
-/* 	if (n->type != TYPE_MAP) */
-/* 		return dyn; */
-
-/* 	dyn.string = strdup(n->string); */
-
-/* 	node_foreach(k, n->map.rec->rec.vargs) { */
-/* 		if (!k->dyn.size) { */
-/* 			dyn.ksize = 0; */
-/* 			break; */
-/* 		} */
-/* 		dyn.ksize += k->dyn.size; */
-/* 	} */
-/* 	return dyn; */
-/* } */
-
-static char *str_escape(char *str)
+static int static_post(node_t *n, void *_null)
 {
-	char *in, *out;
-
-	for (in = out = str; *in; in++, out++) {
-		if (*in != '\\')
-			continue;
-
-		in++;
-		switch (*in) {
-		case 'n':
-			*out = '\n';
-			break;
-		case 'r':
-			*out = '\r';
-			break;
-		case 't':
-			*out = '\t';
-			break;
-		case '\\':
-			*out = '\\';
-			break;
-		default:
-			break;
-		}
-	}
-
-	if (out < in)
-		*out = '\0';
-
-	return str;
-}
-
-static int static_post(node_t *n, void *_prov)
-{
-	struct provider *prov = _prov;
 	char *escaped;
 	int err;
 
@@ -201,7 +211,7 @@ static int static_post(node_t *n, void *_prov)
 		n->dyn.type = TYPE_REC;
 		break;
 	case TYPE_CALL:
-		err = prov->annotate(prov, NULL, n);
+		err = node_get_pvdr(n)->annotate(n);
 		if (err)
 			return err;
 		break;
@@ -212,47 +222,25 @@ static int static_post(node_t *n, void *_prov)
 	return 0;
 }
 
-int script_annotate(node_t *script, struct provider *prov)
+int annotate_script(node_t *script)
 {
-	dyn_t *dyn;
-	ssize_t stack = 0;
 	int err;
 
 	/* insert all statically known types */
-	err = node_walk(script, NULL, static_post, prov);
+	err = node_walk(script, NULL, static_post, NULL);
 	if (err) {
 		_e("static annotation failed (%d)", err);
 		return err;
 	}
 
-	/* infer the rest */
-	err = node_walk(script, NULL, type_infer_post, NULL);
-	if (err) {
-		_e("type inference failed (%d)", err);
+	/* infer the rest. ...yes do three passes, this catches cases
+	 * where maps are used as rvalues before being used as
+	 * lvalues. TODO: this should be possible with two passes */
+	err =        node_walk(script, NULL, type_infer_post, script);
+	err = err || node_walk(script, NULL, type_infer_post, script);
+	err = err || node_walk(script, NULL, type_infer_post, script);
+	if (err)
 		return err;
-	}
 
-	err = node_walk(script, NULL, type_infer_post, NULL);
-	if (err) {
-		_e("type inference failed (%d)", err);
-		return err;
-	}
-
-	/* allocate stack locations for symbols */
-	/* for (dyn = script->script.dyns; dyn; dyn = dyn.next) { */
-	/* 	switch (dyn.node->type) { */
-	/* 	case TYPE_CALL: */
-	/* 	case TYPE_STR: */
-	/* 		stack -= dyn.size; */
-	/* 		break; */
-	/* 	case TYPE_MAP: */
-	/* 		stack -= dyn.size + dyn.ksize; */
-	/* 		break; */
-	/* 	default: */
-	/* 		continue; */
-	/* 	} */
-
-	/* 	dyn.loc.addr = stack; */
-	/* } */
 	return 0;
 }

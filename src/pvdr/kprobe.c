@@ -14,7 +14,7 @@
 #include <sys/types.h>
 
 #include "../bpf-syscall.h"
-#include "provider.h"
+#include "pvdr.h"
 
 /* typedef struct evlist { */
 /* 	size_t cap, len; */
@@ -66,7 +66,7 @@ static int _eventid(char *pspec)
 	return strtol(str, NULL, 0);
 }
 
-static int kprobes_setup(struct provider *p, struct ebpf *e, node_t *probe)
+static int kprobe_setup(node_t *probe, struct ebpf *e)
 {
 	int bd, ed, eventid;
 	struct perf_event_attr attr = {};
@@ -108,25 +108,25 @@ static int kprobes_setup(struct provider *p, struct ebpf *e, node_t *probe)
 }
 
 
-static int kprobes_compile(struct provider *p, struct ebpf *e, node_t *n)
+static int kprobe_compile(node_t *call, struct ebpf *e)
 {
-	return global_compile(p, e, n);
+	return builtin_compile(call, e);
 }
 
-static int kprobes_annotate(struct provider *p, struct ebpf *e, node_t *n)
+static int kprobe_annotate(node_t *call)
 {
-	return global_annotate(p, e, n);
+	return builtin_annotate(call);
 }
 
-struct provider kprobe_provider = {
+pvdr_t kprobe_pvdr = {
 	.name = "kprobe",
-	.annotate = kprobes_annotate,
-	.compile  = kprobes_compile,
-	.setup    = kprobes_setup,
+	.annotate = kprobe_annotate,
+	.compile  = kprobe_compile,
+	.setup    = kprobe_setup,
 };
 
 __attribute__((constructor))
-static void kprobe_provider_register(void)
+static void kprobe_pvdr_register(void)
 {
-	provider_register(&kprobe_provider);
+	pvdr_register(&kprobe_pvdr);
 }

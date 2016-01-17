@@ -38,12 +38,8 @@
 			##__VA_ARGS__);					\
 	}
 
-struct provider;
 
 struct ebpf {
-	struct provider *provider;
-	dyn_t *regs[__MAX_BPF_REG];
-
 	struct bpf_insn *ip;
 	struct bpf_insn  prog[BPF_MAXINSNS];
 };
@@ -56,4 +52,4 @@ static inline void emit_ld_mapfd(struct ebpf *e, int reg, int fd)
 	emit(e, INSN(0, 0, 0, 0, 0));
 }
 
-struct ebpf *node_compile(node_t *probe, struct provider *provider);
+struct ebpf *compile_probe(node_t *probe);

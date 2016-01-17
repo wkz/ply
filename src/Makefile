@@ -6,12 +6,12 @@ ARCH ?= $(shell uname -m)
 CFLAGS ?= -O0 -g -Wall -Wextra -Werror -Wno-unused-parameter
 CFLAGS += -I/home/wkz/code/github/troglobit/troglos/staging/include
 
-HEADERS = ply.h compile.h bpf-syscall.h lang/ast.h provider/arch.h provider/provider.h
+HEADERS = ply.h compile.h bpf-syscall.h lang/ast.h pvdr/arch.h pvdr/pvdr.h
 SRCS  = $(addprefix lang/, ast.c lex.c parse.c)
-SRCS += $(addprefix provider/, arch-null.c builtins.c kprobe.c provider.c)
-SRCS += annotate.c bpf-syscall.c compile.c ply.c 
+SRCS += $(addprefix pvdr/, arch-null.c builtins.c pvdr.c kprobe.c)
+SRCS += annotate.c bpf-syscall.c compile.c ply.c utils.c 
 ifeq ($(ARCH),arm)
-SRCS += provider/arch-arm.c
+SRCS += pvdr/arch-arm.c
 endif
 
 OBJS = $(patsubst %.c, %.o, $(SRCS))
