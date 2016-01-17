@@ -36,76 +36,144 @@ static const char *bpf_func_name(enum bpf_func_id id)
 	}
 }
 
+void dump_reg(uint8_t reg, int16_t off)
+{
+	if (off < 0)
+		fprintf(stderr, "[r%u - 0x%x]", reg, -off);
+	else if (off > 0)
+		fprintf(stderr, "[r%u + 0x%x]", reg, off);
+	else
+		fprintf(stderr, "r%u", reg);
+}
+
+void dump_size(uint8_t size)
+{
+	switch (BPF_SIZE(size)) {
+	case BPF_B:
+		fputs("b\t", stderr);
+		break;
+	case BPF_H:
+		fputs("h\t", stderr);
+		break;
+	case BPF_W:
+		fputs("w\t", stderr);
+		break;
+	case BPF_DW:
+		fputs("dw\t", stderr);
+		break;
+	}
+}		
+
 void dump_insn(struct bpf_insn insn)
 {
+	static size_t ip = 0;
+
 	const char *name;
+	enum {
+		OFF_NONE,
+		OFF_DST,
+		OFF_SRC,
+		OFF_EXP,
+	} off = OFF_NONE;
+	
 
-	switch (insn.code) {
-	case BPF_ALU64 | BPF_MOV | BPF_X:
-		fprintf(stderr, "\tmov\tr%d, r%d\n", insn.dst_reg, insn.src_reg);
-		return;
-	case BPF_ALU64 | BPF_MOV | BPF_K:
-		fprintf(stderr, "\tmov\tr%d, #%s0x%x\n", insn.dst_reg,
-			insn.imm < 0 ? "-" : "", insn.imm < 0 ? -insn.imm : insn.imm);
-		return;
+	fprintf(stderr, "%.3zx:\t", ip);
+	ip += 8;
 
-	case BPF_JMP | BPF_EXIT:
-		fprintf(stderr, "\texit\n");
+	switch (BPF_CLASS(insn.code)) {
+	case BPF_LD:
+	case BPF_LDX:
+		off = OFF_SRC;
+		fputs("ld", stderr);
+		dump_size(insn.code);
+		break;
 
-	case BPF_JMP | BPF_CALL:
-		name = bpf_func_name(insn.imm);
-		if (name)
-			fprintf(stderr, "\tcall\t%s\n", name);
-		else
-			fprintf(stderr, "\tcall\t#%d\n", insn.imm);
-		return;
+	case BPF_ST:
+	case BPF_STX:
+		off = OFF_DST;
+		fputs("st", stderr);
+		dump_size(insn.code);
+		break;
 
-	case BPF_ST | BPF_SIZE(BPF_W) | BPF_MEM:
-		fprintf(stderr, "\tstw\t[r%d%s0x%x], #%s0x%x\n", insn.dst_reg,
-			insn.off < 0 ? "-" : "", insn.off < 0 ? -insn.off : insn.off,
-			insn.imm < 0 ? "-" : "", insn.imm < 0 ? -insn.imm : insn.imm);
-		return;
+	case BPF_ALU64:
+		switch (BPF_OP(insn.code)) {
+		case BPF_MOV: fputs("mov\t", stderr); break;
+		case BPF_ADD: fputs("add\t", stderr); break;
+		case BPF_SUB: fputs("sub\t", stderr); break;
+		case BPF_MUL: fputs("mul\t", stderr); break;
+		case BPF_DIV: fputs("div\t", stderr); break;
+		case BPF_OR : fputs("or\t",  stderr); break;
+		case BPF_AND: fputs("and\t", stderr); break;
+		case BPF_LSH: fputs("lsh\t", stderr); break;
+		case BPF_RSH: fputs("rsh\t", stderr); break;
+		case BPF_NEG: fputs("neg\t", stderr); break;
+		case BPF_MOD: fputs("mod\t", stderr); break;
+		case BPF_XOR: fputs("xor\t", stderr); break;
+		}
+		break;
 
-	case BPF_STX | BPF_SIZE(BPF_DW) | BPF_MEM:
-		fprintf(stderr, "\tstdw\t[r%d%s0x%x], r%d\n", insn.dst_reg,
-			insn.off < 0 ? "-" : "", insn.off < 0 ? -insn.off : insn.off,
-			insn.src_reg);
-		return;
+	case BPF_JMP:
+		off = OFF_EXP;
 
-	case BPF_LDX | BPF_SIZE(BPF_B) | BPF_MEM:
-		fprintf(stderr, "\tldb\tr%d, [r%d%s0x%x]\n", insn.dst_reg, insn.src_reg,
-			insn.off < 0 ? "-" : "", insn.off < 0 ? -insn.off : insn.off);
-		return;
-	case BPF_LDX | BPF_SIZE(BPF_DW) | BPF_MEM:
-		fprintf(stderr, "\tlddw\tr%d, [r%d%s0x%x]\n", insn.dst_reg, insn.src_reg,
-			insn.off < 0 ? "-" : "", insn.off < 0 ? -insn.off : insn.off);
-		return;
+		switch (BPF_OP(insn.code)) {
+		case BPF_EXIT:
+			fputs("exit\n", stderr);
+			return;
+		case BPF_CALL:
+			fputs("call\t", stderr);
+
+			name = bpf_func_name(insn.imm);
+			if (name)
+				fprintf(stderr, "%s\n", name);
+			else
+				fprintf(stderr, "%d\n", insn.imm);
+			return;
+		case BPF_JA:
+			fprintf(stderr, "ja\t%+d\n", insn.off);
+			return;
+
+		case BPF_JEQ: fputs("jeq\t", stderr); break;
+		case BPF_JNE: fputs("jne\t", stderr); break;
+		case BPF_JGT: fputs("jgt\t", stderr); break;
+		case BPF_JGE: fputs("jge\t", stderr); break;
+		default:
+			goto unknown;
+		}
+		break;
 
 	default:
+		goto unknown;
+	}
+
+	dump_reg(insn.dst_reg, off == OFF_DST ? insn.off : 0);		
+	fputs(", ", stderr);
+
+	switch (BPF_SRC(insn.code)) {
+	case BPF_K:
+		fprintf(stderr, "#%s0x%x", insn.imm < 0 ? "-" : "",
+			insn.imm < 0 ? -insn.imm : insn.imm);
+		break;
+	case BPF_X:
+		dump_reg(insn.src_reg, off == OFF_SRC ? insn.off : 0);		
 		break;
 	}
 
-	if (insn.code & BPF_JMP) {
-		
+	if (off == OFF_EXP) {
+		fputs(", ", stderr);
+		fprintf(stderr, "%+d", insn.off);
 	}
-		
-	
-	fprintf(stderr, "\tdata\t0x%16.16" PRIx64 "\n", *((uint64_t *)&insn));
+
+	fputc('\n', stderr);
+	return;
+
+unknown:
+	fprintf(stderr, "data\t0x%16.16" PRIx64 "\n", *((uint64_t *)&insn));
 }
 
 void emit(prog_t *prog, struct bpf_insn insn)
 {
-	if (dump) {
+	if (dump)
 		dump_insn(insn);
-		/* FILE *dasm = popen("ebpf-dasm >&2", "w"); */
-
-		/* if (dasm) { */
-		/* 	fwrite(&insn, sizeof(insn), 1, dasm); */
-		/* 	pclose(dasm); */
-		/* } else { */
-		/* 	assert(0); */
-		/* } */
-	}
 
 	*(prog->ip)++ = insn;
 }
