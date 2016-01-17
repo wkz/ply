@@ -85,6 +85,10 @@ static int compile_post(node_t *n, void *_prog)
 
 	(void)(prog);
 
+	_d("> %s%s%s (%s/%s/%#zx)", n->string ? "" : "<",
+	   n->string ? : type_str(n->type), n->string ? "" : ">",
+	   type_str(n->type), type_str(n->dyn.type), n->dyn.size);
+
 	switch (n->type) {
 	case TYPE_INT:
 		if (n->parent->type != TYPE_REC)
@@ -97,6 +101,11 @@ static int compile_post(node_t *n, void *_prog)
 	default:
 		break;
 	}
+
+	_d("< %s%s%s (%s/%s/%#zx)", n->string ? "" : "<",
+	   n->string ? : type_str(n->type), n->string ? "" : ">",
+	   type_str(n->type), type_str(n->dyn.type), n->dyn.size);
+
 	return 0;
 }
 
