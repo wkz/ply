@@ -32,24 +32,20 @@
 #define LDXW(_dst, _off, _src)  INSN(BPF_LDX | BPF_SIZE(BPF_W)  | BPF_MEM, _dst, _src, _off, 0)
 #define LDXDW(_dst, _off, _src) INSN(BPF_LDX | BPF_SIZE(BPF_DW) | BPF_MEM, _dst, _src, _off, 0)
 
-#define RET_ON_ERR(_err, _fmt, ...)					\
-	if (_err) {							\
-		fprintf(stderr, "error(%s:%d): " _fmt, __func__, _err,	\
-			##__VA_ARGS__);					\
-	}
-
-
-struct ebpf {
+typedef struct prog {
 	struct bpf_insn *ip;
-	struct bpf_insn  prog[BPF_MAXINSNS];
-};
+	struct bpf_insn  insns[BPF_MAXINSNS];
 
-void emit(struct ebpf *e, struct bpf_insn insn);
+	ssize_t sp;
+	node_t *regs[__MAX_BPF_REG];
+} prog_t;
 
-static inline void emit_ld_mapfd(struct ebpf *e, int reg, int fd)
+void emit(prog_t *prog, struct bpf_insn insn);
+
+static inline void emit_ld_mapfd(prog_t *prog, int reg, int fd)
 {
-	emit(e, INSN(BPF_LD | BPF_DW | BPF_IMM, reg, BPF_PSEUDO_MAP_FD, 0, fd));
-	emit(e, INSN(0, 0, 0, 0, 0));
+	emit(prog, INSN(BPF_LD | BPF_DW | BPF_IMM, reg, BPF_PSEUDO_MAP_FD, 0, fd));
+	emit(prog, INSN(0, 0, 0, 0, 0));
 }
 
-struct ebpf *compile_probe(node_t *probe);
+prog_t *compile_probe(node_t *probe);

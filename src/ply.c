@@ -151,7 +151,7 @@ int parse_opts(int argc, char **argv)
 int main(int argc, char **argv)
 {
 	node_t *script;
-	struct ebpf *e;
+	prog_t *prog;
 	int err = 0;
 
 	scriptfp = stdin;
@@ -191,8 +191,8 @@ int main(int argc, char **argv)
 	if (dump)
 		node_ast_dump(script);
 
-	e = compile_probe(script->script.probes);
-	if (!e) {
+	prog = compile_probe(script->script.probes);
+	if (!prog) {
 		err = -EINVAL;
 		goto err_free_script;
 	}
@@ -224,7 +224,7 @@ int main(int argc, char **argv)
 
 /* done: */
 /* err_free_ebpf: */
-	free(e);
+	free(prog);
 err_free_script:
 	node_free(script);
 err:

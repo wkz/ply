@@ -12,8 +12,8 @@ typedef struct pvdr {
 	const char *name;
 	
 	int (*annotate)(node_t *call);
-	int  (*compile)(node_t *call,  struct ebpf *e);
-	int    (*setup)(node_t *probe, struct ebpf *e);
+	int  (*compile)(node_t *call,  prog_t *prog);
+	int    (*setup)(node_t *probe, prog_t *prog);
 } pvdr_t;
 
 pvdr_t *pvdr_find    (const char *name);
@@ -22,6 +22,6 @@ void    pvdr_register(pvdr_t *pvdr);
 
 
 int builtin_annotate(node_t *call);
-int builtin_compile (node_t *call, struct ebpf *e);
+int builtin_compile (node_t *call, prog_t *prog);
 
 #endif	/* _PROVIDER_H */

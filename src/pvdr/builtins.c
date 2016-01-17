@@ -10,7 +10,7 @@ typedef struct builtin {
 	const char *name;
 
 	int (*annotate)(node_t *call);
-	int  (*compile)(node_t *call, struct ebpf *e);
+	int  (*compile)(node_t *call, prog_t *prog);
 } builtin_t;
 
 /* enum extract_op { */
@@ -20,7 +20,7 @@ typedef struct builtin {
 /* }; */
 
 /* static int int32_void_func(enum bpf_func_id func, enum extract_op op, */
-/* 			   struct ebpf *e, node_t *call) */
+/* 			   prog_t *prog, node_t *call) */
 /* { */
 /* 	/\* struct reg *dst; *\/ */
 
@@ -42,31 +42,31 @@ typedef struct builtin {
 /* 	return 0; */
 /* } */
 
-/* static int gid_compile(struct provider *p, struct ebpf *e, node_t *n) */
+/* static int gid_compile(struct provider *p, prog_t *prog, node_t *n) */
 /* { */
 /* 	return int32_void_func(BPF_FUNC_get_current_uid_gid, */
 /* 			       EXTRACT_OP_SHIFT, e, n); */
 /* } */
 
-/* static int uid_compile(struct provider *p, struct ebpf *e, node_t *n) */
+/* static int uid_compile(struct provider *p, prog_t *prog, node_t *n) */
 /* { */
 /* 	return int32_void_func(BPF_FUNC_get_current_uid_gid, */
 /* 			       EXTRACT_OP_MASK, e, n); */
 /* } */
 
-/* static int tgid_compile(struct provider *p, struct ebpf *e, node_t *n) */
+/* static int tgid_compile(struct provider *p, prog_t *prog, node_t *n) */
 /* { */
 /* 	return int32_void_func(BPF_FUNC_get_current_pid_tgid, */
 /* 			       EXTRACT_OP_SHIFT, e, n); */
 /* } */
 
-/* static int pid_compile(struct provider *p, struct ebpf *e, node_t *n) */
+/* static int pid_compile(struct provider *p, prog_t *prog, node_t *n) */
 /* { */
 /* 	return int32_void_func(BPF_FUNC_get_current_pid_tgid, */
 /* 			       EXTRACT_OP_MASK, e, n); */
 /* } */
 
-/* static int ns_compile(struct provider *p, struct ebpf *e, node_t *n) */
+/* static int ns_compile(struct provider *p, prog_t *prog, node_t *n) */
 /* { */
 /* 	return int32_void_func(BPF_FUNC_ktime_get_ns, */
 /* 			       EXTRACT_OP_NONE, e, n); */
@@ -82,7 +82,7 @@ static int int_noargs_annotate(node_t *call)
 	return 0;
 }
 
-/* static int comm_compile(struct provider *p, struct ebpf *e, node_t *n) */
+/* static int comm_compile(struct provider *p, prog_t *prog, node_t *n) */
 /* { */
 /* 	size_t i; */
 
@@ -108,7 +108,7 @@ static int comm_annotate(node_t *call)
 	return 0;
 }
 
-/* static int strcmp_compile(struct provider *p, struct ebpf *e, node_t *n) */
+/* static int strcmp_compile(struct provider *p, prog_t *prog, node_t *n) */
 /* { */
 /* 	node_t *s1 = n->call.vargs, *s2 = n->call.vargs->next; */
 /* 	ssize_t i, l; */
@@ -155,7 +155,7 @@ static int strcmp_annotate(node_t *call)
 	return 0;
 }
 
-/* static int reg_compile(struct provider *p, struct ebpf *e, node_t *n) */
+/* static int reg_compile(struct provider *p, prog_t *prog, node_t *n) */
 /* { */
 /* 	node_t *arg = n->call.vargs; */
 /* 	int reg_no = arg->type == TYPE_INT ? arg->integer : (intptr_t)n->call.priv; */
@@ -197,7 +197,7 @@ static int reg_annotate(node_t *call)
 	return 0;
 }
 
-/* static int generic_load_arg(struct ebpf *e, node_t *arg, int *reg) */
+/* static int generic_load_arg(prog_t *prog, node_t *arg, int *reg) */
 /* { */
 /* 	switch (arg->dyn->type) { */
 /* 	case TYPE_INT: */
@@ -240,7 +240,7 @@ static int reg_annotate(node_t *call)
 /* 	} */
 /* } */
 
-/* static int trace_compile(struct provider *p, struct ebpf *e, node_t *n) */
+/* static int trace_compile(struct provider *p, prog_t *prog, node_t *n) */
 /* { */
 /* 	node_t *varg; */
 /* 	int err, reg = BPF_REG_0; */
@@ -332,13 +332,13 @@ static struct builtin builtins[] = {
 	{ .name = NULL }
 };
 
-int builtin_compile(node_t *call, struct ebpf *e)
+int builtin_compile(node_t *call, prog_t *prog)
 {
 	struct builtin *bi;
 	
 	for (bi = builtins; bi->name; bi++)
 		if (!strcmp(bi->name, call->string) && bi->compile)
-			return bi->compile(call, e);
+			return bi->compile(call, prog);
 
 	_e("'%s' unknown", call->string);
 	return -ENOENT;	

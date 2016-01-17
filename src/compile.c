@@ -6,11 +6,9 @@
 #include "lang/ast.h"
 #include "pvdr/pvdr.h"
 
-int compile_walk(struct ebpf *e, node_t *n, dyn_t *dst);
-
 extern int dump;
 
-void emit(struct ebpf *e, struct bpf_insn insn)
+void emit(prog_t *prog, struct bpf_insn insn)
 {
 	if (dump) {
 		FILE *dasm = popen("ebpf-dasm >&2", "w");
@@ -23,333 +21,166 @@ void emit(struct ebpf *e, struct bpf_insn insn)
 		}
 	}
 
-	*(e->ip)++ = insn;
+	*(prog->ip)++ = insn;
 }
 
-int emit_push(struct ebpf *e, ssize_t at, void *data, size_t size)
+void push(prog_t *prog, node_t *n)
 {
-	uint32_t *wdata = data;	/* TODO: ENSURE ALIGNMENT */
-	size_t left = size / sizeof(*wdata);
+	uint32_t *wdata;
+	ssize_t at;
+	size_t left;
 
-	for (; left; left--, wdata++, at += sizeof(*wdata))
-		emit(e, STW_IMM(BPF_REG_10, at, *wdata));
+	if (n->dyn.loc == LOC_STACK)
+		return;
 
-	return 0;
-}
-
-int emit_node_to_reg(struct ebpf *e, node_t *n, int reg)
-{
-	if (n->dyn.type != TYPE_INT)
-		return -EINVAL;
-
+	prog->sp -= n->dyn.size;
+	n->dyn.addr = prog->sp;
+	
 	switch (n->dyn.loc) {
-	case LOC_REG:
-		if (n->dyn.reg == reg)
-			return 0;
-		emit(e, MOV(reg, n->dyn.reg));
-		return 0;
 	case LOC_STACK:
-		emit(e, LDXDW(reg, n->dyn.addr, BPF_REG_10));
-		return 0;
-	default:
+		/* guarded above */
 		break;
-	}
-
-	return -EINVAL;
-}
-
-int emit_node_to_stack(struct ebpf *e, node_t *n, ssize_t at)
-{
-	ssize_t i, sz;
-
-	switch (n->dyn.loc) {
 	case LOC_REG:
-		emit(e, STXDW(BPF_REG_10, at, n->dyn.reg));
-		return 0;
-	case LOC_STACK:		
-		for (i = 0, sz = n->dyn.size; sz >= 8; i += 8, sz -= 8) {
-			emit(e, LDXDW(BPF_REG_0, n->dyn.addr + i, BPF_REG_10));
-			emit(e, STXDW(BPF_REG_10, at + i, BPF_REG_0));
+		emit(prog, STXDW(BPF_REG_10, n->dyn.addr, n->dyn.reg));
+		break;
+	case LOC_NOWHERE:
+		switch (n->type) {
+		case TYPE_INT:
+			wdata = (uint32_t *)&n->integer;
+			break;
+		case TYPE_STR:
+			wdata = (uint32_t *)n->string;
+			break;
+		default:
+			_e("unable to push node of type %s", type_str(n->type));
+			assert(0);
 		}
 
-		return 0;
+		at = n->dyn.addr;
+		left = n->dyn.size / sizeof(*wdata);
+		for (; left; left--, wdata++, at += sizeof(*wdata))
+			emit(prog, STW_IMM(BPF_REG_10, at, *wdata));
+
+		break;
+	}
+	
+}
+
+static int compile_pre(node_t *n, void *_prog)
+{
+	prog_t *prog = _prog;
+
+	(void)(prog);
+
+	switch (n->type) {
 	default:
 		break;
 	}
-
-	return -ENOSYS;
-}
-
-int compile_map_load(struct ebpf *e, node_t *n)
-{
-	node_t *varg;
-	ssize_t i, offs;
-	int err;
-
-	offs = n->dyn.addr + n->dyn.size;
-	node_foreach(varg, n->map.rec->rec.vargs) {
-		err = emit_node_to_stack(e, varg, offs);
-		if (err)
-			return err;
-
-		offs += varg->dyn.size;
-	}
-
-	/* zero stack area */
-	for (i = 0; i < (ssize_t)n->dyn.size; i += 4)
-		emit(e, STW_IMM(BPF_REG_10, n->dyn.addr + i, 0));
-
-	/* lookup key */
-	emit_ld_mapfd(e, BPF_REG_1, node_map_get_fd(n));
-	emit(e, MOV(BPF_REG_2, BPF_REG_10));
-	emit(e, ALU_IMM(ALU_OP_ADD, BPF_REG_2, n->dyn.addr + n->dyn.size));
-	emit(e, CALL(BPF_FUNC_map_lookup_elem));
-
-	emit(e, JMP_IMM(JMP_JEQ, BPF_REG_0, 0, 5));
-
-	/* if key existed, copy it to the stack */
-	emit(e, MOV(BPF_REG_1, BPF_REG_10));
-	emit(e, ALU_IMM(ALU_OP_ADD, BPF_REG_1, n->dyn.addr));
-	emit(e, MOV_IMM(BPF_REG_2, n->dyn.size));
-	emit(e, MOV(BPF_REG_3, BPF_REG_0));
-	emit(e, CALL(BPF_FUNC_probe_read));
-
-	n->dyn.loc = LOC_STACK;
 	return 0;
 }
 
-struct walk_ctx {
-	struct ebpf *e;
-	dyn_t *dst;
-};
-
-static int compile_walk_post(node_t *n, void *_ctx)
+static int compile_post(node_t *n, void *_prog)
 {
-	struct walk_ctx *ctx = _ctx;
-	struct ebpf *e = ctx->e;
-	/* struct dyn_t *dst = ctx->dst; */
-	int err = -ENOSYS, reg;
+	prog_t *prog = _prog;
 
-	_d("%s (%s)", type_str(n->type), n->string ? : "<none>");
+	(void)(prog);
 
 	switch (n->type) {
 	case TYPE_INT:
-		err = 0;
-		break;
-
+		if (n->parent->type != TYPE_REC)
+			break;
+		/* fall-through */
 	case TYPE_STR:
-		if (n->dyn.loc == LOC_NOWHERE) {
-			err = emit_push(e, n->dyn.addr, n->string,
-					n->dyn.size);
-			if (err)
-				return err;
-
-			n->dyn.loc = LOC_STACK;
-		} else
-			err = 0;
-		
+		push(prog, n);
 		break;
 
-	case TYPE_NOT:
-		switch (n->not->dyn.loc) {
-		case LOC_REG:
-			reg = n->not->dyn.reg;
-			break;
-		case LOC_STACK:
-			reg = BPF_REG_0;
-			emit(e, LDXDW(reg, n->not->dyn.addr, BPF_REG_10));
-			break;
-		default:
-			return -EINVAL;
-		}
-
-		err = 0;
-		emit(e, JMP_IMM(JMP_JEQ, reg, 0, 2));
-		emit(e, MOV_IMM(reg, 0));
-		emit(e, JMP_IMM(JMP_JA, 0, 0, 1));
-		emit(e, MOV_IMM(reg, 1));
-		n->dyn.loc = LOC_REG;
-		n->dyn.reg = reg;
-		break;
-
-	case TYPE_MAP:
-		err = compile_map_load(e, n);
-		break;
-
-	case TYPE_CALL:
-		err = node_get_pvdr(n)->compile(n, e);
-		break;
 	default:
-		_e("unsupported node %s", type_str(n->type));
 		break;
 	}
-	return err;
+	return 0;
 }
 
-int compile_walk(struct ebpf *e, node_t *n, dyn_t *dst)
+static int compile_walk(node_t *n, prog_t *prog)
 {
-	struct walk_ctx ctx = { .e = e, .dst = dst };
-
-	return node_walk(n, NULL, compile_walk_post, &ctx);
+	return node_walk(n, compile_pre, compile_post, prog);
 }
 
-int compile_pred(struct ebpf *e, node_t *pred)
+static int compile_pred(node_t *pred, prog_t *prog)
 {
 	int err;
-
-	_d(">");
 
 	if (!pred)
 		return 0;
 
-	err = compile_walk(e, pred, NULL);
+	_d(">");
+
+	err = compile_walk(pred, prog);
 	if (err)
 		return err;
 
 	switch (pred->dyn.loc) {
 	case LOC_REG:
-		emit(e, JMP_IMM(JMP_JNE, pred->dyn.reg, 0, 2));
+		emit(prog, JMP_IMM(JMP_JNE, pred->dyn.reg, 0, 2));
 		break;
 	case LOC_STACK:
-		emit(e, LDXDW(BPF_REG_0, pred->dyn.addr, BPF_REG_10));
-		emit(e, JMP_IMM(JMP_JNE, BPF_REG_0, 0, 2));
+		emit(prog, LDXDW(BPF_REG_0, pred->dyn.addr, BPF_REG_10));
+		emit(prog, JMP_IMM(JMP_JNE, BPF_REG_0, 0, 2));
 		break;
-	default:
-		_e("unknown predicate location");
-		return -EINVAL;
-	}
-
-	emit(e, MOV_IMM(BPF_REG_0, 0));
-	emit(e, EXIT);
-	_d("<");
-	return 0;
-}
-
-int compile_assign(struct ebpf *e, node_t *assign)
-{
-	node_t *lval = assign->assign.lval, *expr = assign->assign.expr;
-	int err;
-
-	_d(">");
-	err = compile_walk(e, lval, NULL);
-	if (err)
-		return err;
-
-	_d("-");
-	err = compile_walk(e, expr, NULL);
-	if (err)
-		return err;
-
-	switch (lval->dyn.type) {
-	case TYPE_INT:
-		emit_node_to_reg(e, lval, BPF_REG_0);
-		if (expr->type == TYPE_INT)
-			emit(e, ALU_IMM(assign->assign.op, BPF_REG_0, expr->integer));
-		else {
-			if (expr->dyn.loc != LOC_REG) {
-				emit_node_to_reg(e, expr, BPF_REG_1);
-				emit(e, ALU(assign->assign.op, BPF_REG_0, BPF_REG_1));
-			} else {
-				emit(e, ALU(assign->assign.op, BPF_REG_0, expr->dyn.reg));
-			}
+	case LOC_NOWHERE:
+		if (pred->type != TYPE_INT) {
+			_e("unknown predicate location");
+			return -EINVAL;
 		}
 
-		emit(e, STXDW(BPF_REG_10, lval->dyn.addr, BPF_REG_0));
+		if (pred->integer)
+			emit(prog, JMP_IMM(JMP_JA, 0, 0, 2));
 		break;
-	default:
-		return -ENOSYS;
 	}
 
-	emit_ld_mapfd(e, BPF_REG_1, node_map_get_fd(lval));
-	emit(e, MOV(BPF_REG_2, BPF_REG_10));
-	emit(e, ALU_IMM(ALU_OP_ADD, BPF_REG_2, lval->dyn.addr + lval->dyn.size));
-	emit(e, MOV(BPF_REG_3, BPF_REG_10));
-	emit(e, ALU_IMM(ALU_OP_ADD, BPF_REG_3, lval->dyn.addr));
-	emit(e, MOV_IMM(BPF_REG_4, 0));
-	emit(e, CALL(BPF_FUNC_map_update_elem));
-
+	emit(prog, MOV_IMM(BPF_REG_0, 0));
+	emit(prog, EXIT);
 	_d("<");
 	return 0;
 }
 
-int compile_agg(struct ebpf *e, node_t *agg)
+prog_t *compile_probe(node_t *probe)
 {
-	return 0;
-}
-
-int compile_return(struct ebpf *e, node_t *ret)
-{
-	_d(">");
-	if (!ret) {
-		emit(e, MOV_IMM(BPF_REG_0, 0));
-	} else {
-
-	}
-
-	emit(e, EXIT);
-	_d("<");
-	return 0;
-}
-
-int compile_stmt(struct ebpf *e, node_t *stmt)
-{
-	switch (stmt->type) {
-	case TYPE_CALL:
-		return compile_walk(e, stmt, NULL);
-	case TYPE_ASSIGN:
-		return compile_assign(e, stmt);
-	case TYPE_RETURN:
-		return compile_return(e, stmt);
-	case TYPE_BINOP:
-	case TYPE_NOT:
-	case TYPE_MAP:
-	case TYPE_INT:
-	case TYPE_STR:
-		_e("%s: useless statement", stmt->string);
-		return 0;
-	default:
-		_e("%s: unknown statement", stmt->string);
-		return -EINVAL;
-	}
-}
-
-struct ebpf *compile_probe(node_t *probe)
-{
-	struct ebpf *e;
+	prog_t *prog;
 	node_t *stmt;
 	int err;
 
-	e = calloc(1, sizeof(*e));
-	if (!e)
+	prog = calloc(1, sizeof(*prog));
+	if (!prog)
 		return NULL;
 
-	e->ip = e->prog;
+	prog->ip = prog->insns;
 
-	/* context pointer is supplied in r1, store it in r9 */
-	emit(e, MOV(BPF_REG_9, BPF_REG_1));
+	_d("");
 
-	err = compile_pred(e, probe->probe.pred);
+	/* context (pt_regs) pointer is supplied in r1 */
+	emit(prog, MOV(BPF_REG_9, BPF_REG_1));
+
+	err = compile_pred(probe->probe.pred, prog);
 	if (err)
 		goto err_free;
 
 	node_foreach(stmt, probe->probe.stmts) {
-		err = compile_stmt(e, stmt);
+		err = compile_walk(stmt, prog);
 		if (err)
 			goto err_free;
 
 		if (!stmt->next)
 			break;
 	}
+	
+	if (stmt->type == TYPE_RETURN)
+		return prog;
 
-	if (stmt->type != TYPE_RETURN) {
-		err = compile_return(e, NULL);
-		if (err)
-			goto err_free;
-	}
-
-	return e;
+	emit(prog, MOV_IMM(BPF_REG_0, 0));
+	emit(prog, EXIT);
+	return prog;
 
 err_free:
-	free(e);
+	free(prog);
 	return NULL;
 }

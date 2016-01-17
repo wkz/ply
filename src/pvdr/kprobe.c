@@ -66,7 +66,7 @@ static int _eventid(char *pspec)
 	return strtol(str, NULL, 0);
 }
 
-static int kprobe_setup(node_t *probe, struct ebpf *e)
+static int kprobe_setup(node_t *probe, prog_t *prog)
 {
 	int bd, ed, eventid;
 	struct perf_event_attr attr = {};
@@ -81,7 +81,7 @@ static int kprobe_setup(node_t *probe, struct ebpf *e)
 	attr.wakeup_events = 1;
 	attr.config = eventid;
 
-	bd = bpf_prog_load(e->prog, e->ip - e->prog);
+	bd = bpf_prog_load(prog->insns, prog->ip - prog->insns);
 	if (bd < 0) {
 		perror("bpf");
 		fprintf(stderr, "bpf verifier:\n%s\n", bpf_log_buf);
@@ -108,9 +108,9 @@ static int kprobe_setup(node_t *probe, struct ebpf *e)
 }
 
 
-static int kprobe_compile(node_t *call, struct ebpf *e)
+static int kprobe_compile(node_t *call, prog_t *prog)
 {
-	return builtin_compile(call, e);
+	return builtin_compile(call, prog);
 }
 
 static int kprobe_annotate(node_t *call)
