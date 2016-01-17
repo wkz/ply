@@ -77,8 +77,7 @@ void dump_insn(struct bpf_insn insn)
 	} off = OFF_NONE;
 	
 
-	fprintf(stderr, "%.3zx:\t", ip);
-	ip += 8;
+	fprintf(stderr, "%.3zu:\t", ip++);
 
 	switch (BPF_CLASS(insn.code)) {
 	case BPF_LD:
@@ -187,9 +186,9 @@ void emit_push(prog_t *prog, node_t *n)
 	if (n->dyn.loc == LOC_STACK)
 		return;
 
-	prog->sp -= n->dyn.size;
-	n->dyn.addr = prog->sp;
-	
+	if (!n->dyn.addr)
+		n->dyn.addr = prog_stack_get(prog, n->dyn.size);
+
 	switch (n->dyn.loc) {
 	case LOC_STACK:
 		/* guarded above */
@@ -224,15 +223,14 @@ void emit_push(prog_t *prog, node_t *n)
 int emit_map_load(prog_t *prog, node_t *n)
 {
 	node_t *varg;
-	size_t i;
-
-	prog->sp -= n->dyn.size;
-	n->dyn.addr = prog->sp;
 
 	node_foreach(varg, n->map.rec->rec.vargs) {
 		if (!varg->next)
 			break;
 	}
+
+	n->dyn.addr = prog_stack_get(prog, n->dyn.size);
+	prog_stack_zero(prog, n->dyn.addr, n->dyn.size);
 
 	/* lookup key */
 	emit_ld_mapfd(prog, BPF_REG_1, node_map_get_fd(n));
@@ -240,15 +238,10 @@ int emit_map_load(prog_t *prog, node_t *n)
 	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_2, varg->dyn.addr));
 	emit(prog, CALL(BPF_FUNC_map_lookup_elem));
 
-	emit(prog, JMP_IMM(JMP_JNE, BPF_REG_0, 0, (n->dyn.size / 8) + 1));
+	/* if we get a null pointer, skip copy */
+	emit(prog, JMP_IMM(JMP_JEQ, BPF_REG_0, 0, 5));
 
-	/* if the key was not found, zero-fill value area */
-	for (i = 0; i < (n->dyn.size / 8); i++)
-		emit(prog, STXDW(BPF_REG_10, n->dyn.addr + i * 8, BPF_REG_0));
-
-	emit(prog, JMP_IMM(JMP_JA, 0, 0, 5));
-
-	/* if key existed, copy it to the stack */
+	/* if key existed, copy it to the value area */
 	emit(prog, MOV(BPF_REG_1, BPF_REG_10));
 	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_1, n->dyn.addr));
 	emit(prog, MOV_IMM(BPF_REG_2, n->dyn.size));
@@ -256,6 +249,47 @@ int emit_map_load(prog_t *prog, node_t *n)
 	emit(prog, CALL(BPF_FUNC_probe_read));
 
 	n->dyn.loc = LOC_STACK;
+	return 0;
+}
+
+int emit_assign(prog_t *prog, node_t *assign)
+{
+	node_t *map = assign->assign.lval, *expr = assign->assign.expr;
+	node_t *varg;
+
+	switch (map->dyn.type) {
+	case TYPE_INT:
+		emit(prog, LDXDW(BPF_REG_0, map->dyn.addr, BPF_REG_10));
+		if (expr->type == TYPE_INT)
+			emit(prog, ALU_IMM(assign->assign.op, BPF_REG_0, expr->integer));
+		else {
+			if (expr->dyn.loc != LOC_REG) {
+				emit(prog, LDXDW(BPF_REG_1, expr->dyn.addr, BPF_REG_10));
+				emit(prog, ALU(assign->assign.op, BPF_REG_0, BPF_REG_1));
+			} else {
+				emit(prog, ALU(assign->assign.op, BPF_REG_0, expr->dyn.reg));
+			}
+		}
+
+		emit(prog, STXDW(BPF_REG_10, map->dyn.addr, BPF_REG_0));
+		break;
+	default:
+		return -ENOSYS;
+	}
+
+	node_foreach(varg, map->map.rec->rec.vargs) {
+		if (!varg->next)
+			break;
+	}
+
+	emit_ld_mapfd(prog, BPF_REG_1, node_map_get_fd(map));
+	emit(prog, MOV(BPF_REG_2, BPF_REG_10));
+	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_2, varg->dyn.addr));
+	emit(prog, MOV(BPF_REG_3, BPF_REG_10));
+	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_3, map->dyn.addr));
+	emit(prog, MOV_IMM(BPF_REG_4, 0));
+	emit(prog, CALL(BPF_FUNC_map_update_elem));
+
 	return 0;
 }
 
@@ -298,10 +332,32 @@ static int compile_post(node_t *n, void *_prog)
 
 	case TYPE_MAP:
 		err = emit_map_load(prog, n);
+		break;
+
+	case TYPE_NOT:
+	case TYPE_BINOP:
+	case TYPE_RETURN:
+		/* TODO */
+		break;
+
+	case TYPE_ASSIGN:
+		err = emit_assign(prog, n);
+		break;
+
+	case TYPE_CALL:
+		err = node_get_pvdr(n)->compile(n, prog);
 		if (err)
 			break;
-		
-	default:
+
+		if (n->parent->type == TYPE_REC)
+			emit_push(prog, n);
+		break;
+
+	case TYPE_PROBE:
+	case TYPE_SCRIPT:
+	case TYPE_NONE:
+		_e("unable to compile %s <%s>", n->string, type_str(n->type));
+		err = -ENOSYS;
 		break;
 	}
 

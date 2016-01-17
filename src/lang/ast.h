@@ -158,7 +158,7 @@ struct node {
 
 static inline node_t *node_get_parent_of_type(type_t type, node_t *n)
 {
-	for(n = n->parent; n && n->type != type; n = n->parent);
+	for(; n && n->type != type; n = n->parent);
 	return n;
 }
 

@@ -46,4 +46,22 @@ static inline void emit_ld_mapfd(prog_t *prog, int reg, int fd)
 	emit(prog, INSN(0, 0, 0, 0, 0));
 }
 
+
+static inline ssize_t prog_stack_get(prog_t *prog, size_t size)
+{
+	prog->sp -= size;
+	return prog->sp;
+}
+
+static inline int prog_stack_zero(prog_t *prog, ssize_t addr, size_t size)
+{
+	size_t i;
+
+	emit(prog, MOV_IMM(BPF_REG_0, 0));
+	for (i = 0; i < size; i += sizeof(int64_t))
+		emit(prog, STXDW(BPF_REG_10, addr + i, BPF_REG_0));
+
+	return 1 + (size / sizeof(int64_t));
+}
+
 prog_t *compile_probe(node_t *probe);

@@ -13,6 +13,7 @@
 #include <sys/syscall.h>
 #include <sys/types.h>
 
+#include "../ply.h"
 #include "../bpf-syscall.h"
 #include "pvdr.h"
 
@@ -71,6 +72,7 @@ static int kprobe_setup(node_t *probe, prog_t *prog)
 	int bd, ed, eventid;
 	struct perf_event_attr attr = {};
 
+	_d("");
 	eventid = _eventid(probe->string);
 	if (eventid <= 0)
 		return eventid;

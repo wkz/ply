@@ -13,64 +13,62 @@ typedef struct builtin {
 	int  (*compile)(node_t *call, prog_t *prog);
 } builtin_t;
 
-/* enum extract_op { */
-/* 	EXTRACT_OP_NONE, */
-/* 	EXTRACT_OP_MASK, */
-/* 	EXTRACT_OP_SHIFT, */
-/* }; */
+enum extract_op {
+	EXTRACT_OP_NONE,
+	EXTRACT_OP_MASK,
+	EXTRACT_OP_SHIFT,
+};
 
-/* static int int32_void_func(enum bpf_func_id func, enum extract_op op, */
-/* 			   prog_t *prog, node_t *call) */
-/* { */
-/* 	/\* struct reg *dst; *\/ */
+static int int32_void_func(enum bpf_func_id func, enum extract_op op,
+			   node_t *call, prog_t *prog)
+{
+	emit(prog, CALL(func));
+	switch (op) {
+	case EXTRACT_OP_MASK:
+		/* TODO [kernel] cast imm to u32 on bitwise operators */
+		emit(prog, ALU_IMM(ALU_OP_AND, BPF_REG_0, 0x7fffffff));
+		break;
+	case EXTRACT_OP_SHIFT:
+		emit(prog, ALU_IMM(ALU_OP_RSH, BPF_REG_0, 32));
+		break;
+	default:
+		break;
+	}
 
-/* 	emit(e, CALL(func)); */
-/* 	switch (op) { */
-/* 	case EXTRACT_OP_MASK: */
-/* 		/\* TODO [kernel] cast imm to u32 on bitwise operators *\/ */
-/* 		emit(e, ALU_IMM(ALU_OP_AND, BPF_REG_0, 0x7fffffff)); */
-/* 		break; */
-/* 	case EXTRACT_OP_SHIFT: */
-/* 		emit(e, ALU_IMM(ALU_OP_RSH, BPF_REG_0, 32)); */
-/* 		break; */
-/* 	default: */
-/* 		break; */
-/* 	} */
+	call->dyn.loc = LOC_REG;
+	call->dyn.reg = 0;
+	return 0;
+}
 
-/* 	call->dyn->loc.type = LOC_REG; */
-/* 	call->dyn->loc.reg = 0; */
-/* 	return 0; */
-/* } */
+static int gid_compile(node_t *call, prog_t *prog)
+{
+	return int32_void_func(BPF_FUNC_get_current_uid_gid,
+			       EXTRACT_OP_SHIFT, call, prog);
+}
 
-/* static int gid_compile(struct provider *p, prog_t *prog, node_t *n) */
-/* { */
-/* 	return int32_void_func(BPF_FUNC_get_current_uid_gid, */
-/* 			       EXTRACT_OP_SHIFT, e, n); */
-/* } */
+static int uid_compile(node_t *call, prog_t *prog)
+{
+	return int32_void_func(BPF_FUNC_get_current_uid_gid,
+			       EXTRACT_OP_MASK, call, prog);
+}
 
-/* static int uid_compile(struct provider *p, prog_t *prog, node_t *n) */
-/* { */
-/* 	return int32_void_func(BPF_FUNC_get_current_uid_gid, */
-/* 			       EXTRACT_OP_MASK, e, n); */
-/* } */
+static int tgid_compile(node_t *call, prog_t *prog)
+{
+	return int32_void_func(BPF_FUNC_get_current_pid_tgid,
+			       EXTRACT_OP_SHIFT, call, prog);
+}
 
-/* static int tgid_compile(struct provider *p, prog_t *prog, node_t *n) */
-/* { */
-/* 	return int32_void_func(BPF_FUNC_get_current_pid_tgid, */
-/* 			       EXTRACT_OP_SHIFT, e, n); */
-/* } */
+static int pid_compile(node_t *call, prog_t *prog)
+{
+	return int32_void_func(BPF_FUNC_get_current_pid_tgid,
+			       EXTRACT_OP_MASK, call, prog);
+}
 
-/* static int pid_compile(struct provider *p, prog_t *prog, node_t *n) */
-/* { */
-/* 	return int32_void_func(BPF_FUNC_get_current_pid_tgid, */
-/* 			       EXTRACT_OP_MASK, e, n); */
-/* } */
-
-/* static int ns_compile(struct provider *p, prog_t *prog, node_t *n) */
-/* { */
-/* 	return int32_void_func(BPF_FUNC_ktime_get_ns, */
-/* 			       EXTRACT_OP_NONE, e, n); */
-/* } */
+static int ns_compile(node_t *call, prog_t *prog)
+{
+	return int32_void_func(BPF_FUNC_ktime_get_ns,
+			       EXTRACT_OP_NONE, call, prog);
+}
 
 static int int_noargs_annotate(node_t *call)
 {
@@ -82,21 +80,19 @@ static int int_noargs_annotate(node_t *call)
 	return 0;
 }
 
-/* static int comm_compile(struct provider *p, prog_t *prog, node_t *n) */
-/* { */
-/* 	size_t i; */
+static int comm_compile(node_t *call, prog_t *prog)
+{
+	call->dyn.addr = prog_stack_get(prog, call->dyn.size);
+	prog_stack_zero(prog, call->dyn.addr, call->dyn.size);
 
-/* 	/\* TODO [kernel] recognize that argument is an out parameter *\/ */
-/* 	for (i = 0; i < n->dyn->size; i += 4) */
-/* 		emit(e, STW_IMM(BPF_REG_10, n->dyn->loc.addr + i, 0)); */
+	emit(prog, MOV(BPF_REG_1, BPF_REG_10));
+	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_1, call->dyn.addr));
+	emit(prog, MOV_IMM(BPF_REG_2, call->dyn.size));
+	emit(prog, CALL(BPF_FUNC_get_current_comm));
 
-/* 	emit(e, MOV(BPF_REG_1, BPF_REG_10)); */
-/* 	emit(e, ALU_IMM(ALU_OP_ADD, BPF_REG_1, n->dyn->loc.addr)); */
-/* 	emit(e, MOV_IMM(BPF_REG_2, n->dyn->size)); */
-/* 	emit(e, CALL(BPF_FUNC_get_current_comm)); */
-/* 	n->dyn->loc.type = LOC_STACK; */
-/* 	return 0; */
-/* } */
+	call->dyn.loc = LOC_STACK;
+	return 0;
+}
 
 static int comm_annotate(node_t *call)
 {
@@ -197,67 +193,67 @@ static int reg_annotate(node_t *call)
 	return 0;
 }
 
-/* static int generic_load_arg(prog_t *prog, node_t *arg, int *reg) */
-/* { */
-/* 	switch (arg->dyn->type) { */
-/* 	case TYPE_INT: */
-/* 		switch (arg->dyn->loc.type) { */
-/* 		case LOC_REG: */
-/* 			if (arg->dyn->loc.reg != *reg) */
-/* 				emit(e, MOV(*reg, arg->dyn->loc.reg)); */
-/* 			return 0; */
-/* 		case LOC_STACK: */
-/* 			emit(e, LDXDW(*reg, arg->dyn->loc.addr, BPF_REG_10)); */
-/* 			return 0; */
+static int generic_load_arg(prog_t *prog, node_t *arg, int *reg)
+{
+	switch (arg->dyn.type) {
+	case TYPE_INT:
+		switch (arg->dyn.loc) {
+		case LOC_REG:
+			if (arg->dyn.reg != *reg)
+				emit(prog, MOV(*reg, arg->dyn.reg));
+			return 0;
+		case LOC_STACK:
+			emit(prog, LDXDW(*reg, arg->dyn.addr, BPF_REG_10));
+			return 0;
 
-/* 		default: */
-/* 			return -EINVAL; */
+		default:
+			return -EINVAL;
 
-/* 		} */
-/* 	case TYPE_STR: */
-/* 		switch (arg->dyn->loc.type) { */
-/* 		case LOC_STACK: */
-/* 			emit(e, MOV(*reg, BPF_REG_10)); */
-/* 			emit(e, ALU_IMM(ALU_OP_ADD, *reg, arg->dyn->loc.addr)); */
+		}
+	case TYPE_STR:
+		switch (arg->dyn.loc) {
+		case LOC_STACK:
+			emit(prog, MOV(*reg, BPF_REG_10));
+			emit(prog, ALU_IMM(ALU_OP_ADD, *reg, arg->dyn.addr));
 
-/* 			(*reg)++; */
-/* 			if (*reg > BPF_REG_5) */
-/* 				return -ENOMEM; */
+			(*reg)++;
+			if (*reg > BPF_REG_5)
+				return -ENOMEM;
 
-/* 			if (arg->type == TYPE_STR) */
-/* 				emit(e, MOV_IMM(*reg, strlen(arg->string) + 1)); */
-/* 			else */
-/* 				emit(e, MOV_IMM(*reg, arg->dyn->size)); */
+			if (arg->type == TYPE_STR)
+				emit(prog, MOV_IMM(*reg, strlen(arg->string) + 1));
+			else
+				emit(prog, MOV_IMM(*reg, arg->dyn.size));
 
-/* 			return 0; */
+			return 0;
 
-/* 		default: */
-/* 			return -EINVAL; */
-/* 		} */
+		default:
+			return -EINVAL;
+		}
 
-/* 	default: */
-/* 		return -ENOSYS; */
-/* 	} */
-/* } */
+	default:
+		return -ENOSYS;
+	}
+}
 
-/* static int trace_compile(struct provider *p, prog_t *prog, node_t *n) */
-/* { */
-/* 	node_t *varg; */
-/* 	int err, reg = BPF_REG_0; */
+static int trace_compile(node_t *call, prog_t *prog)
+{
+	node_t *varg;
+	int err, reg = BPF_REG_0;
 
-/* 	node_foreach(varg, n->call.vargs) { */
-/* 		reg++; */
-/* 		if (reg > BPF_REG_5) */
-/* 			return -ENOMEM; */
+	node_foreach(varg, call->call.vargs) {
+		reg++;
+		if (reg > BPF_REG_5)
+			return -ENOMEM;
 
-/* 		err = generic_load_arg(e, varg, &reg); */
-/* 		if (err) */
-/* 			return err; */
-/* 	} */
+		err = generic_load_arg(prog, varg, &reg);
+		if (err)
+			return err;
+	}
 
-/* 	emit(e, CALL(BPF_FUNC_trace_printk)); */
-/* 	return 0; */
-/* } */
+	emit(prog, CALL(BPF_FUNC_trace_printk));
+	return 0;
+}
 
 static int trace_annotate(node_t *call)
 {
@@ -274,37 +270,37 @@ static struct builtin builtins[] = {
 	{
 		.name = "gid",
 		.annotate = int_noargs_annotate,
-		/* .compile  = gid_compile, */
+		.compile  = gid_compile,
 	},
 	{
 		.name = "uid",
 		.annotate = int_noargs_annotate,
-		/* .compile  = uid_compile, */
+		.compile  = uid_compile,
 	},
 	{
 		.name = "tgid",
 		.annotate = int_noargs_annotate,
-		/* .compile  = tgid_compile, */
+		.compile  = tgid_compile,
 	},
 	{
 		.name = "pid",
 		.annotate = int_noargs_annotate,
-		/* .compile  = pid_compile, */
+		.compile  = pid_compile,
 	},
 	{
 		.name = "ns",
 		.annotate = int_noargs_annotate,
-		/* .compile  = ns_compile, */
+		.compile  = ns_compile,
 	},
 	{
 		.name = "comm",
 		.annotate = comm_annotate,
-		/* .compile  = comm_compile, */
+		.compile  = comm_compile,
 	},
 	{
 		.name = "execname",
 		.annotate = comm_annotate,
-		/* .compile  = comm_compile, */
+		.compile  = comm_compile,
 	},
 	{
 		.name = "strcmp",
@@ -320,13 +316,7 @@ static struct builtin builtins[] = {
 	{
 		.name = "trace",
 		.annotate = trace_annotate,
-		/* .compile  = trace_compile, */
-	},
-
-	{
-		.name = "count",
-		.annotate = int_noargs_annotate,
-		.compile  = NULL,
+		.compile  = trace_compile,
 	},
 
 	{ .name = NULL }

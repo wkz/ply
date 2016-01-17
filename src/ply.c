@@ -67,86 +67,83 @@ int parse_opts(int argc, char **argv)
 	return 0;
 }
 
-/* int map_setup(node_t *script) */
-/* { */
-/* 	dyn_t *dyn; */
-/* 	int dumpfd = 0xfd00; */
+int map_setup(node_t *script)
+{
+	mdyn_t *mdyn;
+	int dumpfd = 0xfd00;
 
-/* 	for (dyn = script->script.dyns; dyn; dyn = dyn->next) { */
-/* 		if (!dyn->ksize) */
-/* 			continue; */
+	for (mdyn = script->script.mdyns; mdyn; mdyn = mdyn->next) {
+		if (dump)
+			mdyn->mapfd = dumpfd++;
+		else
+			mdyn->mapfd = bpf_map_create(BPF_MAP_TYPE_HASH,
+						     mdyn->map->map.rec->dyn.size,
+						     mdyn->map->dyn.size, 1024);
 
-/* 		if (dump) */
-/* 			dyn->mapfd = dumpfd++; */
-/* 		else */
-/* 			dyn->mapfd = bpf_map_create(BPF_MAP_TYPE_HASH, */
-/* 						    dyn->ksize, dyn->size, 1024); */
+		_d("created map with fd %#x(%d)\n", mdyn->mapfd, errno);
+		if (mdyn->mapfd <= 0)
+			return mdyn->mapfd;
+	}
 
-/* 		_d("created map with fd %d(%d)\n", dyn->mapfd, errno); */
-/* 		if (dyn->mapfd <= 0) */
-/* 			return dyn->mapfd; */
+	return 0;
+}
 
-/* 	} */
+void map_dump(mdyn_t *mdyn)
+{
+	node_t *map = mdyn->map, *rec = map->map.rec, *varg = rec->rec.vargs;
+	char *key = calloc(1, rec->dyn.size), *val = malloc(map->dyn.size);
+	int err;
 
-/* 	return 0; */
-/* } */
-
-/* void map_dump(dyn_t *dyn) */
-/* { */
-/* 	node_t *k = dyn->node->map.rec->rec.vargs; */
-/* 	char *key = calloc(1, dyn->ksize), *val = malloc(dyn->size); */
-/* 	int err; */
-
-/* 	printf("%s:\n", dyn->node->string); */
+	printf("\n%s:\n", map->string);
 	
-/* 	for (err = bpf_map_next(dyn->mapfd, key, key); !err; */
-/* 	     err = bpf_map_next(dyn->mapfd, key, key)) { */
-/* 		err = bpf_map_lookup(dyn->mapfd, key, val); */
-/* 		if (err) */
-/* 			return; */
+	for (err = bpf_map_next(mdyn->mapfd, key, key); !err;
+	     err = bpf_map_next(mdyn->mapfd, key, key)) {
+		err = bpf_map_lookup(mdyn->mapfd, key, val);
+		if (err)
+			return;
 
-/* 		switch (k->dyn->type) { */
-/* 		case TYPE_INT: */
-/* 			printf("  %-20" PRId64, *((int64_t *)key)); */
-/* 			break; */
-/* 		case TYPE_STR: */
-/* 			printf("  %-*.*s", (int)k->dyn->size, (int)k->dyn->size, key); */
-/* 			break; */
-/* 		default: */
-/* 			err = -EINVAL; */
-/* 			continue; */
-/* 		} */
+		switch (varg->dyn.type) {
+		case TYPE_INT:
+			printf("  %-20" PRId64, *((int64_t *)key));
+			break;
+		case TYPE_STR:
+			printf("  %-*.*s", (int)varg->dyn.size, (int)varg->dyn.size, key);
+			break;
+		default:
+			err = -EINVAL;
+			continue;
+		}
 
-/* 		switch (dyn->type) { */
-/* 		case TYPE_INT: */
-/* 			printf("  %-20" PRId64 "\n", *((int64_t *)val)); */
-/* 			break; */
-/* 		case TYPE_STR: */
-/* 			printf("  %-*.*s\n", (int)dyn->size, (int)dyn->size, val); */
-/* 			break; */
-/* 		default: */
-/* 			err = -EINVAL; */
-/* 			continue; */
-/* 		}		 */
-/* 	} */
-/* } */
+		switch (map->dyn.type) {
+		case TYPE_INT:
+			printf("  %-20" PRId64 "\n", *((int64_t *)val));
+			break;
+		case TYPE_STR:
+			printf("  %-*.*s\n", (int)map->dyn.size, (int)map->dyn.size, val);
+			break;
+		default:
+			err = -EINVAL;
+			continue;
+		}
+	}
+}
 
-/* int map_teardown(node_t *script) */
-/* { */
-/* 	dyn_t *dyn; */
+int map_teardown(node_t *script)
+{
+	mdyn_t *mdyn;
 
-/* 	if (dump) */
-/* 		return 0; */
+	if (dump)
+		return 0;
 
-/* 	for (dyn = script->script.dyns; dyn; dyn = dyn->next) { */
-/* 		if (dyn->mapfd) { */
-/* 			map_dump(dyn); */
-/* 			close(dyn->mapfd); */
-/* 		} */
-/* 	} */
+	for (mdyn = script->script.mdyns; mdyn; mdyn = mdyn->next) {
+		if (mdyn->mapfd) {
+			map_dump(mdyn);
+			close(mdyn->mapfd);
+		}
+	}
 
-/* 	return 0; */
-/* } */
+	return 0;
+}
 
 int main(int argc, char **argv)
 {
@@ -169,24 +166,13 @@ int main(int argc, char **argv)
 	if (err)
 		goto err_free_script;
 
-	/* p = script->script.probes; */
-
-	/* provider = provider_find(p->string); */
-	/* if (!provider) { */
-	/* 	_e("no provider for \"%s\"", p->string); */
-	/* 	err = -ENOENT; */
-	/* 	goto err_free_script; */
-	/* } */
-
 	err = annotate_script(script);
 	if (err)
 		goto err_free_script;
 
-	/* err = map_setup(script); */
-	/* if (err) { */
-	/* 	_e("unable to allocate maps"); */
-	/* 	goto err_free_script; */
-	/* } */
+	err = map_setup(script);
+	if (err)
+		goto err_free_script;
 		
 	if (dump)
 		node_ast_dump(script);
@@ -198,32 +184,27 @@ int main(int argc, char **argv)
 	}
 
 	_d("compilation ok");
+	if (dump)
+		goto done;
 
-	/* if (dump) { */
-	/* 	FILE *fp = fopen("/tmp/dtl.bin", "w"); */
-	/* 	fwrite(e->prog, sizeof(e->prog[0]), e->ip - &e->prog[0], fp); */
-	/* 	fclose(fp); */
-	/* 	goto done; */
-	/* } */
+	err = node_get_pvdr(script->script.probes)->setup(script->script.probes, prog);
+	if (err)
+		goto err_free_prog;
 
-	/* err = provider->setup(provider, e, p); */
+	system("echo 1 >/sys/kernel/debug/tracing/events/kprobes/enable");
+	system("echo 1 >/sys/kernel/debug/tracing/tracing_on");
+	system("cat /sys/kernel/debug/tracing/trace_pipe");
+	system("echo 0 >/sys/kernel/debug/tracing/tracing_on");
+	system("echo 0 >/sys/kernel/debug/tracing/events/kprobes/enable");
+
+	/* err = node_get_pvdr(script->script.probes)->teardown(script->script.probes, prog); */
 	/* if (err) */
 	/* 	goto err_free_ebpf; */
 
-	/* system("echo 1 >/sys/kernel/debug/tracing/events/kprobes/enable"); */
-	/* system("echo 1 >/sys/kernel/debug/tracing/tracing_on"); */
-	/* system("cat /sys/kernel/debug/tracing/trace_pipe"); */
-	/* system("echo 0 >/sys/kernel/debug/tracing/tracing_on"); */
-	/* system("echo 0 >/sys/kernel/debug/tracing/events/kprobes/enable"); */
+	map_teardown(script);
 
-	/* err = provider->teardown(provider, p, e); */
-	/* if (err) */
-	/* 	goto err_free_ebpf; */
-
-	/* map_teardown(script); */
-
-/* done: */
-/* err_free_ebpf: */
+done:
+err_free_prog:
 	free(prog);
 err_free_script:
 	node_free(script);
