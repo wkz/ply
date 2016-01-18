@@ -47,12 +47,6 @@ static inline void emit_ld_mapfd(prog_t *prog, int reg, int fd)
 }
 
 
-static inline ssize_t prog_stack_get(prog_t *prog, size_t size)
-{
-	prog->sp -= size;
-	return prog->sp;
-}
-
 static inline int prog_stack_zero(prog_t *prog, ssize_t addr, size_t size)
 {
 	size_t i;

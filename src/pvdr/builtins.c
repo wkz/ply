@@ -9,8 +9,9 @@
 typedef struct builtin {
 	const char *name;
 
-	int (*annotate)(node_t *call);
-	int  (*compile)(node_t *call, prog_t *prog);
+	int (*annotate)  (node_t *call);
+	int (*loc_assign)(node_t *call);
+	int  (*compile)  (node_t *call, prog_t *prog);
 } builtin_t;
 
 enum extract_op {
@@ -266,7 +267,7 @@ static int trace_annotate(node_t *call)
 	return 0;
 }
 
-static struct builtin builtins[] = {
+static builtin_t builtins[] = {
 	{
 		.name = "gid",
 		.annotate = int_noargs_annotate,
@@ -322,26 +323,92 @@ static struct builtin builtins[] = {
 	{ .name = NULL }
 };
 
-int builtin_compile(node_t *call, prog_t *prog)
+static builtin_t *builtin_find(const char *name)
 {
-	struct builtin *bi;
+	builtin_t *bi;
 	
 	for (bi = builtins; bi->name; bi++)
-		if (!strcmp(bi->name, call->string) && bi->compile)
-			return bi->compile(call, prog);
+		if (!strcmp(bi->name, name))
+			return bi;
 
-	_e("'%s' unknown", call->string);
-	return -ENOENT;	
+	return 0;
+}
+
+int builtin_compile(node_t *call, prog_t *prog)
+{
+	builtin_t *bi = builtin_find(call->string);
+
+	if (!bi) {
+		_e("unknown builin '%s'", call->string);
+		return -ENOENT;
+	}
+
+	if (!bi->compile) {
+		_e("unable to compile '%s'", call->string);
+		return -ENOSYS;
+	}
+
+	return bi->compile(call, prog);
+}
+
+static int default_loc_assign(node_t *call)
+{
+	node_t *varg, *probe = node_get_probe(call);
+	int reg = BPF_REG_0;
+
+	node_foreach(varg, call->call.vargs) {
+		reg++;
+		switch (varg->dyn.type) {
+		case TYPE_REC:
+		case TYPE_STR:
+			varg->dyn.loc  = LOC_STACK;
+			varg->dyn.addr = node_probe_stack_get(probe, varg->dyn.size);
+			continue;
+
+		case TYPE_INT:
+			varg->dyn.loc = LOC_REG;
+			varg->dyn.reg = reg;
+			continue;
+
+		default:
+			_e("argument %d of '%s' is of unknown type '%s'",
+			   reg, call->string, type_str(varg->dyn.type));
+			return -EINVAL;
+		}
+	}
+
+	return 0;
+}
+
+int builtin_loc_assign(node_t *call)
+{
+	builtin_t *bi = builtin_find(call->string);
+
+	if (!bi) {
+		_e("unknown builin '%s'", call->string);
+		return -ENOENT;
+	}
+
+	if (!bi->loc_assign) {
+		return default_loc_assign(call);
+	}
+
+	return bi->loc_assign(call);
 }
 
 int builtin_annotate(node_t *call)
 {
-	struct builtin *bi;
+	builtin_t *bi = builtin_find(call->string);
 
-	for (bi = builtins; bi->name; bi++)
-		if (!strcmp(bi->name, call->string) && bi->annotate)
-			return bi->annotate(call);
+	if (!bi) {
+		_e("unknown builin '%s'", call->string);
+		return -ENOENT;
+	}
 
-	_e("unknown builtin '%s'", call->string);
-	return -ENOENT;
+	if (!bi->annotate) {
+		_e("unable to annotate '%s'", call->string);
+		return -ENOSYS;
+	}
+
+	return bi->annotate(call);
 }

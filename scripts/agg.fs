@@ -5,7 +5,7 @@ kprobe:SyS_open {
 	/* opens[0] = "hej"; */
 	/* test[0] = opens["hoj", 0x1337, 1]; */
 	/* opens["lol", 1, 1] = ["wow", "hej"]; */
-	opens[comm()] += 1;	
+	opens[comm()] += 1;
 }
 
 /* kprobe:SyS_* { */

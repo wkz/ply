@@ -186,9 +186,6 @@ void emit_push(prog_t *prog, node_t *n)
 	if (n->dyn.loc == LOC_STACK)
 		return;
 
-	if (!n->dyn.addr)
-		n->dyn.addr = prog_stack_get(prog, n->dyn.size);
-
 	switch (n->dyn.loc) {
 	case LOC_STACK:
 		/* guarded above */
@@ -216,26 +213,16 @@ void emit_push(prog_t *prog, node_t *n)
 
 		break;
 	}
-
-	n->dyn.loc = LOC_STACK;
 }
 
 int emit_map_load(prog_t *prog, node_t *n)
 {
-	node_t *varg;
-
-	node_foreach(varg, n->map.rec->rec.vargs) {
-		if (!varg->next)
-			break;
-	}
-
-	n->dyn.addr = prog_stack_get(prog, n->dyn.size);
 	prog_stack_zero(prog, n->dyn.addr, n->dyn.size);
 
 	/* lookup key */
 	emit_ld_mapfd(prog, BPF_REG_1, node_map_get_fd(n));
 	emit(prog, MOV(BPF_REG_2, BPF_REG_10));
-	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_2, varg->dyn.addr));
+	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_2, n->map.rec->dyn.addr));
 	emit(prog, CALL(BPF_FUNC_map_lookup_elem));
 
 	/* if we get a null pointer, skip copy */
@@ -247,15 +234,12 @@ int emit_map_load(prog_t *prog, node_t *n)
 	emit(prog, MOV_IMM(BPF_REG_2, n->dyn.size));
 	emit(prog, MOV(BPF_REG_3, BPF_REG_0));
 	emit(prog, CALL(BPF_FUNC_probe_read));
-
-	n->dyn.loc = LOC_STACK;
 	return 0;
 }
 
 int emit_assign(prog_t *prog, node_t *assign)
 {
 	node_t *map = assign->assign.lval, *expr = assign->assign.expr;
-	node_t *varg;
 
 	switch (map->dyn.type) {
 	case TYPE_INT:

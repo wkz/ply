@@ -19,6 +19,20 @@ const char *type_str(type_t type)
 	return strs[type];
 }
 
+const char *loc_str(loc_t loc)
+{
+	switch (loc) {
+	case LOC_NOWHERE:
+		return "nowhere";
+	case LOC_REG:
+		return "reg";
+	case LOC_STACK:
+		return "stack";
+	}
+
+	return "UNKNOWN";
+}
+
 static void _indent(int *indent)
 {
 	int left = *indent;
@@ -94,8 +108,22 @@ static int _node_ast_dump(node_t *n, void *indent)
 		break;
 	}
 
-	fprintf(stderr, "(type:%s/%s size:0x%zx)\n",
-		type_str(n->type), type_str(n->dyn.type), n->dyn.size);
+	fprintf(stderr, "(type:%s/%s size:0x%zx loc:%s",
+		type_str(n->type), type_str(n->dyn.type),
+		n->dyn.size, loc_str(n->dyn.loc));
+
+	switch (n->dyn.loc) {
+	case LOC_NOWHERE:
+		break;
+	case LOC_REG:
+		fprintf(stderr, "/%d", n->dyn.reg);
+		break;
+	case LOC_STACK:
+		fprintf(stderr, "/-0x%zx", -n->dyn.addr);
+		break;
+	}
+
+	fputs(")\n", stderr);
 	return 0;
 }
 
@@ -105,6 +133,49 @@ void node_ast_dump(node_t *n)
 
 	fprintf(stderr, "ast:\n");
 	node_walk(n, _node_ast_dump, _unindent, &indent);
+}
+
+
+static node_t *node_get_parent_of_type(type_t type, node_t *n)
+{
+	for(; n && n->type != type; n = n->parent);
+	return n;
+}
+
+node_t *node_get_script(node_t *n)
+{
+	return node_get_parent_of_type(TYPE_SCRIPT, n);
+}
+
+node_t *node_get_probe(node_t *n)
+{
+	return node_get_parent_of_type(TYPE_PROBE, n);
+}
+
+pvdr_t *node_get_pvdr(node_t *n)
+{
+	node_t *probe = node_get_parent_of_type(TYPE_PROBE, n);
+
+	return probe ? probe->probe.pvdr : NULL;
+}
+
+int node_map_get_fd(node_t *map)
+{
+	node_t *script = node_get_script(map);
+	mdyn_t *mdyn;
+
+	for (mdyn = script->script.mdyns; mdyn; mdyn = mdyn->next) {
+		if (!strcmp(mdyn->map->string, map->string))
+			return mdyn->mapfd;
+	}
+
+	return -ENOENT;
+}
+
+ssize_t node_probe_stack_get(node_t *probe, size_t size)
+{
+	probe->probe.sp -= size;
+	return probe->probe.sp;
 }
 
 static inline node_t *node_new(type_t type) {

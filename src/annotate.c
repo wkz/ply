@@ -8,6 +8,93 @@
 
 #define b_xor(_a, _b) ((!!(_a)) ^ (!!(_b)))
 
+static int loc_assign_pre(node_t *n, void *_probe)
+{
+	node_t *c, *probe = _probe;
+	ssize_t addr;
+
+	switch (n->type) {
+	case TYPE_NONE:
+	case TYPE_SCRIPT:
+	case TYPE_PROBE:
+		return 0;
+
+	case TYPE_CALL:
+		if (n->parent->type == TYPE_PROBE) {
+			n->dyn.loc = LOC_REG;
+			n->dyn.reg = BPF_REG_0;
+		}
+
+		return probe->probe.pvdr->loc_assign(n);
+
+	case TYPE_ASSIGN:
+		c = n->assign.lval;
+		c->dyn.loc  = LOC_STACK;
+		c->dyn.addr = node_probe_stack_get(probe, c->dyn.size);
+
+		if (n->assign.op == ALU_OP_MOV) {
+			n->assign.expr->dyn.loc  = LOC_STACK;
+			n->assign.expr->dyn.addr = c->dyn.addr;
+		} else {
+			n->assign.expr->dyn.loc = LOC_REG;
+			n->assign.expr->dyn.reg = BPF_REG_1;
+		}
+		return 0;
+
+	case TYPE_RETURN:
+		c = n->ret;
+		c->dyn.loc = LOC_REG;
+		c->dyn.reg = BPF_REG_0;
+		return 0;
+
+	case TYPE_BINOP:
+		/* TODO */
+		return 0;
+
+	case TYPE_NOT:
+		c = n->not;
+		c->dyn.loc  = n->dyn.loc;
+		c->dyn.reg  = n->dyn.reg;
+		c->dyn.addr = n->dyn.addr;
+		return 0;
+
+	case TYPE_MAP:
+		c = n->map.rec;
+		c->dyn.loc  = LOC_STACK;
+		c->dyn.addr = node_probe_stack_get(probe, c->dyn.size);
+		return 0;
+
+	case TYPE_REC:
+		addr = n->dyn.addr;
+		node_foreach(c, n->rec.vargs) {
+			c->dyn.loc  = LOC_STACK;
+			c->dyn.addr = addr;
+			addr += c->dyn.size;
+		}
+		return 0;
+
+	case TYPE_STR:
+	case TYPE_INT:
+		return 0;
+	}
+
+	return -ENOSYS;
+}
+
+static int loc_assign(node_t *script)
+{
+	node_t *probe;
+	int err;
+	
+	node_foreach(probe, script->script.probes) {
+		err = node_walk(probe, loc_assign_pre, NULL, probe);
+		if (err)
+			return err;
+	}
+
+	return 0;
+}
+
 static int type_sync(node_t *a, node_t *b)
 {
 	node_t *ac, *bc;
@@ -228,19 +315,15 @@ int annotate_script(node_t *script)
 
 	/* insert all statically known types */
 	err = node_walk(script, NULL, static_post, NULL);
-	if (err) {
-		_e("static annotation failed (%d)", err);
-		return err;
-	}
 
 	/* infer the rest. ...yes do three passes, this catches cases
 	 * where maps are used as rvalues before being used as
 	 * lvalues. TODO: this should be possible with two passes */
-	err =        node_walk(script, NULL, type_infer_post, script);
-	err = err || node_walk(script, NULL, type_infer_post, script);
-	err = err || node_walk(script, NULL, type_infer_post, script);
-	if (err)
-		return err;
+	err = err? : node_walk(script, NULL, type_infer_post, script);
+	err = err? : node_walk(script, NULL, type_infer_post, script);
+	err = err? : node_walk(script, NULL, type_infer_post, script);
 
-	return 0;
+	/* calculate register or stack location of each node */
+	err = err? : loc_assign(script);
+	return err;
 }

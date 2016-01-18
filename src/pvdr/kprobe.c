@@ -115,6 +115,11 @@ static int kprobe_compile(node_t *call, prog_t *prog)
 	return builtin_compile(call, prog);
 }
 
+static int kprobe_loc_assign(node_t *call)
+{
+	return builtin_loc_assign(call);
+}
+
 static int kprobe_annotate(node_t *call)
 {
 	return builtin_annotate(call);
@@ -122,9 +127,10 @@ static int kprobe_annotate(node_t *call)
 
 pvdr_t kprobe_pvdr = {
 	.name = "kprobe",
-	.annotate = kprobe_annotate,
-	.compile  = kprobe_compile,
-	.setup    = kprobe_setup,
+	.annotate   = kprobe_annotate,
+	.loc_assign = kprobe_loc_assign,
+	.compile    = kprobe_compile,
+	.setup      = kprobe_setup,
 };
 
 __attribute__((constructor))
