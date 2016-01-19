@@ -16,7 +16,15 @@ static int loc_assign_pre(node_t *n, void *_probe)
 	switch (n->type) {
 	case TYPE_NONE:
 	case TYPE_SCRIPT:
+		return 0;
+
 	case TYPE_PROBE:
+		node_foreach(c, n->probe.stmts) {
+			c->dyn.free_regs =
+				(1 << BPF_REG_6) |
+				(1 << BPF_REG_7) |
+				(1 << BPF_REG_8);
+		}
 		return 0;
 
 	case TYPE_CALL:

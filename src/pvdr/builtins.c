@@ -36,7 +36,7 @@ static int int32_void_func(enum bpf_func_id func, enum extract_op op,
 		break;
 	}
 
-	return emit_xfer_dyn(prog, &call->dyn, &dyn_r0);
+	return emit_xfer_dyn(prog, &call->dyn, &dyn_reg[BPF_REG_0]);
 }
 
 static int gid_compile(node_t *call, prog_t *prog)
@@ -215,62 +215,22 @@ static int reg_annotate(node_t *call)
 	return 0;
 }
 
-static int generic_load_arg(prog_t *prog, node_t *arg, int *reg)
-{
-	switch (arg->dyn.type) {
-	case TYPE_INT:
-		switch (arg->dyn.loc) {
-		case LOC_REG:
-			if (arg->dyn.reg != *reg)
-				emit(prog, MOV(*reg, arg->dyn.reg));
-			return 0;
-		case LOC_STACK:
-			emit(prog, LDXDW(*reg, arg->dyn.addr, BPF_REG_10));
-			return 0;
-
-		default:
-			return -EINVAL;
-
-		}
-	case TYPE_STR:
-		switch (arg->dyn.loc) {
-		case LOC_STACK:
-			emit(prog, MOV(*reg, BPF_REG_10));
-			emit(prog, ALU_IMM(ALU_OP_ADD, *reg, arg->dyn.addr));
-
-			(*reg)++;
-			if (*reg > BPF_REG_5)
-				return -ENOMEM;
-
-			if (arg->type == TYPE_STR)
-				emit(prog, MOV_IMM(*reg, strlen(arg->string) + 1));
-			else
-				emit(prog, MOV_IMM(*reg, arg->dyn.size));
-
-			return 0;
-
-		default:
-			return -EINVAL;
-		}
-
-	default:
-		return -ENOSYS;
-	}
-}
-
 static int trace_compile(node_t *call, prog_t *prog)
 {
-	node_t *varg;
-	int err, reg = BPF_REG_0;
+	node_t *varg = call->call.vargs;
+	int err, reg;
 
-	node_foreach(varg, call->call.vargs) {
-		reg++;
-		if (reg > BPF_REG_5)
-			return -ENOMEM;
+	emit(prog, MOV(BPF_REG_1, BPF_REG_10));
+	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_1, varg->dyn.addr));
+	emit(prog, MOV_IMM(BPF_REG_2, strlen(varg->string)));
 
-		err = generic_load_arg(prog, varg, &reg);
+	reg = BPF_REG_3;
+	node_foreach(varg, varg->next) {
+		err = emit_xfer_dyn(prog, &dyn_reg[reg], &varg->dyn);
 		if (err)
 			return err;
+
+		reg++;
 	}
 
 	emit(prog, CALL(BPF_FUNC_trace_printk));
@@ -279,12 +239,31 @@ static int trace_compile(node_t *call, prog_t *prog)
 
 static int trace_annotate(node_t *call)
 {
-	if (!call->call.vargs)
-		return -EINVAL;
+	node_t *varg = call->call.vargs;
+	int argc;
 
-	if (call->call.vargs->type != TYPE_STR)
+	if (!varg) {
+		_e("format string missing from %s", node_str(call));
 		return -EINVAL;
+	}
 
+	if (varg->type != TYPE_STR) {
+		_e("first arguement to %s must be literal string", node_str(call));
+		return -EINVAL;
+	}
+
+	for (varg = varg->next, argc = 2; varg; varg = varg->next, argc++) {
+		if (varg->dyn.type != TYPE_INT) {
+			_e("argument %d to %s must be of type int, but was %s",
+			   argc, node_str(call), type_str(varg->dyn.type));
+			return -EINVAL;
+		}
+
+		if (argc > 4) {
+			_e("%s accepts a maximum of 4 arguments", node_str(call));
+			return -EINVAL;
+		}
+	}
 	return 0;
 }
 
@@ -375,22 +354,27 @@ int builtin_compile(node_t *call, prog_t *prog)
 
 static int default_loc_assign(node_t *call)
 {
-	node_t *varg, *probe = node_get_probe(call);
-	int reg = BPF_REG_0;
+	node_t *probe = node_get_probe(call), *stmt = node_get_stmt(call);
+	node_t *varg;
+	int reg;
 
 	node_foreach(varg, call->call.vargs) {
-		reg++;
 		switch (varg->dyn.type) {
+		case TYPE_INT:
+			reg = node_stmt_reg_get(stmt);
+			if (reg > 0) {
+				varg->dyn.loc = LOC_REG;
+				varg->dyn.reg = reg;
+				continue;
+			}
+			/* no registers, fall-through and allocate on
+			 * the stack */
 		case TYPE_REC:
 		case TYPE_STR:
 			varg->dyn.loc  = LOC_STACK;
 			varg->dyn.addr = node_probe_stack_get(probe, varg->dyn.size);
 			continue;
 
-		case TYPE_INT:
-			varg->dyn.loc = LOC_REG;
-			varg->dyn.reg = reg;
-			continue;
 
 		default:
 			_e("argument %d of '%s' is of unknown type '%s'",

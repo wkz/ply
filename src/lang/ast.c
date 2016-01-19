@@ -141,13 +141,17 @@ void node_ast_dump(node_t *n)
 
 static node_t *node_get_parent_of_type(type_t type, node_t *n)
 {
-	for(; n && n->type != type; n = n->parent);
+	for (; n && n->type != type; n = n->parent);
 	return n;
 }
 
-node_t *node_get_script(node_t *n)
-{
-	return node_get_parent_of_type(TYPE_SCRIPT, n);
+node_t *node_get_stmt(node_t *n) {
+	for (; n; n = n->parent) {
+		if (n->parent->type == TYPE_PROBE)
+			return n;
+	}
+
+	return NULL;
 }
 
 node_t *node_get_probe(node_t *n)
@@ -157,10 +161,16 @@ node_t *node_get_probe(node_t *n)
 
 pvdr_t *node_get_pvdr(node_t *n)
 {
-	node_t *probe = node_get_parent_of_type(TYPE_PROBE, n);
+	node_t *probe = node_get_probe(n);
 
 	return probe ? probe->probe.pvdr : NULL;
 }
+
+node_t *node_get_script(node_t *n)
+{
+	return node_get_parent_of_type(TYPE_SCRIPT, n);
+}
+
 
 int node_map_get_fd(node_t *map)
 {
@@ -173,6 +183,20 @@ int node_map_get_fd(node_t *map)
 	}
 
 	return -ENOENT;
+}
+
+int node_stmt_reg_get(node_t *stmt)
+{
+	int reg;
+
+	for (reg = BPF_REG_6; reg < BPF_REG_9; reg++) {
+		if (stmt->dyn.free_regs & (1 << reg)) {
+			stmt->dyn.free_regs &= ~(1 << reg);
+			return reg;
+		}
+	}
+
+	return -1;
 }
 
 ssize_t node_probe_stack_get(node_t *probe, size_t size)

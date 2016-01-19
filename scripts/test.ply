@@ -7,5 +7,6 @@ kprobe:SyS_open {
 	/* opens[0] = "hej"; */
 	/* test[0] = opens["hoj", 0x1337, 1]; */
 	/* opens["lol", 1, 1] = ["wow", "hej"]; */
-	opens[reg("pc")] += 1;
+	/* opens[reg("pc")] += 1; */
+	trace("pc:0x%x lr:0x%x\n", reg("pc"), reg("lr"));
 }

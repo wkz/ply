@@ -38,7 +38,7 @@ typedef struct prog {
 	node_t *regs[__MAX_BPF_REG];
 } prog_t;
 
-extern const dyn_t dyn_r0;
+extern const dyn_t dyn_reg[];
 
 void emit           (prog_t *prog, struct bpf_insn insn);
 int  emit_stack_zero(prog_t *prog, const node_t *n);

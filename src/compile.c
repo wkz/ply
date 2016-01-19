@@ -9,12 +9,18 @@
 
 extern int dump;
 
-const dyn_t dyn_r0 = {
-	.type = TYPE_INT,
-	.size = sizeof(int64_t),
-
-	.loc = LOC_REG,
-	.reg = 0,
+const dyn_t dyn_reg[] = {
+	[BPF_REG_0] =  { .type = TYPE_INT, .size = 8, .loc = LOC_REG, .reg = BPF_REG_0  },
+	[BPF_REG_1] =  { .type = TYPE_INT, .size = 8, .loc = LOC_REG, .reg = BPF_REG_1  },
+	[BPF_REG_2] =  { .type = TYPE_INT, .size = 8, .loc = LOC_REG, .reg = BPF_REG_2  },
+	[BPF_REG_3] =  { .type = TYPE_INT, .size = 8, .loc = LOC_REG, .reg = BPF_REG_3  },
+	[BPF_REG_4] =  { .type = TYPE_INT, .size = 8, .loc = LOC_REG, .reg = BPF_REG_4  },
+	[BPF_REG_5] =  { .type = TYPE_INT, .size = 8, .loc = LOC_REG, .reg = BPF_REG_5  },
+	[BPF_REG_6] =  { .type = TYPE_INT, .size = 8, .loc = LOC_REG, .reg = BPF_REG_6  },
+	[BPF_REG_7] =  { .type = TYPE_INT, .size = 8, .loc = LOC_REG, .reg = BPF_REG_7  },
+	[BPF_REG_8] =  { .type = TYPE_INT, .size = 8, .loc = LOC_REG, .reg = BPF_REG_8  },
+	[BPF_REG_9] =  { .type = TYPE_INT, .size = 8, .loc = LOC_REG, .reg = BPF_REG_9  },
+	[BPF_REG_10] = { .type = TYPE_INT, .size = 8, .loc = LOC_REG, .reg = BPF_REG_10 },
 };
 
 static const char *bpf_func_name(enum bpf_func_id id)

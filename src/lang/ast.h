@@ -132,6 +132,8 @@ struct dyn {
 	loc_t   loc;
 	int     reg;
 	ssize_t addr;
+
+	int     free_regs;
 };
 
 struct node {
@@ -174,11 +176,13 @@ static inline const char *node_str(const node_t *node)
 
 void node_ast_dump(node_t *n);
 
-node_t *node_get_script(node_t *n);
-node_t *node_get_probe (node_t *n);
+node_t *node_get_stmt  (node_t *n);
 pvdr_t *node_get_pvdr  (node_t *n);
+node_t *node_get_probe (node_t *n);
+node_t *node_get_script(node_t *n);
 
-int     node_map_get_fd(node_t *map);
+int     node_map_get_fd     (node_t *map);
+int     node_stmt_reg_get   (node_t *stmt);
 ssize_t node_probe_stack_get(node_t *probe, size_t size);
 
 node_t *node_str_new   (char *val);
