@@ -36,9 +36,7 @@ static int int32_void_func(enum bpf_func_id func, enum extract_op op,
 		break;
 	}
 
-	call->dyn.loc = LOC_REG;
-	call->dyn.reg = 0;
-	return 0;
+	return emit_xfer(prog, call, NULL);
 }
 
 static int gid_compile(node_t *call, prog_t *prog)
@@ -89,8 +87,6 @@ static int comm_compile(node_t *call, prog_t *prog)
 	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_1, call->dyn.addr));
 	emit(prog, MOV_IMM(BPF_REG_2, call->dyn.size));
 	emit(prog, CALL(BPF_FUNC_get_current_comm));
-
-	call->dyn.loc = LOC_STACK;
 	return 0;
 }
 

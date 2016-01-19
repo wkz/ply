@@ -40,6 +40,7 @@ typedef struct prog {
 
 void emit           (prog_t *prog, struct bpf_insn insn);
 int  emit_stack_zero(prog_t *prog, node_t *n);
+int  emit_xfer      (prog_t *prog, node_t *to, node_t *from);
 
 static inline void emit_ld_mapfd(prog_t *prog, int reg, int fd)
 {

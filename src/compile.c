@@ -262,6 +262,9 @@ static int emit_xfer_stack(prog_t *prog, node_t *to, ssize_t from)
 
 int emit_xfer(prog_t *prog, node_t *to, node_t *from)
 {
+	if (!from)
+		return emit_xfer_reg(prog, to, 0);
+
 	switch (from->type) {
 	case TYPE_INT:
 		return emit_xfer_literal(prog, to, (void *)&from->integer,
