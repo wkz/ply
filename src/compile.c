@@ -9,6 +9,14 @@
 
 extern int dump;
 
+const dyn_t dyn_r0 = {
+	.type = TYPE_INT,
+	.size = sizeof(int64_t),
+
+	.loc = LOC_REG,
+	.reg = 0,
+};
+
 static const char *bpf_func_name(enum bpf_func_id id)
 {
 	switch (id) {
@@ -177,7 +185,7 @@ void emit(prog_t *prog, struct bpf_insn insn)
 	*(prog->ip)++ = insn;
 }
 
-int emit_stack_zero(prog_t *prog, node_t *n)
+int emit_stack_zero(prog_t *prog, const node_t *n)
 {
 	size_t i;
 
@@ -188,14 +196,16 @@ int emit_stack_zero(prog_t *prog, node_t *n)
 	return 0;
 }
 
-static int emit_xfer_literal(prog_t *prog, node_t *to, void *_from, size_t size)
+static int emit_xfer_literal(prog_t *prog, const node_t *to,
+			     const void *_from, size_t size)
 {
-	int64_t *integer = _from;
-	int32_t *from = _from;
+	const int64_t *integer = _from;
+	const int32_t *from = _from;
 	ssize_t at;
 
 	switch (to->dyn.loc) {
 	case LOC_NOWHERE:
+	case LOC_VIRTUAL:
 		_e("destination of %s is unknown", node_str(to));
 		return -EINVAL;
 
@@ -219,52 +229,70 @@ static int emit_xfer_literal(prog_t *prog, node_t *to, void *_from, size_t size)
 	return -EINVAL;
 }
 
-static int emit_xfer_reg(prog_t *prog, node_t *to, int from)
+static int emit_xfer_reg(prog_t *prog, const dyn_t *to, int from)
 {
-	switch (to->dyn.loc) {
+	switch (to->loc) {
 	case LOC_NOWHERE:
-		_e("destination of %s is unknown", node_str(to));
+	case LOC_VIRTUAL:
+		_e("destination unknown");
 		return -EINVAL;
 
 	case LOC_REG:
-		if (to->dyn.reg == from)
+		if (to->reg == from)
 			return 0;
 
-		emit(prog, MOV(to->dyn.reg, from));
+		emit(prog, MOV(to->reg, from));
 		return 0;
 
 	case LOC_STACK:
-		emit(prog, STXDW(BPF_REG_10, to->dyn.addr, from));
+		emit(prog, STXDW(BPF_REG_10, to->addr, from));
 		return 0;
 	}
 
 	return -EINVAL;
 }
 
-static int emit_xfer_stack(prog_t *prog, node_t *to, ssize_t from)
+static int emit_xfer_stack(prog_t *prog, const dyn_t *to, ssize_t from)
 {
-	switch (to->dyn.loc) {
+	switch (to->loc) {
 	case LOC_NOWHERE:
-		_e("destination of %s is unknown", node_str(to));
+	case LOC_VIRTUAL:
+		_e("destination unknown");
 		return -EINVAL;
 
 	case LOC_REG:
-		emit(prog, LDXDW(to->dyn.reg, from, BPF_REG_10));
+		emit(prog, LDXDW(to->reg, from, BPF_REG_10));
 		return 0;
 
 	case LOC_STACK:
-		_e("stack<->stack transfer, to %s, not implemented", node_str(to));
+		_e("stack<->stack transfer not implemented");
 		return -ENOSYS;
 	}
 
 	return -EINVAL;
 }
 
-int emit_xfer(prog_t *prog, node_t *to, node_t *from)
+int emit_xfer_dyn(prog_t *prog, const dyn_t *to, const dyn_t *from)
 {
-	if (!from)
-		return emit_xfer_reg(prog, to, 0);
+	switch (from->loc) {
+	case LOC_NOWHERE:
+	case LOC_VIRTUAL:
+		_e("source unknown");
+		return -EINVAL;
 
+	case LOC_REG:
+		return emit_xfer_reg(prog, to, from->reg);
+
+	case LOC_STACK:
+		return emit_xfer_stack(prog, to, from->addr);
+	}
+
+	return -EINVAL;
+
+}
+
+int emit_xfer(prog_t *prog, const node_t *to, const node_t *from)
+{
 	switch (from->type) {
 	case TYPE_INT:
 		return emit_xfer_literal(prog, to, (void *)&from->integer,
@@ -276,19 +304,7 @@ int emit_xfer(prog_t *prog, node_t *to, node_t *from)
 		break;
 	}
 
-	switch (from->dyn.loc) {
-	case LOC_NOWHERE:
-		_e("source of %s is unknown", node_str(from));
-		return -EINVAL;
-
-	case LOC_REG:
-		return emit_xfer_reg(prog, to, from->dyn.reg);
-
-	case LOC_STACK:
-		return emit_xfer_stack(prog, to, from->dyn.addr);
-	}
-
-	return -EINVAL;
+	return emit_xfer_dyn(prog, &to->dyn, &from->dyn);
 }
 
 int emit_map_load(prog_t *prog, node_t *n)
@@ -376,6 +392,9 @@ static int compile_post(node_t *n, void *_prog)
 
 	(void)(prog);
 
+	if (n->dyn.loc == LOC_VIRTUAL)
+		return 0;
+
 	_d("> %s%s%s (%s/%s/%#zx)", n->string ? "" : "<",
 	   n->string ? : type_str(n->type), n->string ? "" : ">",
 	   type_str(n->type), type_str(n->dyn.type), n->dyn.size);
@@ -448,19 +467,10 @@ static int compile_pred(node_t *pred, prog_t *prog)
 	case LOC_REG:
 		emit(prog, JMP_IMM(JMP_JNE, pred->dyn.reg, 0, 2));
 		break;
-	case LOC_STACK:
-		emit(prog, LDXDW(BPF_REG_0, pred->dyn.addr, BPF_REG_10));
-		emit(prog, JMP_IMM(JMP_JNE, BPF_REG_0, 0, 2));
-		break;
-	case LOC_NOWHERE:
-		if (pred->type != TYPE_INT) {
-			_e("unknown predicate location");
-			return -EINVAL;
-		}
 
-		if (pred->integer)
-			emit(prog, JMP_IMM(JMP_JA, 0, 0, 2));
-		break;
+	default:
+		_e("predicate %s was not in a register as expected", node_str(pred));
+		return -EINVAL;
 	}
 
 	emit(prog, MOV_IMM(BPF_REG_0, 0));

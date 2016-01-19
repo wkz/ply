@@ -120,6 +120,7 @@ const char *type_str(type_t type);
 
 typedef enum loc {
 	LOC_NOWHERE,
+	LOC_VIRTUAL,
 	LOC_REG,
 	LOC_STACK,
 } loc_t;
@@ -158,7 +159,7 @@ struct node {
 	void *priv;
 };
 
-static inline const char *node_str(node_t *node)
+static inline const char *node_str(const node_t *node)
 {
 	static char buf[8];
 

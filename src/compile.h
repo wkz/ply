@@ -38,9 +38,12 @@ typedef struct prog {
 	node_t *regs[__MAX_BPF_REG];
 } prog_t;
 
+extern const dyn_t dyn_r0;
+
 void emit           (prog_t *prog, struct bpf_insn insn);
-int  emit_stack_zero(prog_t *prog, node_t *n);
-int  emit_xfer      (prog_t *prog, node_t *to, node_t *from);
+int  emit_stack_zero(prog_t *prog, const node_t *n);
+int  emit_xfer_dyn  (prog_t *prog, const dyn_t  *to, const dyn_t  *from);
+int  emit_xfer      (prog_t *prog, const node_t *to, const node_t *from);
 
 static inline void emit_ld_mapfd(prog_t *prog, int reg, int fd)
 {

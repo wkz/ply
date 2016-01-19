@@ -34,7 +34,7 @@ cmp		[!=<>]=|<|>
 
 %%
 "/*"			comment(yyscanner);
-
+#.*\n			{ lineno++; }
 [ \r\t]			;
 
 \n			{ lineno++; }

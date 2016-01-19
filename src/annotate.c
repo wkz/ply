@@ -318,6 +318,7 @@ int annotate_script(node_t *script)
 
 	/* insert all statically known types */
 	err = node_walk(script, NULL, static_post, NULL);
+	_d("static inference done: %d", err);
 
 	/* infer the rest. ...yes do three passes, this catches cases
 	 * where maps are used as rvalues before being used as
@@ -325,8 +326,10 @@ int annotate_script(node_t *script)
 	err = err? : node_walk(script, NULL, type_infer_post, script);
 	err = err? : node_walk(script, NULL, type_infer_post, script);
 	err = err? : node_walk(script, NULL, type_infer_post, script);
+	_d("dynamic inference done: %d", err);
 
 	/* calculate register or stack location of each node */
 	err = err? : loc_assign(script);
+	_d("location assigment done: %d", err);
 	return err;
 }

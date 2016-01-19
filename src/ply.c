@@ -19,7 +19,7 @@ struct pt_regs regs;
 FILE *scriptfp;
 int dump = 0;
 
-node_t *fs_load(FILE *fp)
+node_t *script_parse(FILE *fp)
 {
 	node_t *script = NULL;
 	yyscan_t scanner;
@@ -156,7 +156,7 @@ int main(int argc, char **argv)
 	if (err)
 		goto err;
 
-	script = fs_load(scriptfp);
+	script = script_parse(scriptfp);
 	if (!script) {
 		err = -EINVAL;
 		goto err;

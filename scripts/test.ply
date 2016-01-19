@@ -1,4 +1,4 @@
-#!/bin/ply
+#!/bin/ply -f
 
 kprobe:SyS_open {
 	/* opens[comm()] += 1; */

@@ -1,7 +1,13 @@
 #include <errno.h>
+#include <stdint.h>
 #include <string.h>
 
 #include "arch.h"
+
+int arch_reg_width(void) 
+{
+	return sizeof(uint32_t);
+}
 
 const char *reg_names[] = {
 	"r0",

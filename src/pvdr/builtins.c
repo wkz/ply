@@ -36,7 +36,7 @@ static int int32_void_func(enum bpf_func_id func, enum extract_op op,
 		break;
 	}
 
-	return emit_xfer(prog, call, NULL);
+	return emit_xfer_dyn(prog, &call->dyn, &dyn_r0);
 }
 
 static int gid_compile(node_t *call, prog_t *prog)
@@ -147,24 +147,48 @@ static int strcmp_annotate(node_t *call)
 	return 0;
 }
 
-/* static int reg_compile(struct provider *p, prog_t *prog, node_t *n) */
-/* { */
-/* 	node_t *arg = n->call.vargs; */
-/* 	int reg_no = arg->type == TYPE_INT ? arg->integer : (intptr_t)n->call.priv; */
+static int reg_compile(node_t *call, prog_t *prog)
+{
+	node_t *arg = call->call.vargs;
+	int reg_no = arg->type == TYPE_INT ? arg->integer : (intptr_t)call->call.priv;
 
-/* 	emit(e, STW_IMM(BPF_REG_10, n->dyn->loc.addr, 0)); */
-/* 	emit(e, STW_IMM(BPF_REG_10, n->dyn->loc.addr + 4, 0)); */
+	emit_stack_zero(prog, call);
 
-/* 	emit(e, MOV(BPF_REG_1, BPF_REG_10)); */
-/* 	emit(e, ALU_IMM(ALU_OP_ADD, BPF_REG_1, n->dyn->loc.addr)); */
-/* 	emit(e, MOV_IMM(BPF_REG_2, n->dyn->size)); */
-/* 	emit(e, MOV(BPF_REG_3, BPF_REG_9)); */
-/* 	emit(e, ALU_IMM(ALU_OP_ADD, BPF_REG_3, sizeof(uintptr_t)*reg_no)); */
-/* 	emit(e, CALL(BPF_FUNC_probe_read)); */
+	emit(prog, MOV(BPF_REG_1, BPF_REG_10));
+	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_1, call->dyn.addr));
+	emit(prog, MOV_IMM(BPF_REG_2, arch_reg_width()));
+	emit(prog, MOV(BPF_REG_3, BPF_REG_9));
+	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_3, sizeof(uintptr_t)*reg_no));
+	emit(prog, CALL(BPF_FUNC_probe_read));
 
-/* 	n->dyn->loc.type = LOC_STACK; */
-/* 	return 0; */
-/* } */
+	if (call->dyn.loc == LOC_REG) {
+		dyn_t src;
+
+		src = call->dyn;
+		src.loc = LOC_STACK;
+		return emit_xfer_dyn(prog, &call->dyn, &src);
+	}
+
+	return 0;
+}
+
+static int reg_loc_assign(node_t *call)
+{
+	node_t *probe;
+
+	/* if the result is going to a register, allocate space on the
+	 * stack as a temporary location to probe_read to. */
+	if (call->dyn.loc == LOC_REG) {
+		probe = node_get_probe(call);
+
+		call->dyn.addr = node_probe_stack_get(probe, call->dyn.size);
+	}
+
+	if (call->call.vargs->type == TYPE_STR)
+		call->call.vargs->dyn.loc = LOC_VIRTUAL;
+
+	return 0;
+}
 
 static int reg_annotate(node_t *call)
 {
@@ -179,8 +203,10 @@ static int reg_annotate(node_t *call)
 		if (reg < 0)
 			return reg;
 
-		/* n->call.priv = (void *)reg; */
+		call->call.priv = (void *)reg;
 	} else if (arg->type != TYPE_INT) {
+		_e("reg only support literals at the moment, not '%s'",
+		   type_str(arg->type));
 		return -ENOSYS;
 	}
 
@@ -305,8 +331,9 @@ static builtin_t builtins[] = {
 	},
 	{
 		.name = "reg",
-		.annotate = reg_annotate,
-		/* .compile  = reg_compile, */
+		.loc_assign = reg_loc_assign,
+		.annotate   = reg_annotate,
+		.compile    = reg_compile,
 	},
 
 	{

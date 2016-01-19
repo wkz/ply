@@ -24,6 +24,8 @@ const char *loc_str(loc_t loc)
 	switch (loc) {
 	case LOC_NOWHERE:
 		return "nowhere";
+	case LOC_VIRTUAL:
+		return "virtual";
 	case LOC_REG:
 		return "reg";
 	case LOC_STACK:
@@ -114,6 +116,7 @@ static int _node_ast_dump(node_t *n, void *indent)
 
 	switch (n->dyn.loc) {
 	case LOC_NOWHERE:
+	case LOC_VIRTUAL:
 		break;
 	case LOC_REG:
 		fprintf(stderr, "/%d", n->dyn.reg);
