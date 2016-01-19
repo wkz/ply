@@ -222,7 +222,7 @@ static int trace_compile(node_t *call, prog_t *prog)
 
 	emit(prog, MOV(BPF_REG_1, BPF_REG_10));
 	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_1, varg->dyn.addr));
-	emit(prog, MOV_IMM(BPF_REG_2, strlen(varg->string)));
+	emit(prog, MOV_IMM(BPF_REG_2, strlen(varg->string) + 1));
 
 	reg = BPF_REG_3;
 	node_foreach(varg, varg->next) {
