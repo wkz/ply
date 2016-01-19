@@ -28,6 +28,9 @@ static int loc_assign_pre(node_t *n, void *_probe)
 		return probe->probe.pvdr->loc_assign(n);
 
 	case TYPE_ASSIGN:
+		n->dyn.loc = LOC_REG;
+		n->dyn.reg = BPF_REG_0;
+
 		c = n->assign.lval;
 		c->dyn.loc  = LOC_STACK;
 		c->dyn.addr = node_probe_stack_get(probe, c->dyn.size);

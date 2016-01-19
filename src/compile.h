@@ -38,24 +38,13 @@ typedef struct prog {
 	node_t *regs[__MAX_BPF_REG];
 } prog_t;
 
-void emit(prog_t *prog, struct bpf_insn insn);
+void emit           (prog_t *prog, struct bpf_insn insn);
+int  emit_stack_zero(prog_t *prog, node_t *n);
 
 static inline void emit_ld_mapfd(prog_t *prog, int reg, int fd)
 {
 	emit(prog, INSN(BPF_LD | BPF_DW | BPF_IMM, reg, BPF_PSEUDO_MAP_FD, 0, fd));
 	emit(prog, INSN(0, 0, 0, 0, 0));
-}
-
-
-static inline int prog_stack_zero(prog_t *prog, ssize_t addr, size_t size)
-{
-	size_t i;
-
-	emit(prog, MOV_IMM(BPF_REG_0, 0));
-	for (i = 0; i < size; i += sizeof(int64_t))
-		emit(prog, STXDW(BPF_REG_10, addr + i, BPF_REG_0));
-
-	return 1 + (size / sizeof(int64_t));
 }
 
 prog_t *compile_probe(node_t *probe);

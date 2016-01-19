@@ -83,8 +83,7 @@ static int int_noargs_annotate(node_t *call)
 
 static int comm_compile(node_t *call, prog_t *prog)
 {
-	call->dyn.addr = prog_stack_get(prog, call->dyn.size);
-	prog_stack_zero(prog, call->dyn.addr, call->dyn.size);
+	emit_stack_zero(prog, call);
 
 	emit(prog, MOV(BPF_REG_1, BPF_REG_10));
 	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_1, call->dyn.addr));

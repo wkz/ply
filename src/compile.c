@@ -177,47 +177,126 @@ void emit(prog_t *prog, struct bpf_insn insn)
 	*(prog->ip)++ = insn;
 }
 
-void emit_push(prog_t *prog, node_t *n)
+int emit_stack_zero(prog_t *prog, node_t *n)
 {
-	uint32_t *wdata;
+	size_t i;
+
+	emit(prog, MOV_IMM(BPF_REG_0, 0));
+	for (i = 0; i < n->dyn.size; i += sizeof(int64_t))
+		emit(prog, STXDW(BPF_REG_10, n->dyn.addr + i, BPF_REG_0));
+
+	return 0;
+}
+
+static int emit_xfer_literal(prog_t *prog, node_t *to, void *_from, size_t size)
+{
+	int64_t *integer = _from;
+	int32_t *from = _from;
 	ssize_t at;
-	size_t left;
 
-	if (n->dyn.loc == LOC_STACK)
-		return;
-
-	switch (n->dyn.loc) {
-	case LOC_STACK:
-		/* guarded above */
-		break;
-	case LOC_REG:
-		emit(prog, STXDW(BPF_REG_10, n->dyn.addr, n->dyn.reg));
-		break;
+	switch (to->dyn.loc) {
 	case LOC_NOWHERE:
-		switch (n->type) {
-		case TYPE_INT:
-			wdata = (uint32_t *)&n->integer;
-			break;
-		case TYPE_STR:
-			wdata = (uint32_t *)n->string;
-			break;
-		default:
-			_e("unable to push node of type %s", type_str(n->type));
-			assert(0);
+		_e("destination of %s is unknown", node_str(to));
+		return -EINVAL;
+
+	case LOC_REG:
+		if (*integer > 0xffffffff) {
+			emit(prog, MOV_IMM(to->dyn.reg, *integer >> 32));
+			emit(prog, ALU_IMM(ALU_OP_LSH, to->dyn.reg, 32));
+			emit(prog, ALU_IMM(ALU_OP_OR, to->dyn.reg, (*integer) >> 32));
+		} else {
+			emit(prog, MOV_IMM(to->dyn.reg, *integer));
 		}
+		return 0;
 
-		at = n->dyn.addr;
-		left = n->dyn.size / sizeof(*wdata);
-		for (; left; left--, wdata++, at += sizeof(*wdata))
-			emit(prog, STW_IMM(BPF_REG_10, at, *wdata));
+	case LOC_STACK:
+		for (at = to->dyn.addr; size;
+		     at += sizeof(*from), size -= sizeof(*from), from++)
+			emit(prog, STW_IMM(BPF_REG_10, at, *from));
+		return 0;
+	}
 
+	return -EINVAL;
+}
+
+static int emit_xfer_reg(prog_t *prog, node_t *to, int from)
+{
+	switch (to->dyn.loc) {
+	case LOC_NOWHERE:
+		_e("destination of %s is unknown", node_str(to));
+		return -EINVAL;
+
+	case LOC_REG:
+		if (to->dyn.reg == from)
+			return 0;
+
+		emit(prog, MOV(to->dyn.reg, from));
+		return 0;
+
+	case LOC_STACK:
+		emit(prog, STXDW(BPF_REG_10, to->dyn.addr, from));
+		return 0;
+	}
+
+	return -EINVAL;
+}
+
+static int emit_xfer_stack(prog_t *prog, node_t *to, ssize_t from)
+{
+	switch (to->dyn.loc) {
+	case LOC_NOWHERE:
+		_e("destination of %s is unknown", node_str(to));
+		return -EINVAL;
+
+	case LOC_REG:
+		emit(prog, LDXDW(to->dyn.reg, from, BPF_REG_10));
+		return 0;
+
+	case LOC_STACK:
+		_e("stack<->stack transfer, to %s, not implemented", node_str(to));
+		return -ENOSYS;
+	}
+
+	return -EINVAL;
+}
+
+int emit_xfer(prog_t *prog, node_t *to, node_t *from)
+{
+	switch (from->type) {
+	case TYPE_INT:
+		return emit_xfer_literal(prog, to, (void *)&from->integer,
+					 sizeof(from->integer));
+	case TYPE_STR:
+		return emit_xfer_literal(prog, to, (void *)from->string,
+					 from->dyn.size);
+	default:
 		break;
 	}
+
+	switch (from->dyn.loc) {
+	case LOC_NOWHERE:
+		_e("source of %s is unknown", node_str(from));
+		return -EINVAL;
+
+	case LOC_REG:
+		return emit_xfer_reg(prog, to, from->dyn.reg);
+
+	case LOC_STACK:
+		return emit_xfer_stack(prog, to, from->dyn.addr);
+	}
+
+	return -EINVAL;
 }
 
 int emit_map_load(prog_t *prog, node_t *n)
 {
-	prog_stack_zero(prog, n->dyn.addr, n->dyn.size);
+	/* when overriding the current value, there is no need to load
+	 * any previous value */
+	if (n->parent->type == TYPE_ASSIGN &&
+	    n->parent->assign.op == ALU_OP_MOV)
+		return 0;
+
+	emit_stack_zero(prog, n);
 
 	/* lookup key */
 	emit_ld_mapfd(prog, BPF_REG_1, node_map_get_fd(n));
@@ -240,40 +319,37 @@ int emit_map_load(prog_t *prog, node_t *n)
 int emit_assign(prog_t *prog, node_t *assign)
 {
 	node_t *map = assign->assign.lval, *expr = assign->assign.expr;
+	int err;
 
-	switch (map->dyn.type) {
-	case TYPE_INT:
-		emit(prog, LDXDW(BPF_REG_0, map->dyn.addr, BPF_REG_10));
-		if (expr->type == TYPE_INT)
-			emit(prog, ALU_IMM(assign->assign.op, BPF_REG_0, expr->integer));
-		else {
-			if (expr->dyn.loc != LOC_REG) {
-				emit(prog, LDXDW(BPF_REG_1, expr->dyn.addr, BPF_REG_10));
-				emit(prog, ALU(assign->assign.op, BPF_REG_0, BPF_REG_1));
-			} else {
-				emit(prog, ALU(assign->assign.op, BPF_REG_0, expr->dyn.reg));
-			}
+	if (assign->assign.op == ALU_OP_MOV) {
+		if (expr->type == TYPE_INT) {
+			err = emit_xfer(prog, map, expr);
+			if (err)
+				return err;
 		}
 
-		emit(prog, STXDW(BPF_REG_10, map->dyn.addr, BPF_REG_0));
-		break;
-	default:
-		return -ENOSYS;
-	}
+	} else {
+		err = emit_xfer(prog, assign, map);
+		if (err)
+			return err;
 
-	node_foreach(varg, map->map.rec->rec.vargs) {
-		if (!varg->next)
-			break;
+		if (expr->type == TYPE_INT)
+			emit(prog, ALU_IMM(assign->assign.op, assign->dyn.reg, expr->integer));
+		else
+			emit(prog, ALU(assign->assign.op, assign->dyn.reg, expr->dyn.reg));
+
+		err = emit_xfer(prog, map, assign);
+		if (err)
+			return err;
 	}
 
 	emit_ld_mapfd(prog, BPF_REG_1, node_map_get_fd(map));
 	emit(prog, MOV(BPF_REG_2, BPF_REG_10));
-	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_2, varg->dyn.addr));
+	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_2, map->map.rec->dyn.addr));
 	emit(prog, MOV(BPF_REG_3, BPF_REG_10));
 	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_3, map->dyn.addr));
 	emit(prog, MOV_IMM(BPF_REG_4, 0));
 	emit(prog, CALL(BPF_FUNC_map_update_elem));
-
 	return 0;
 }
 
@@ -303,11 +379,11 @@ static int compile_post(node_t *n, void *_prog)
 
 	switch (n->type) {
 	case TYPE_INT:
-		if (n->parent->type != TYPE_REC)
-			break;
-		/* fall-through */
+		/* nop */
+		break;
+
 	case TYPE_STR:
-		emit_push(prog, n);
+		emit_xfer(prog, n, n);
 		break;
 
 	case TYPE_REC:
@@ -330,11 +406,6 @@ static int compile_post(node_t *n, void *_prog)
 
 	case TYPE_CALL:
 		err = node_get_pvdr(n)->compile(n, prog);
-		if (err)
-			break;
-
-		if (n->parent->type == TYPE_REC)
-			emit_push(prog, n);
 		break;
 
 	case TYPE_PROBE:

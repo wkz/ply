@@ -158,6 +158,17 @@ struct node {
 	void *priv;
 };
 
+static inline const char *node_str(node_t *node)
+{
+	static char buf[8];
+
+	if (node->string)
+		return node->string;
+
+	snprintf(buf, sizeof(buf), "<%s>", type_str(node->type));
+	return buf;
+}
+
 #define node_foreach(_n, _in) for((_n) = (_in); (_n); (_n) = (_n)->next)
 
 void node_ast_dump(node_t *n);
