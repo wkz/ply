@@ -191,9 +191,12 @@ int main(int argc, char **argv)
 	if (err)
 		goto err_free_prog;
 
+	system("echo 0 >/sys/kernel/debug/tracing/options/context-info");
+	system("echo 1 >/sys/kernel/debug/tracing/options/raw");
+
 	system("echo 1 >/sys/kernel/debug/tracing/events/kprobes/enable");
 	system("echo 1 >/sys/kernel/debug/tracing/tracing_on");
-	system("cat /sys/kernel/debug/tracing/trace_pipe");
+	system("cat /sys/kernel/debug/tracing/trace_pipe | grep -e '^#'");
 	system("echo 0 >/sys/kernel/debug/tracing/tracing_on");
 	system("echo 0 >/sys/kernel/debug/tracing/events/kprobes/enable");
 

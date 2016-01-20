@@ -1,5 +1,5 @@
 #!/bin/ply -f
 
-kprobe:SyS_open {
+kprobe:SyS_open / !strcmp(comm(), "date") / {
 	trace("pc:%p lr:%p\n", reg("pc"), reg("lr"));
 }

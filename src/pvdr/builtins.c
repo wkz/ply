@@ -63,7 +63,7 @@ static int pid_compile(node_t *call, prog_t *prog)
 			       EXTRACT_OP_MASK, call, prog);
 }
 
-static int ns_compile(node_t *call, prog_t *prog)
+static int nsecs_compile(node_t *call, prog_t *prog)
 {
 	return int32_void_func(BPF_FUNC_ktime_get_ns,
 			       EXTRACT_OP_NONE, call, prog);
@@ -100,32 +100,30 @@ static int comm_annotate(node_t *call)
 	return 0;
 }
 
-/* static int strcmp_compile(struct provider *p, prog_t *prog, node_t *n) */
-/* { */
-/* 	node_t *s1 = n->call.vargs, *s2 = n->call.vargs->next; */
-/* 	ssize_t i, l; */
+static int strcmp_compile(node_t *call, prog_t *prog)
+{
+	node_t *s1 = call->call.vargs, *s2 = call->call.vargs->next;
+	ssize_t i, l1, l2, l;
+	int dst = call->dyn.loc == LOC_REG ? call->dyn.reg : BPF_REG_0;
+	
+	l1 = s1->type == TYPE_STR ? strlen(s1->string) + 1 : s1->dyn.size;
+	l2 = s2->type == TYPE_STR ? strlen(s2->string) + 1 : s2->dyn.size;
+	l  = l1 < l2 ? l1 : l2; 
 
-/* 	if ((s1->dyn->loc.type != LOC_STACK) || */
-/* 	    (s2->dyn->loc.type != LOC_STACK)) */
-/* 		return -EINVAL; */
+	for (i = 0; l; i++, l--) {
+		emit(prog, LDXB(      dst, s1->dyn.addr + i, BPF_REG_10));
+		emit(prog, LDXB(BPF_REG_1, s2->dyn.addr + i, BPF_REG_10));
+		emit(prog, ALU(ALU_OP_SUB, dst, BPF_REG_1));
 
-/* 	l = s1->dyn->size < s2->dyn->size ? s1->dyn->size : s2->dyn->size; */
-/* 	if (!l) */
-/* 		emit(e, MOV_IMM(BPF_REG_0, 0)); */
+		if (l == 1)
+			break;
 
-/* 	for (i = 0; l; i++, l--) { */
-/* 		emit(e, LDXB(BPF_REG_0, s1->dyn->loc.addr + i, BPF_REG_10)); */
-/* 		emit(e, LDXB(BPF_REG_1, s2->dyn->loc.addr + i, BPF_REG_10)); */
+		emit(prog, JMP_IMM(JMP_JEQ, BPF_REG_1, 0, 5 * (l - 2) + 4));
+		emit(prog, JMP_IMM(JMP_JNE,       dst, 0, 5 * (l - 2) + 3));
+	}
 
-/* 		emit(e, ALU(ALU_OP_SUB, BPF_REG_0, BPF_REG_1)); */
-/* 		emit(e, JMP_IMM(JMP_JEQ, BPF_REG_1, 0, 5 * (l - 1) + 1)); */
-/* 		emit(e, JMP_IMM(JMP_JNE, BPF_REG_0, 0, 5 * (l - 1) + 0)); */
-/* 	} */
-
-/* 	n->dyn->loc.type = LOC_REG; */
-/* 	n->dyn->loc.reg = BPF_REG_0; */
-/* 	return 0; */
-/* } */
+	return emit_xfer_dyn(prog, &call->dyn, &dyn_reg[dst]);
+}
 
 static int strcmp_annotate(node_t *call)
 {
@@ -267,47 +265,25 @@ static int trace_annotate(node_t *call)
 	return 0;
 }
 
+#define BUILTIN_INT_VOID(_name) {			\
+		.name     = #_name,			\
+		.annotate = int_noargs_annotate,	\
+		.compile  = _name ## _compile,		\
+	}
+
+#define BUILTIN(_name) {			\
+		.name     = #_name,		\
+		.annotate = _name ## _annotate,	\
+		.compile  = _name ## _compile,	\
+	}
+
+#define BUILTIN_ALIAS(_name, _real) {		\
+		.name     = #_name,		\
+		.annotate = _real ## _annotate,	\
+		.compile  = _real ## _compile,	\
+	}
+
 static builtin_t builtins[] = {
-	{
-		.name = "gid",
-		.annotate = int_noargs_annotate,
-		.compile  = gid_compile,
-	},
-	{
-		.name = "uid",
-		.annotate = int_noargs_annotate,
-		.compile  = uid_compile,
-	},
-	{
-		.name = "tgid",
-		.annotate = int_noargs_annotate,
-		.compile  = tgid_compile,
-	},
-	{
-		.name = "pid",
-		.annotate = int_noargs_annotate,
-		.compile  = pid_compile,
-	},
-	{
-		.name = "ns",
-		.annotate = int_noargs_annotate,
-		.compile  = ns_compile,
-	},
-	{
-		.name = "comm",
-		.annotate = comm_annotate,
-		.compile  = comm_compile,
-	},
-	{
-		.name = "execname",
-		.annotate = comm_annotate,
-		.compile  = comm_compile,
-	},
-	{
-		.name = "strcmp",
-		.annotate = strcmp_annotate,
-		/* .compile  = strcmp_compile, */
-	},
 	{
 		.name = "reg",
 		.loc_assign = reg_loc_assign,
@@ -315,11 +291,17 @@ static builtin_t builtins[] = {
 		.compile    = reg_compile,
 	},
 
-	{
-		.name = "trace",
-		.annotate = trace_annotate,
-		.compile  = trace_compile,
-	},
+	BUILTIN_INT_VOID(  gid),
+	BUILTIN_INT_VOID(  uid),
+	BUILTIN_INT_VOID( tgid),
+	BUILTIN_INT_VOID(  pid),
+	BUILTIN_INT_VOID(nsecs),
+
+	BUILTIN(comm),
+	BUILTIN_ALIAS(execname, comm),
+
+	BUILTIN(strcmp),
+	BUILTIN(trace),
 
 	{ .name = NULL }
 };

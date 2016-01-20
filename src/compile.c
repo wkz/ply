@@ -161,12 +161,16 @@ void dump_insn(struct bpf_insn insn)
 	dump_reg(insn.dst_reg, off == OFF_DST ? insn.off : 0);		
 	fputs(", ", stderr);
 
+	if (BPF_CLASS(insn.code) == BPF_LDX || BPF_CLASS(insn.code) == BPF_STX)
+		goto reg_src;
+
 	switch (BPF_SRC(insn.code)) {
 	case BPF_K:
 		fprintf(stderr, "#%s0x%x", insn.imm < 0 ? "-" : "",
 			insn.imm < 0 ? -insn.imm : insn.imm);
 		break;
 	case BPF_X:
+	reg_src:
 		dump_reg(insn.src_reg, off == OFF_SRC ? insn.off : 0);		
 		break;
 	}
@@ -341,6 +345,24 @@ int emit_map_load(prog_t *prog, node_t *n)
 	return 0;
 }
 
+int emit_not(prog_t *prog, node_t *not)
+{
+	node_t *expr = not->not;
+	int src = expr->dyn.loc == LOC_REG ? expr->dyn.reg : BPF_REG_0;
+	int err;
+	
+	err = emit_xfer_dyn(prog, &dyn_reg[src], &expr->dyn);
+	if (err)
+		return err;
+
+	emit(prog, JMP_IMM(JMP_JNE, src, 0, 2));
+	emit(prog, MOV_IMM(src, 1));
+	emit(prog, JMP_IMM(JMP_JA, 0, 0, 1));
+	emit(prog, MOV_IMM(src, 0));
+
+	return emit_xfer_dyn(prog, &not->dyn, &dyn_reg[src]);
+}
+
 int emit_assign(prog_t *prog, node_t *assign)
 {
 	node_t *map = assign->assign.lval, *expr = assign->assign.expr;
@@ -423,6 +445,9 @@ static int compile_post(node_t *n, void *_prog)
 		break;
 
 	case TYPE_NOT:
+		err = emit_not(prog, n);
+		break;
+
 	case TYPE_BINOP:
 	case TYPE_RETURN:
 		/* TODO */

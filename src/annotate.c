@@ -19,6 +19,16 @@ static int loc_assign_pre(node_t *n, void *_probe)
 		return 0;
 
 	case TYPE_PROBE:
+		c = n->probe.pred;
+		if (c) {
+			c->dyn.loc = LOC_REG;
+			c->dyn.reg = BPF_REG_0;
+			c->dyn.free_regs =
+				(1 << BPF_REG_6) |
+				(1 << BPF_REG_7) |
+				(1 << BPF_REG_8);
+		}
+
 		node_foreach(c, n->probe.stmts) {
 			c->dyn.free_regs =
 				(1 << BPF_REG_6) |
