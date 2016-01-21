@@ -429,9 +429,9 @@ static int compile_post(node_t *n, void *_prog)
 
 	switch (n->type) {
 	case TYPE_INT:
-		/* nop */
-		break;
-
+		if (n->dyn.loc != LOC_STACK)
+			break;
+		/* fall-through */
 	case TYPE_STR:
 		emit_xfer(prog, n, n);
 		break;

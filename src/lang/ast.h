@@ -94,6 +94,8 @@ struct mdyn {
 typedef struct script {
 	node_t *probes;
 	mdyn_t *mdyns;
+
+	int     fmts;
 } script_t;
 
 #define NODE_TYPE_TABLE \

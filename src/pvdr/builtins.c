@@ -213,32 +213,138 @@ static int reg_annotate(node_t *call)
 	return 0;
 }
 
-static int trace_compile(node_t *call, prog_t *prog)
+#define PRINTF_BUF_LEN 64
+#define PRINTF_META_OF (1 << 30)
+
+static int printf_compile(node_t *call, prog_t *prog)
 {
-	node_t *varg = call->call.vargs;
-	int err, reg;
+	node_t *rec = call->call.vargs->next;
+	int map_fd = node_map_get_fd(call);
 
+	/* lookup index into print buffer, stored out-of-band after
+	 * the last entry */
+	emit(prog, MOV_IMM(BPF_REG_0, PRINTF_BUF_LEN));
+	emit(prog, STXDW(BPF_REG_10, call->dyn.addr, BPF_REG_0));
+	emit_ld_mapfd(prog, BPF_REG_1, map_fd);
+	emit(prog, MOV(BPF_REG_2, BPF_REG_10));
+	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_2, call->dyn.addr));
+	emit(prog, CALL(BPF_FUNC_map_lookup_elem));
+
+	/* if we get a null pointer, index is 0 */
+	emit(prog, JMP_IMM(JMP_JNE, BPF_REG_0, 0, 2));
+	emit(prog, STXDW(BPF_REG_10, call->dyn.addr, BPF_REG_0));
+	emit(prog, JMP_IMM(JMP_JA, 0, 0, 5));
+
+	/* otherwise, get it from the out-of-band value */
 	emit(prog, MOV(BPF_REG_1, BPF_REG_10));
-	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_1, varg->dyn.addr));
-	emit(prog, MOV_IMM(BPF_REG_2, strlen(varg->string) + 1));
+	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_1, call->dyn.addr));
+	emit(prog, MOV_IMM(BPF_REG_2, call->dyn.size));
+	emit(prog, MOV(BPF_REG_3, BPF_REG_0));
+	emit(prog, CALL(BPF_FUNC_probe_read));
 
-	reg = BPF_REG_3;
-	node_foreach(varg, varg->next) {
-		err = emit_xfer_dyn(prog, &dyn_reg[reg], &varg->dyn);
-		if (err)
-			return err;
+	/* at this point call->dyn.addr is loaded with the index of
+	 * the buffer */
+	emit_ld_mapfd(prog, BPF_REG_1, map_fd);
+	emit(prog, MOV(BPF_REG_2, BPF_REG_10));
+	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_2, call->dyn.addr));
+	emit(prog, CALL(BPF_FUNC_map_lookup_elem));
 
-		reg++;
-	}
+	/* lookup SHOULD return NULL, otherwise user-space has not
+	 * been able to empty the buffer in time. */
+	emit(prog, JMP_IMM(JMP_JNE, BPF_REG_0, 0, 3));
 
-	emit(prog, CALL(BPF_FUNC_trace_printk));
+	/* mark record with the overflow bit so that user-space at
+	 * least knows when data has been lost */
+	emit(prog, LDXDW(BPF_REG_0, rec->rec.vargs->dyn.addr, BPF_REG_10));
+	emit(prog, ALU_IMM(ALU_OP_OR, BPF_REG_0, PRINTF_META_OF));
+	emit(prog, STXDW(BPF_REG_10, rec->rec.vargs->dyn.addr, BPF_REG_0));
+
+	/* store record */
+	emit_ld_mapfd(prog, BPF_REG_1, map_fd);
+	emit(prog, MOV(BPF_REG_2, BPF_REG_10));
+	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_2, rec->dyn.addr));
+	emit(prog, MOV(BPF_REG_3, BPF_REG_10));
+	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_3, call->dyn.addr));
+	emit(prog, MOV_IMM(BPF_REG_4, 0));
+	emit(prog, CALL(BPF_FUNC_map_update_elem));
+
+	/* calculate next index and store that in the record */
+	emit(prog, LDXDW(BPF_REG_0, call->dyn.addr, BPF_REG_10));
+	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_0, 1));
+	emit(prog, ALU_IMM(ALU_OP_AND, BPF_REG_0, PRINTF_BUF_LEN - 1));
+	emit(prog, STXDW(BPF_REG_10, rec->rec.vargs->dyn.addr, BPF_REG_0));
+
+	/* store next index */
+	emit(prog, MOV_IMM(BPF_REG_0, PRINTF_BUF_LEN));
+	emit(prog, STXDW(BPF_REG_10, call->dyn.addr, BPF_REG_0));
+	emit_ld_mapfd(prog, BPF_REG_1, map_fd);
+	emit(prog, MOV(BPF_REG_2, BPF_REG_10));
+	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_2, rec->dyn.addr));
+	emit(prog, MOV(BPF_REG_3, BPF_REG_10));
+	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_3, call->dyn.addr));
+	emit(prog, MOV_IMM(BPF_REG_4, 0));
+	emit(prog, CALL(BPF_FUNC_map_update_elem));
 	return 0;
 }
 
-static int trace_annotate(node_t *call)
+static int printf_loc_assign(node_t *call)
+{
+	node_t *probe = node_get_probe(call);
+	node_t *varg = call->call.vargs;
+
+	/* no need to store any format strings in the kernel, we can
+	 * fetch them from the AST, just store a format id instead. */
+	varg->dyn.loc = LOC_VIRTUAL;
+
+	node_foreach(varg, varg->next) {
+		varg->dyn.loc  = LOC_STACK;
+		varg->dyn.addr = node_probe_stack_get(probe, varg->dyn.size);
+	}
+
+	/* allocate storage for printf's map key */
+	call->dyn.size = sizeof(int64_t);
+	call->dyn.addr = node_probe_stack_get(probe, call->dyn.size);
+	return 0;
+}
+
+static void printf_update_mdyn(node_t *script, node_t *n)
+{
+	mdyn_t *mdyn;
+	size_t largest, new;
+
+	for (mdyn = script->script.mdyns; mdyn; mdyn = mdyn->next) {
+		if (!strcmp(mdyn->map->string, n->string))
+			goto exist;
+	}
+
+	mdyn = calloc(1, sizeof(*mdyn));
+	assert(mdyn);
+exist:
+	if (!mdyn->map)
+		mdyn->map = n;
+	else {
+		/* printf records can be of different sizes, store
+		 * pointer to the printf call with the largest record
+		 * so that all will fit. */
+		largest = mdyn->map->call.vargs->next->dyn.size;
+		new = n->call.vargs->next->dyn.size;
+
+		if (new > largest)
+			mdyn->map = n;
+	}
+
+	if (!script->script.mdyns)
+		script->script.mdyns = mdyn;
+	else
+		insque_tail(mdyn, script->script.mdyns);
+
+	return;
+}
+
+static int printf_annotate(node_t *call)
 {
 	node_t *varg = call->call.vargs;
-	int argc;
+	node_t *meta, *rec;
 
 	if (!varg) {
 		_e("format string missing from %s", node_str(call));
@@ -250,18 +356,22 @@ static int trace_annotate(node_t *call)
 		return -EINVAL;
 	}
 
-	for (varg = varg->next, argc = 2; varg; varg = varg->next, argc++) {
-		if (varg->dyn.type != TYPE_INT) {
-			_e("argument %d to %s must be of type int, but was %s",
-			   argc, node_str(call), type_str(varg->dyn.type));
-			return -EINVAL;
-		}
+	/* rewrite printf("a:%d b:%d", a(), b())
+         *    into printf("a:%d b:%d", [meta, a(), b()])
+	 */
+	meta = node_int_new(node_get_script(call)->script.fmts++);
+	meta->dyn.type = TYPE_INT;
+	meta->dyn.size = 8;
+	meta->next = varg->next;
+	rec = node_rec_new(meta);
+	varg->next = rec;
 
-		if (argc > 4) {
-			_e("%s accepts a maximum of 4 arguments", node_str(call));
-			return -EINVAL;
-		}
+	rec->parent = call;
+	node_foreach(varg, rec->rec.vargs) {
+		varg->parent = rec;
 	}
+
+	printf_update_mdyn(node_get_script(call), call);
 	return 0;
 }
 
@@ -286,9 +396,16 @@ static int trace_annotate(node_t *call)
 static builtin_t builtins[] = {
 	{
 		.name = "reg",
-		.loc_assign = reg_loc_assign,
 		.annotate   = reg_annotate,
+		.loc_assign = reg_loc_assign,
 		.compile    = reg_compile,
+	},
+
+	{
+		.name = "printf",
+		.annotate   = printf_annotate,
+		.loc_assign = printf_loc_assign,
+		.compile    = printf_compile,
 	},
 
 	BUILTIN_INT_VOID(  gid),
@@ -301,7 +418,6 @@ static builtin_t builtins[] = {
 	BUILTIN_ALIAS(execname, comm),
 
 	BUILTIN(strcmp),
-	BUILTIN(trace),
 
 	{ .name = NULL }
 };

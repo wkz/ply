@@ -1,5 +1,6 @@
 #!/bin/ply -f
 
-kprobe:SyS_open / !strcmp(comm(), "date") / {
-	trace("pc:%p lr:%p\n", reg("pc"), reg("lr"));
+kprobe:SyS_open {
+	/* opens[comm()] += 1 */
+	printf("comm:%s\n", comm());
 }

@@ -78,7 +78,7 @@ int map_setup(node_t *script)
 		else
 			mdyn->mapfd = bpf_map_create(BPF_MAP_TYPE_HASH,
 						     mdyn->map->map.rec->dyn.size,
-						     mdyn->map->dyn.size, 1024);
+						     mdyn->map->dyn.size, 256);
 
 		_d("created map with fd %#x(%d)\n", mdyn->mapfd, errno);
 		if (mdyn->mapfd <= 0)
@@ -128,6 +128,23 @@ void map_dump(mdyn_t *mdyn)
 	}
 }
 
+void printf_dump(mdyn_t *mdyn)
+{
+	node_t *call = mdyn->map, *rec = call->call.vargs->next;
+	int64_t key;
+	char *val = malloc(rec->dyn.size);
+	int err;
+
+	printf("\nprintf:\n");
+	
+	for (err = bpf_map_lookup(mdyn->mapfd, &key, val); !err;
+	     err = bpf_map_lookup(mdyn->mapfd, &key, val)) {
+		printf("  idx:%" PRId64 " meta:%" PRIx64 "\n", key, *((int64_t *)val));
+		key++;
+	}
+}
+
+
 int map_teardown(node_t *script)
 {
 	mdyn_t *mdyn;
@@ -137,7 +154,11 @@ int map_teardown(node_t *script)
 
 	for (mdyn = script->script.mdyns; mdyn; mdyn = mdyn->next) {
 		if (mdyn->mapfd) {
-			map_dump(mdyn);
+			if (!strcmp(mdyn->map->string, "printf"))
+				printf_dump(mdyn);
+			else
+				map_dump(mdyn);
+			
 			close(mdyn->mapfd);
 		}
 	}
@@ -195,9 +216,10 @@ int main(int argc, char **argv)
 	system("echo 1 >/sys/kernel/debug/tracing/options/raw");
 
 	system("echo 1 >/sys/kernel/debug/tracing/events/kprobes/enable");
-	system("echo 1 >/sys/kernel/debug/tracing/tracing_on");
-	system("cat /sys/kernel/debug/tracing/trace_pipe | grep -e '^#'");
-	system("echo 0 >/sys/kernel/debug/tracing/tracing_on");
+	/* system("echo 1 >/sys/kernel/debug/tracing/tracing_on"); */
+	/* system("cat /sys/kernel/debug/tracing/trace_pipe | grep -e '^#'"); */
+	/* system("echo 0 >/sys/kernel/debug/tracing/tracing_on"); */
+	system("cat");
 	system("echo 0 >/sys/kernel/debug/tracing/events/kprobes/enable");
 
 	/* err = node_get_pvdr(script->script.probes)->teardown(script->script.probes, prog); */
