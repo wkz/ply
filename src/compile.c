@@ -317,6 +317,37 @@ int emit_xfer(prog_t *prog, const node_t *to, const node_t *from)
 	return emit_xfer_dyn(prog, &to->dyn, &from->dyn);
 }
 
+int emit_read_raw(prog_t *prog, ssize_t to, int from, size_t size)
+{
+	emit(prog, MOV(BPF_REG_1, BPF_REG_10));
+	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_1, to));
+	emit(prog, MOV_IMM(BPF_REG_2, size));
+	emit(prog, MOV(BPF_REG_3, from));
+	emit(prog, CALL(BPF_FUNC_probe_read));
+	return 0;
+}
+
+int emit_map_update_raw(prog_t *prog, int fd, ssize_t key, ssize_t val)
+{
+	emit_ld_mapfd(prog, BPF_REG_1, fd);
+	emit(prog, MOV(BPF_REG_2, BPF_REG_10));
+	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_2, key));
+	emit(prog, MOV(BPF_REG_3, BPF_REG_10));
+	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_3, val));
+	emit(prog, MOV_IMM(BPF_REG_4, 0));
+	emit(prog, CALL(BPF_FUNC_map_update_elem));
+	return 0;
+}
+
+int emit_map_lookup_raw(prog_t *prog, int fd, ssize_t addr)
+{
+	emit_ld_mapfd(prog, BPF_REG_1, fd);
+	emit(prog, MOV(BPF_REG_2, BPF_REG_10));
+	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_2, addr));
+	emit(prog, CALL(BPF_FUNC_map_lookup_elem));
+	return 0;
+}
+
 int emit_map_load(prog_t *prog, node_t *n)
 {
 	/* when overriding the current value, there is no need to load
@@ -327,21 +358,13 @@ int emit_map_load(prog_t *prog, node_t *n)
 
 	emit_stack_zero(prog, n);
 
-	/* lookup key */
-	emit_ld_mapfd(prog, BPF_REG_1, node_map_get_fd(n));
-	emit(prog, MOV(BPF_REG_2, BPF_REG_10));
-	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_2, n->map.rec->dyn.addr));
-	emit(prog, CALL(BPF_FUNC_map_lookup_elem));
+	emit_map_lookup_raw(prog, node_map_get_fd(n), n->map.rec->dyn.addr);
 
 	/* if we get a null pointer, skip copy */
 	emit(prog, JMP_IMM(JMP_JEQ, BPF_REG_0, 0, 5));
 
 	/* if key existed, copy it to the value area */
-	emit(prog, MOV(BPF_REG_1, BPF_REG_10));
-	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_1, n->dyn.addr));
-	emit(prog, MOV_IMM(BPF_REG_2, n->dyn.size));
-	emit(prog, MOV(BPF_REG_3, BPF_REG_0));
-	emit(prog, CALL(BPF_FUNC_probe_read));
+	emit_read_raw(prog, n->dyn.addr, BPF_REG_0, n->dyn.size);
 	return 0;
 }
 
@@ -390,13 +413,8 @@ int emit_assign(prog_t *prog, node_t *assign)
 			return err;
 	}
 
-	emit_ld_mapfd(prog, BPF_REG_1, node_map_get_fd(map));
-	emit(prog, MOV(BPF_REG_2, BPF_REG_10));
-	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_2, map->map.rec->dyn.addr));
-	emit(prog, MOV(BPF_REG_3, BPF_REG_10));
-	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_3, map->dyn.addr));
-	emit(prog, MOV_IMM(BPF_REG_4, 0));
-	emit(prog, CALL(BPF_FUNC_map_update_elem));
+	emit_map_update_raw(prog, node_map_get_fd(map),
+			    map->map.rec->dyn.addr, map->dyn.addr);
 	return 0;
 }
 

@@ -71,18 +71,27 @@ int map_setup(node_t *script)
 {
 	mdyn_t *mdyn;
 	int dumpfd = 0xfd00;
+	size_t ksize, vsize;
 
 	for (mdyn = script->script.mdyns; mdyn; mdyn = mdyn->next) {
-		if (dump)
+		if (dump) {
 			mdyn->mapfd = dumpfd++;
-		else
-			mdyn->mapfd = bpf_map_create(BPF_MAP_TYPE_HASH,
-						     mdyn->map->map.rec->dyn.size,
-						     mdyn->map->dyn.size, 256);
+			continue;
+		}
 
-		_d("created map with fd %#x(%d)\n", mdyn->mapfd, errno);
-		if (mdyn->mapfd <= 0)
+		if (!strcmp(mdyn->map->string, "printf")) {
+			ksize = mdyn->map->dyn.size;
+			vsize = mdyn->map->call.vargs->next->dyn.size;
+		} else {
+			ksize = mdyn->map->map.rec->dyn.size;
+			vsize = mdyn->map->dyn.size;
+		}
+
+		mdyn->mapfd = bpf_map_create(BPF_MAP_TYPE_HASH, ksize, vsize, 256);
+		if (mdyn->mapfd <= 0) {
+			_pe("failed creating map");
 			return mdyn->mapfd;
+		}
 	}
 
 	return 0;
@@ -131,17 +140,20 @@ void map_dump(mdyn_t *mdyn)
 void printf_dump(mdyn_t *mdyn)
 {
 	node_t *call = mdyn->map, *rec = call->call.vargs->next;
-	int64_t key;
+	int64_t key = 0;
 	char *val = malloc(rec->dyn.size);
 	int err;
 
 	printf("\nprintf:\n");
-	
+
 	for (err = bpf_map_lookup(mdyn->mapfd, &key, val); !err;
-	     err = bpf_map_lookup(mdyn->mapfd, &key, val)) {
-		printf("  idx:%" PRId64 " meta:%" PRIx64 "\n", key, *((int64_t *)val));
-		key++;
+	     key++, err = bpf_map_lookup(mdyn->mapfd, &key, val)) {
+
+		printf("  idx:%" PRId64 " meta:%" PRIx64" comm:%s\n", key,
+		       *((uint64_t *)val), val + sizeof(uint64_t));
 	}
+
+	_pe("printf_dump");
 }
 
 

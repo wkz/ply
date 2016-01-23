@@ -44,11 +44,15 @@ void emit           (prog_t *prog, struct bpf_insn insn);
 int  emit_stack_zero(prog_t *prog, const node_t *n);
 int  emit_xfer_dyn  (prog_t *prog, const dyn_t  *to, const dyn_t  *from);
 int  emit_xfer      (prog_t *prog, const node_t *to, const node_t *from);
+int  emit_read_raw  (prog_t *prog, ssize_t to, int from, size_t size);
 
 static inline void emit_ld_mapfd(prog_t *prog, int reg, int fd)
 {
 	emit(prog, INSN(BPF_LD | BPF_DW | BPF_IMM, reg, BPF_PSEUDO_MAP_FD, 0, fd));
 	emit(prog, INSN(0, 0, 0, 0, 0));
 }
+
+int emit_map_update_raw(prog_t *prog, int fd, ssize_t key, ssize_t val);
+int emit_map_lookup_raw(prog_t *prog, int fd, ssize_t addr);
 
 prog_t *compile_probe(node_t *probe);

@@ -221,14 +221,20 @@ static int printf_compile(node_t *call, prog_t *prog)
 	node_t *rec = call->call.vargs->next;
 	int map_fd = node_map_get_fd(call);
 
+	if (call->dyn.size > sizeof(int64_t)) {
+		size_t diff = call->dyn.size - sizeof(int64_t);
+		ssize_t addr = rec->dyn.addr + rec->dyn.size;
+
+		emit(prog, MOV_IMM(BPF_REG_0, 0));
+		for (; diff; addr += sizeof(int64_t), diff -= sizeof(int64_t))
+			emit(prog, STXDW(BPF_REG_10, addr, BPF_REG_0));
+	}
+		
 	/* lookup index into print buffer, stored out-of-band after
 	 * the last entry */
 	emit(prog, MOV_IMM(BPF_REG_0, PRINTF_BUF_LEN));
 	emit(prog, STXDW(BPF_REG_10, call->dyn.addr, BPF_REG_0));
-	emit_ld_mapfd(prog, BPF_REG_1, map_fd);
-	emit(prog, MOV(BPF_REG_2, BPF_REG_10));
-	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_2, call->dyn.addr));
-	emit(prog, CALL(BPF_FUNC_map_lookup_elem));
+	emit_map_lookup_raw(prog, map_fd, call->dyn.addr);
 
 	/* if we get a null pointer, index is 0 */
 	emit(prog, JMP_IMM(JMP_JNE, BPF_REG_0, 0, 2));
@@ -236,22 +242,15 @@ static int printf_compile(node_t *call, prog_t *prog)
 	emit(prog, JMP_IMM(JMP_JA, 0, 0, 5));
 
 	/* otherwise, get it from the out-of-band value */
-	emit(prog, MOV(BPF_REG_1, BPF_REG_10));
-	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_1, call->dyn.addr));
-	emit(prog, MOV_IMM(BPF_REG_2, call->dyn.size));
-	emit(prog, MOV(BPF_REG_3, BPF_REG_0));
-	emit(prog, CALL(BPF_FUNC_probe_read));
+	emit_read_raw(prog, call->dyn.addr, BPF_REG_0, sizeof(int64_t));
 
 	/* at this point call->dyn.addr is loaded with the index of
 	 * the buffer */
-	emit_ld_mapfd(prog, BPF_REG_1, map_fd);
-	emit(prog, MOV(BPF_REG_2, BPF_REG_10));
-	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_2, call->dyn.addr));
-	emit(prog, CALL(BPF_FUNC_map_lookup_elem));
+	emit_map_lookup_raw(prog, map_fd, call->dyn.addr);
 
 	/* lookup SHOULD return NULL, otherwise user-space has not
 	 * been able to empty the buffer in time. */
-	emit(prog, JMP_IMM(JMP_JNE, BPF_REG_0, 0, 3));
+	emit(prog, JMP_IMM(JMP_JEQ, BPF_REG_0, 0, 3));
 
 	/* mark record with the overflow bit so that user-space at
 	 * least knows when data has been lost */
@@ -260,13 +259,7 @@ static int printf_compile(node_t *call, prog_t *prog)
 	emit(prog, STXDW(BPF_REG_10, rec->rec.vargs->dyn.addr, BPF_REG_0));
 
 	/* store record */
-	emit_ld_mapfd(prog, BPF_REG_1, map_fd);
-	emit(prog, MOV(BPF_REG_2, BPF_REG_10));
-	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_2, rec->dyn.addr));
-	emit(prog, MOV(BPF_REG_3, BPF_REG_10));
-	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_3, call->dyn.addr));
-	emit(prog, MOV_IMM(BPF_REG_4, 0));
-	emit(prog, CALL(BPF_FUNC_map_update_elem));
+	emit_map_update_raw(prog, map_fd, call->dyn.addr, rec->dyn.addr);
 
 	/* calculate next index and store that in the record */
 	emit(prog, LDXDW(BPF_REG_0, call->dyn.addr, BPF_REG_10));
@@ -277,49 +270,18 @@ static int printf_compile(node_t *call, prog_t *prog)
 	/* store next index */
 	emit(prog, MOV_IMM(BPF_REG_0, PRINTF_BUF_LEN));
 	emit(prog, STXDW(BPF_REG_10, call->dyn.addr, BPF_REG_0));
-	emit_ld_mapfd(prog, BPF_REG_1, map_fd);
-	emit(prog, MOV(BPF_REG_2, BPF_REG_10));
-	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_2, rec->dyn.addr));
-	emit(prog, MOV(BPF_REG_3, BPF_REG_10));
-	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_3, call->dyn.addr));
-	emit(prog, MOV_IMM(BPF_REG_4, 0));
-	emit(prog, CALL(BPF_FUNC_map_update_elem));
+	emit_map_update_raw(prog, map_fd, call->dyn.addr, rec->dyn.addr);
 	return 0;
 }
 
-static int printf_loc_assign(node_t *call)
+static int printf_walk(node_t *n, void *_mdyn)
 {
-	node_t *probe = node_get_probe(call);
-	node_t *varg = call->call.vargs;
-
-	/* no need to store any format strings in the kernel, we can
-	 * fetch them from the AST, just store a format id instead. */
-	varg->dyn.loc = LOC_VIRTUAL;
-
-	node_foreach(varg, varg->next) {
-		varg->dyn.loc  = LOC_STACK;
-		varg->dyn.addr = node_probe_stack_get(probe, varg->dyn.size);
-	}
-
-	/* allocate storage for printf's map key */
-	call->dyn.size = sizeof(int64_t);
-	call->dyn.addr = node_probe_stack_get(probe, call->dyn.size);
-	return 0;
-}
-
-static void printf_update_mdyn(node_t *script, node_t *n)
-{
-	mdyn_t *mdyn;
+	mdyn_t *mdyn = _mdyn;
 	size_t largest, new;
 
-	for (mdyn = script->script.mdyns; mdyn; mdyn = mdyn->next) {
-		if (!strcmp(mdyn->map->string, n->string))
-			goto exist;
-	}
+	if (n->type != TYPE_CALL || strcmp(n->string, "printf"))
+		return 0;
 
-	mdyn = calloc(1, sizeof(*mdyn));
-	assert(mdyn);
-exist:
 	if (!mdyn->map)
 		mdyn->map = n;
 	else {
@@ -333,12 +295,71 @@ exist:
 			mdyn->map = n;
 	}
 
+	return 0;
+}
+
+static size_t printf_store_mdyn(node_t *script)
+{
+	mdyn_t *mdyn;
+
+	mdyn = calloc(1, sizeof(*mdyn));
+	assert(mdyn);
+
+	node_walk(script, NULL, printf_walk, mdyn);
+
 	if (!script->script.mdyns)
 		script->script.mdyns = mdyn;
 	else
 		insque_tail(mdyn, script->script.mdyns);
 
-	return;
+	return mdyn->map->call.vargs->next->dyn.size;
+}
+
+static size_t printf_rec_size(node_t *script)
+{
+	mdyn_t *mdyn;
+
+	for (mdyn = script->script.mdyns; mdyn; mdyn = mdyn->next) {
+		if (!strcmp(mdyn->map->string, "printf"))
+			return mdyn->map->call.vargs->next->dyn.size;
+	}
+
+	printf_store_mdyn(script);
+
+	for (mdyn = script->script.mdyns; mdyn; mdyn = mdyn->next) {
+		if (!strcmp(mdyn->map->string, "printf"))
+			return mdyn->map->call.vargs->next->dyn.size;
+	}
+
+	assert(mdyn);
+	return 0;
+}
+
+static int printf_loc_assign(node_t *call)
+{
+	node_t *probe = node_get_probe(call);
+	node_t *varg = call->call.vargs;
+	node_t *rec  = varg->next;
+	/* ssize_t addr; */
+	size_t rec_max_size;
+
+	/* no need to store any format strings in the kernel, we can
+	 * fetch them from the AST, just store a format id instead. */
+	varg->dyn.loc = LOC_VIRTUAL;
+
+	rec_max_size  = printf_rec_size(probe->parent);
+	rec->dyn.loc  = LOC_STACK;
+	rec->dyn.addr = node_probe_stack_get(probe, rec_max_size);
+	/* node_foreach(varg, varg->next) { */
+	/* 	varg->dyn.loc  = LOC_STACK; */
+	/* 	varg->dyn.addr = addr; */
+	/* 	addr += varg->dyn.size; */
+	/* } */
+
+	/* allocate storage for printf's map key */
+	call->dyn.size = rec_max_size + sizeof(int64_t) - rec->dyn.size;
+	call->dyn.addr = node_probe_stack_get(probe, call->dyn.size);
+	return 0;
 }
 
 static int printf_annotate(node_t *call)
@@ -371,7 +392,6 @@ static int printf_annotate(node_t *call)
 		varg->parent = rec;
 	}
 
-	printf_update_mdyn(node_get_script(call), call);
 	return 0;
 }
 
