@@ -69,9 +69,9 @@ int bpf_map_update(int fd, void *key, void *val, int flags)
 	return bpf_map_op(BPF_MAP_UPDATE_ELEM, fd, key, val, flags);
 }
 
-int bpf_map_delete(int fd, void *key, void *val)
+int bpf_map_delete(int fd, void *key)
 {
-	return bpf_map_op(BPF_MAP_DELETE_ELEM, fd, key, val, 0);
+	return bpf_map_op(BPF_MAP_DELETE_ELEM, fd, key, NULL, 0);
 }
 
 int bpf_map_next(int fd, void *key, void *next_key)

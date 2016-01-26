@@ -2,6 +2,5 @@
 
 kprobe:SyS_open {
 	/* opens[comm()] += 1 */
-	printf("hej");
-	printf("comm:%s\n", comm());
+	printf("pid:%lld comm:%s\n", pid(), comm());
 }

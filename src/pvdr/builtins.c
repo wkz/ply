@@ -213,9 +213,6 @@ static int reg_annotate(node_t *call)
 	return 0;
 }
 
-#define PRINTF_BUF_LEN 64
-#define PRINTF_META_OF (1 << 30)
-
 static int printf_compile(node_t *call, prog_t *prog)
 {
 	node_t *rec = call->call.vargs->next;
@@ -364,6 +361,7 @@ static int printf_loc_assign(node_t *call)
 
 static int printf_annotate(node_t *call)
 {
+	node_t *script = node_get_script(call);
 	node_t *varg = call->call.vargs;
 	node_t *meta, *rec;
 
@@ -380,7 +378,7 @@ static int printf_annotate(node_t *call)
 	/* rewrite printf("a:%d b:%d", a(), b())
          *    into printf("a:%d b:%d", [meta, a(), b()])
 	 */
-	meta = node_int_new(node_get_script(call)->script.fmts++);
+	meta = node_int_new(script->script.fmt_id++);
 	meta->dyn.type = TYPE_INT;
 	meta->dyn.size = 8;
 	meta->next = varg->next;
@@ -392,6 +390,7 @@ static int printf_annotate(node_t *call)
 		varg->parent = rec;
 	}
 
+	script->script.printf[meta->integer] = call;
 	return 0;
 }
 

@@ -95,7 +95,8 @@ typedef struct script {
 	node_t *probes;
 	mdyn_t *mdyns;
 
-	int     fmts;
+	int     fmt_id;
+	node_t *printf[64];
 } script_t;
 
 #define NODE_TYPE_TABLE \

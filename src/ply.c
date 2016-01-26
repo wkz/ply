@@ -137,23 +137,79 @@ void map_dump(mdyn_t *mdyn)
 	}
 }
 
-void printf_dump(mdyn_t *mdyn)
+void printf_output(node_t *script, void *rec)
 {
-	node_t *call = mdyn->map, *rec = call->call.vargs->next;
-	int64_t key = 0;
-	char *val = malloc(rec->dyn.size);
+	node_t *call, *arg;
+	int64_t *meta;
+	size_t offs;
+	char spec[16] = "%";
+	char *fmt, *seg, *save, *end;
+
+	meta = rec;
+	if (*meta < 0 || *meta >= 64)
+		return;
+
+	call = script->script.printf[*meta];
+	if (!call)
+		return;
+
+	fmt  = strdup(call->call.vargs->string);
+	arg  = call->call.vargs->next->rec.vargs->next;
+	offs = sizeof(*meta);
+	for (seg = strtok_r(fmt, "%", &save); seg; seg = strtok_r(NULL, "%", &save)) {
+		printf(seg);
+
+		end = strpbrk(save, "cdiopsuxX");
+		if (!end)
+			break;
+
+		strncpy(&spec[1], save, end - save + 1);
+		spec[1 + (end - save) + 1] = '\0';
+		if (*end == 's')
+			printf(spec, rec + offs);
+		else
+			printf(spec, *((int64_t *)(rec + offs)));
+
+		*end = '\0';
+		save = end + 1;
+		offs += arg->dyn.size;
+		arg = arg->next;
+	}
+}
+
+void printf_drain(node_t *script)
+{
+	node_t *call, *rec;
+	mdyn_t *mdyn;
+	int64_t key;
+	char *val;
 	int err;
 
-	printf("\nprintf:\n");
+	for (mdyn = script->script.mdyns; mdyn; mdyn = mdyn->next)
+		if (!strcmp(mdyn->map->string, "printf"))
+			break;
 
-	for (err = bpf_map_lookup(mdyn->mapfd, &key, val); !err;
-	     key++, err = bpf_map_lookup(mdyn->mapfd, &key, val)) {
-
-		printf("  idx:%" PRId64 " meta:%" PRIx64" comm:%s\n", key,
-		       *((uint64_t *)val), val + sizeof(uint64_t));
+	if (!mdyn) {
+		getchar();
+		return;
 	}
 
-	_pe("printf_dump");
+	call = mdyn->map;
+	rec  = call->call.vargs->next;
+	val  = malloc(rec->dyn.size);
+
+	for (key = 0;;) {
+		err = bpf_map_lookup(mdyn->mapfd, &key, val);
+		if (err) {
+			err = usleep(200000);
+			if (err)
+				break;
+		} else {
+			printf_output(script, val);
+			bpf_map_delete(mdyn->mapfd, &key);
+			key = (key + 1) & (PRINTF_BUF_LEN - 1);
+		}
+	}
 }
 
 
@@ -166,9 +222,7 @@ int map_teardown(node_t *script)
 
 	for (mdyn = script->script.mdyns; mdyn; mdyn = mdyn->next) {
 		if (mdyn->mapfd) {
-			if (!strcmp(mdyn->map->string, "printf"))
-				printf_dump(mdyn);
-			else
+			if (strcmp(mdyn->map->string, "printf"))
 				map_dump(mdyn);
 			
 			close(mdyn->mapfd);
@@ -224,14 +278,8 @@ int main(int argc, char **argv)
 	if (err)
 		goto err_free_prog;
 
-	system("echo 0 >/sys/kernel/debug/tracing/options/context-info");
-	system("echo 1 >/sys/kernel/debug/tracing/options/raw");
-
 	system("echo 1 >/sys/kernel/debug/tracing/events/kprobes/enable");
-	/* system("echo 1 >/sys/kernel/debug/tracing/tracing_on"); */
-	/* system("cat /sys/kernel/debug/tracing/trace_pipe | grep -e '^#'"); */
-	/* system("echo 0 >/sys/kernel/debug/tracing/tracing_on"); */
-	system("cat");
+	printf_drain(script);
 	system("echo 0 >/sys/kernel/debug/tracing/events/kprobes/enable");
 
 	/* err = node_get_pvdr(script->script.probes)->teardown(script->script.probes, prog); */
