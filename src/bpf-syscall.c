@@ -1,10 +1,9 @@
-
-#include <linux/bpf.h>
+#include <string.h>
 #include <unistd.h>
 
+#include <linux/bpf.h>
 #include <linux/perf_event.h>
 #include <linux/version.h>
-
 #include <sys/syscall.h>
 
 #include "bpf-syscall.h"
@@ -19,28 +18,36 @@ static __u64 ptr_to_u64(const void *ptr)
 
 int bpf_prog_load(const struct bpf_insn *insns, int insn_cnt)
 {
-	union bpf_attr attr = {
-		.prog_type = BPF_PROG_TYPE_KPROBE,
-		.insns     = ptr_to_u64(insns),
-		.insn_cnt  = insn_cnt,
-		.license   = ptr_to_u64("GPL"),
-		.log_buf   = ptr_to_u64(bpf_log_buf),
-		.log_size  = LOG_BUF_SIZE,
-		.log_level = 1,
-		.kern_version = LINUX_VERSION_CODE,
-	};
+	union bpf_attr attr;
+
+	/* required since the kernel checks that unused fields and pad
+	 * bytes are zeroed */
+	memset(&attr, 0, sizeof(attr));
+
+	attr.prog_type = BPF_PROG_TYPE_KPROBE;
+	attr.insns     = ptr_to_u64(insns);
+	attr.insn_cnt  = insn_cnt;
+	attr.license   = ptr_to_u64("GPL");
+	attr.log_buf   = ptr_to_u64(bpf_log_buf);
+	attr.log_size  = LOG_BUF_SIZE;
+	attr.log_level = 1;
+	attr.kern_version = LINUX_VERSION_CODE;
 	
 	return syscall(__NR_bpf, BPF_PROG_LOAD, &attr, sizeof(attr));
 }
 
 int bpf_map_create(enum bpf_map_type type, int key_sz, int val_sz, int entries)
 {
-	union bpf_attr attr =  {
-		.map_type = type,
-		.key_size = key_sz,
-		.value_size = val_sz,
-		.max_entries = entries,
-	};
+	union bpf_attr attr;
+
+	/* required since the kernel checks that unused fields and pad
+	 * bytes are zeroed */
+	memset(&attr, 0, sizeof(attr));
+
+	attr.map_type = type;
+	attr.key_size = key_sz;
+	attr.value_size = val_sz;
+	attr.max_entries = entries;
 
 	return syscall(__NR_bpf, BPF_MAP_CREATE, &attr, sizeof(attr));
 }

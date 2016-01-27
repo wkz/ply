@@ -59,8 +59,10 @@ static int _eventid(char *pspec)
 
 	sprintf(str, "/sys/kernel/debug/tracing/events/kprobes/p_%s_0/id", func);
 	fp = fopen(str, "r");
-	if (!fp)
+	if (!fp) {
+		_pe("unable to create kprobe for \"%s\"", func);
 		return -1;
+	}
 
 	fgets(str, sizeof(str), fp);
 	fclose(fp);

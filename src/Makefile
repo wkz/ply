@@ -4,7 +4,7 @@ ARCH ?= $(shell uname -m)
 
 #CFLAGS ?= -O3 -Wall -Werror
 CFLAGS ?= -O0 -g -Wall -Wextra -Werror -Wno-unused-parameter -Wno-format-security
-CFLAGS += -I/home/wkz/code/github/troglobit/troglos/staging/include
+#CFLAGS += -I/home/wkz/code/github/troglobit/troglos/staging/include
 
 HEADERS = ply.h compile.h bpf-syscall.h lang/ast.h pvdr/arch.h pvdr/pvdr.h
 SRCS  = $(addprefix lang/, ast.c lex.c parse.c)
