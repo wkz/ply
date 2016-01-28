@@ -1,6 +1,4 @@
-#!/usr/bin/env ply
-
-kprobe:SyS_open {
-	opens[comm()] += 1
-	/* printf("pid:%d comm:%s\n", pid(), comm()); */
+kprobe:SyS_read {
+	/* on x86_64, di contains first argument to read, the fd */
+	fds[pid(), execname(), reg("di")] += 1
 }

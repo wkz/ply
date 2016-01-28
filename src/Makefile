@@ -12,6 +12,9 @@ SRCS += annotate.c bpf-syscall.c compile.c map.c ply.c utils.c
 ifeq ($(ARCH),arm)
 SRCS += pvdr/arch-arm.c
 endif
+ifeq ($(ARCH),x86_64)
+SRCS += pvdr/arch-x86_64.c
+endif
 
 OBJS = $(patsubst %.c, %.o, $(SRCS))
 
