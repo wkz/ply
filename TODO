@@ -10,7 +10,6 @@
 * map
 ** dump
 *** records
-*** sort
 ** hints
 *** type/length
 ** methods (aggregations)

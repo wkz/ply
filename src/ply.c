@@ -41,7 +41,7 @@ int parse_opts(int argc, char **argv, FILE **sfp)
 		return -EINVAL;
 
 	if (cmd)
-		*sfp = fmemopen(argv[optind], strlen(argv[optind]) + 1, "r");
+		*sfp = fmemopen(argv[optind], strlen(argv[optind]), "r");
 	else
 		*sfp = fopen(argv[optind], "r");
 
@@ -111,8 +111,6 @@ int main(int argc, char **argv)
 	system("echo 1 >/sys/kernel/debug/tracing/events/kprobes/enable");
 	printf_drain(script);
 	system("echo 0 >/sys/kernel/debug/tracing/events/kprobes/enable");
-
-	signal(SIGINT, SIG_DFL);
 
 	/* err = node_get_pvdr(script->script.probes)->teardown(script->script.probes, prog); */
 	/* if (err) */

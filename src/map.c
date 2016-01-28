@@ -6,9 +6,50 @@
 #include "bpf-syscall.h"
 #include "map.h"
 
+static void int_dump(node_t *integer, void *data)
+{
+	printf("%8" PRId64, *((int64_t *)data));
+}
+
+static void str_dump(node_t *str, void *data)
+{
+	printf("%-*.*s", (int)str->dyn.size, (int)str->dyn.size,
+	       (const char *)data);
+}
+
+static void node_dump(node_t *n, void *data)
+{
+	node_t *varg;
+
+	switch (n->dyn.type) {
+	case TYPE_INT:
+		int_dump(n, data);
+		break;
+	case TYPE_STR:
+		str_dump(n, data);
+		break;
+	case TYPE_REC:
+		fputs("[ ", stdout);
+
+		node_foreach(varg, n->rec.vargs) {
+			if (varg != n->rec.vargs)
+				fputs(", ", stdout);
+
+			node_dump(varg, data);
+			data += varg->dyn.size;
+		}
+
+		fputs(" ]", stdout);
+		break;
+	default:
+		_e("unknown node type  %d", n->dyn.type);
+		break;
+	}
+}
+
 void map_dump(mdyn_t *mdyn)
 {
-	node_t *map = mdyn->map, *rec = map->map.rec, *varg = rec->rec.vargs;
+	node_t *map = mdyn->map, *rec = map->map.rec;
 	char *key = calloc(1, rec->dyn.size), *val = malloc(map->dyn.size);
 	int err;
 
@@ -20,29 +61,10 @@ void map_dump(mdyn_t *mdyn)
 		if (err)
 			return;
 
-		switch (varg->dyn.type) {
-		case TYPE_INT:
-			printf("  %-20" PRId64, *((int64_t *)key));
-			break;
-		case TYPE_STR:
-			printf("  %-*.*s", (int)varg->dyn.size, (int)varg->dyn.size, key);
-			break;
-		default:
-			err = -EINVAL;
-			continue;
-		}
-
-		switch (map->dyn.type) {
-		case TYPE_INT:
-			printf("  %-20" PRId64 "\n", *((int64_t *)val));
-			break;
-		case TYPE_STR:
-			printf("  %-*.*s\n", (int)map->dyn.size, (int)map->dyn.size, val);
-			break;
-		default:
-			err = -EINVAL;
-			continue;
-		}
+		node_dump(rec, key);
+		fputs("\t", stdout);
+		node_dump(map, val);
+		fputs("\n", stdout);
 	}
 }
 
