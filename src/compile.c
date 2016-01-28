@@ -7,8 +7,6 @@
 #include "lang/ast.h"
 #include "pvdr/pvdr.h"
 
-extern int dump;
-
 const dyn_t dyn_reg[] = {
 	[BPF_REG_0] =  { .type = TYPE_INT, .size = 8, .loc = LOC_REG, .reg = BPF_REG_0  },
 	[BPF_REG_1] =  { .type = TYPE_INT, .size = 8, .loc = LOC_REG, .reg = BPF_REG_1  },
@@ -189,7 +187,7 @@ unknown:
 
 void emit(prog_t *prog, struct bpf_insn insn)
 {
-	if (dump)
+	if (debug)
 		dump_insn(insn);
 
 	*(prog->ip)++ = insn;

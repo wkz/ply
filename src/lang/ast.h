@@ -188,17 +188,18 @@ int     node_map_get_fd     (node_t *map);
 int     node_stmt_reg_get   (node_t *stmt);
 ssize_t node_probe_stack_get(node_t *probe, size_t size);
 
-node_t *node_str_new   (char *val);
-node_t *node_int_new   (int64_t val);
-node_t *node_rec_new   (node_t *vargs);
-node_t *node_map_new   (char *name, node_t *rec);
-node_t *node_not_new   (node_t *expr);
-node_t *node_return_new(node_t *expr);
-node_t *node_binop_new (node_t *left, char *opstr, node_t *right);
-node_t *node_assign_new(node_t *lval, char *opstr, node_t *expr);
-node_t *node_call_new  (char *func, node_t *vargs);
-node_t *node_probe_new (char *pspec, node_t *pred, node_t *stmts);
-node_t *node_script_new(node_t *probes);
+node_t *node_str_new     (char *val);
+node_t *node_int_new     (int64_t val);
+node_t *node_rec_new     (node_t *vargs);
+node_t *node_map_new     (char *name, node_t *rec);
+node_t *node_not_new     (node_t *expr);
+node_t *node_return_new  (node_t *expr);
+node_t *node_binop_new   (node_t *left, char *opstr, node_t *right);
+node_t *node_assign_new  (node_t *lval, char *opstr, node_t *expr);
+node_t *node_call_new    (char *func, node_t *vargs);
+node_t *node_probe_new   (char *pspec, node_t *pred, node_t *stmts);
+node_t *node_script_new  (node_t *probes);
+node_t *node_script_parse(FILE *fp);
 
 void node_free(node_t *n);
 int  node_walk(node_t *n,

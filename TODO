@@ -1,0 +1,27 @@
+* general
+** ply script license
+** X sigint handling
+** pspec wildcards
+** kallsyms resolve
+
+* printf
+** X width
+
+* map
+** dump
+*** records
+*** sort
+** hints
+*** type/length
+** methods (aggregations)
+*** count (dump:hbar)
+*** dist (log/lin dump:hbar)
+*** checkpoint (dump:hbar per delta)
+
+* doc
+** license
+** man page
+** readme
+** web page
+   
+   

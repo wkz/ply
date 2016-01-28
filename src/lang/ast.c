@@ -7,6 +7,8 @@
 #include <string.h>
 
 #include "ast.h"
+#include "parse.h"
+#include "lex.h"
 
 const char *type_str(type_t type)
 {
@@ -367,6 +369,20 @@ node_t *node_script_new(node_t *probes)
 	return n;
 }
 
+node_t *node_script_parse(FILE *fp)
+{
+	node_t *script = NULL;
+	yyscan_t scanner;
+	
+	if (yylex_init(&scanner))
+		return NULL;
+
+	yyset_in(fp, scanner);
+	yyparse(&script, scanner);
+ 
+	yylex_destroy(scanner); 
+	return script;
+}
 
 static int _node_free(node_t *n, void *ctx)
 {

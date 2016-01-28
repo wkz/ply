@@ -1,6 +1,6 @@
-#!/bin/ply -f
+#!/usr/bin/env ply
 
 kprobe:SyS_open {
-	/* opens[comm()] += 1 */
-	printf("pid:%lld comm:%s\n", pid(), comm());
+	opens[comm()] += 1
+	/* printf("pid:%d comm:%s\n", pid(), comm()); */
 }

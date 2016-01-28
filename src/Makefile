@@ -3,13 +3,12 @@
 ARCH ?= $(shell uname -m)
 
 #CFLAGS ?= -O3 -Wall -Werror
-CFLAGS ?= -O0 -g -Wall -Wextra -Werror -Wno-unused-parameter -Wno-format-security
-#CFLAGS += -I/home/wkz/code/github/troglobit/troglos/staging/include
+CFLAGS ?= -O0 -g -Wall -Wextra -Werror -Wno-unused-parameter
 
-HEADERS = ply.h compile.h bpf-syscall.h lang/ast.h pvdr/arch.h pvdr/pvdr.h
-SRCS  = $(addprefix lang/, ast.c lex.c parse.c)
-SRCS += $(addprefix pvdr/, arch-null.c builtins.c pvdr.c kprobe.c)
-SRCS += annotate.c bpf-syscall.c compile.c ply.c utils.c 
+HEADERS = ply.h compile.h bpf-syscall.h map.h lang/ast.h pvdr/arch.h pvdr/pvdr.h
+SRCS  = $(addprefix lang/, lex.c parse.c ast.c)
+SRCS += $(addprefix pvdr/, arch-null.c builtins.c printf.c pvdr.c kprobe.c)
+SRCS += annotate.c bpf-syscall.c compile.c map.c ply.c utils.c 
 ifeq ($(ARCH),arm)
 SRCS += pvdr/arch-arm.c
 endif
