@@ -1,5 +1,5 @@
 * general
-** ply script license
+** ply script license, option to ply (can go in hashbang)
 ** X sigint handling
 ** pspec wildcards
 ** kallsyms resolve

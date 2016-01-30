@@ -416,6 +416,15 @@ int emit_assign(prog_t *prog, node_t *assign)
 	return 0;
 }
 
+int emit_method(prog_t *prog, node_t *method)
+{
+	node_t *map = method->method.map;
+
+	emit_map_update_raw(prog, node_map_get_fd(map),
+			    map->map.rec->dyn.addr, map->dyn.addr);
+	return 0;
+}
+
 static int compile_pre(node_t *n, void *_prog)
 {
 	prog_t *prog = _prog;
@@ -471,6 +480,10 @@ static int compile_post(node_t *n, void *_prog)
 
 	case TYPE_ASSIGN:
 		err = emit_assign(prog, n);
+		break;
+
+	case TYPE_METHOD:
+		err = emit_method(prog, n);
 		break;
 
 	case TYPE_CALL:

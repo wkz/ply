@@ -1,4 +1,4 @@
 kprobe:SyS_read {
 	/* on x86_64, di contains first argument to read, the fd */
-	fds[pid(), execname(), reg("di")] += 1
+	fds[pid(), execname(), reg("di")].count()
 }

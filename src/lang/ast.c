@@ -89,6 +89,7 @@ static int _node_ast_dump(node_t *n, void *indent)
 	switch (n->type) {
 	case TYPE_NONE:
 	case TYPE_SCRIPT:
+	case TYPE_METHOD:
 	case TYPE_RETURN:
 	case TYPE_NOT:
 	case TYPE_REC:
@@ -315,6 +316,18 @@ node_t *node_binop_new(node_t *left, char *opstr, node_t *right)
 	return n;
 }
 
+node_t *node_method_new(node_t *map, node_t *call)
+{
+	node_t *n = node_new(TYPE_METHOD);
+
+	n->method.map  = map;
+	n->method.call = call;
+
+	map->parent  = n;
+	call->parent = n;
+	return n;	
+}
+
 node_t *node_assign_new(node_t *lval, char *opstr, node_t *expr)
 {
 	node_t *n = node_new(TYPE_ASSIGN);
@@ -451,6 +464,11 @@ int node_walk(node_t *n,
 
 	case TYPE_CALL:
 		do_list(n->call.vargs);
+		break;
+
+	case TYPE_METHOD:
+		do_walk(n->method.map);
+		do_walk(n->method.call);
 		break;
 
 	case TYPE_ASSIGN:

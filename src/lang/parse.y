@@ -76,8 +76,8 @@ stmts : stmt
 
 stmt : variable AOP expr
 		{ $$ = node_assign_new($1, $2, $3); }
-     /* | variable AGG call */
-     /* 		{ $$ = node_agg_new($1, $3); } */
+     | variable '.' call
+     		{ $$ = node_method_new($1, $3); }
      | expr
 		{ $$ = $1; }
      | RETURN expr

@@ -70,6 +70,10 @@ typedef struct assign {
 	node_t *lval, *expr;
 } assign_t;
 
+typedef struct method {
+	node_t *map, *call;
+} method_t;
+
 typedef struct call {
 	node_t *vargs;
 	void   *priv;
@@ -105,6 +109,7 @@ typedef struct script {
 	TYPE(TYPE_PROBE, "probe")		\
 	TYPE(TYPE_CALL, "call")			\
 	TYPE(TYPE_ASSIGN, "assign")		\
+	TYPE(TYPE_METHOD, "method")		\
 	TYPE(TYPE_RETURN, "return")		\
 	TYPE(TYPE_BINOP, "binop")		\
 	TYPE(TYPE_NOT, "not")			\
@@ -153,6 +158,7 @@ struct node {
 		probe_t  probe;
 		call_t   call;
 		assign_t assign;
+		method_t method;
 		binop_t  binop;
 		map_t    map;
 		rec_t    rec;
@@ -196,6 +202,7 @@ node_t *node_not_new     (node_t *expr);
 node_t *node_return_new  (node_t *expr);
 node_t *node_binop_new   (node_t *left, char *opstr, node_t *right);
 node_t *node_assign_new  (node_t *lval, char *opstr, node_t *expr);
+node_t *node_method_new  (node_t *map, node_t *call);
 node_t *node_call_new    (char *func, node_t *vargs);
 node_t *node_probe_new   (char *pspec, node_t *pred, node_t *stmts);
 node_t *node_script_new  (node_t *probes);

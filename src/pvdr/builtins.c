@@ -213,6 +213,29 @@ static int reg_annotate(node_t *call)
 	return 0;
 }
 
+static int count_compile(node_t *call, prog_t *prog)
+{
+	node_t *map = call->parent->method.map;
+
+	emit(prog, LDXDW(BPF_REG_0, map->dyn.addr, BPF_REG_10));
+	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_0, 1));
+	emit(prog, STXDW(BPF_REG_10, map->dyn.addr, BPF_REG_0));
+	return 0;
+}
+
+static int count_annotate(node_t *call)
+{
+	if (call->call.vargs)
+		return -EINVAL;
+
+	if (call->parent->type != TYPE_METHOD)
+		return -EINVAL;
+
+	call->dyn.type = TYPE_INT;
+	call->dyn.size = 8;
+	return 0;
+}
+
 #define BUILTIN_INT_VOID(_name) {			\
 		.name     = #_name,			\
 		.annotate = int_noargs_annotate,	\
@@ -254,6 +277,7 @@ static builtin_t builtins[] = {
 
 	BUILTIN(comm),
 	BUILTIN_ALIAS(execname, comm),
+	BUILTIN(count),
 
 	BUILTIN(strcmp),
 
