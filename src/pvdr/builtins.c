@@ -213,6 +213,48 @@ static int reg_annotate(node_t *call)
 	return 0;
 }
 
+#define LOG2_CMP(_bit)							\
+	emit(prog, JMP_IMM(JMP_JGT, src, (1 << (_bit)) - 1, 1));	\
+	emit(prog, JMP_IMM(JMP_JA, 0, 0, 2));				\
+	emit(prog, ALU_IMM(ALU_OP_ADD, dst, _bit));			\
+	emit(prog, ALU_IMM(ALU_OP_RSH, src, _bit))
+
+static int log2_compile(node_t *call, prog_t *prog)
+{
+	node_t *num = call->call.vargs;
+	int src, dst;
+
+	src = (num->dyn.loc == LOC_REG) ? num->dyn.reg : BPF_REG_0;
+	if (num->type == TYPE_INT)
+		emit(prog, MOV_IMM(src, num->integer));
+	else
+		emit_xfer_dyn(prog, &num->dyn, &dyn_reg[src]);
+
+	dst = (call->dyn.loc == LOC_REG) ? call->dyn.reg : BPF_REG_1;
+	emit(prog, MOV_IMM(dst, 0));
+
+	/* LOG2_CMP(32); */
+	LOG2_CMP(16);
+	LOG2_CMP( 8);
+	LOG2_CMP( 4);
+	LOG2_CMP( 2);
+	LOG2_CMP( 1);
+
+	return emit_xfer_dyn(prog, &call->dyn, &dyn_reg[dst]);
+}
+
+static int log2_annotate(node_t *call)
+{
+	if (!call->call.vargs ||
+	    call->call.vargs->dyn.type != TYPE_INT ||
+	    call->call.vargs->next)
+		return -EINVAL;
+
+	call->dyn.type = TYPE_INT;
+	call->dyn.size = sizeof(int64_t);
+	return 0;
+}
+
 static int count_compile(node_t *call, prog_t *prog)
 {
 	node_t *map = call->parent->method.map;
@@ -225,16 +267,45 @@ static int count_compile(node_t *call, prog_t *prog)
 
 static int count_annotate(node_t *call)
 {
-	if (call->call.vargs)
-		return -EINVAL;
-
-	if (call->parent->type != TYPE_METHOD)
+	if (call->call.vargs ||
+	    call->parent->type != TYPE_METHOD)
 		return -EINVAL;
 
 	call->dyn.type = TYPE_INT;
 	call->dyn.size = 8;
 	return 0;
 }
+
+static int quantize_compile(node_t *call, prog_t *prog)
+{
+	node_t *map = call->parent->method.map;
+
+	emit(prog, LDXDW(BPF_REG_0, map->dyn.addr, BPF_REG_10));
+	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_0, 1));
+	emit(prog, STXDW(BPF_REG_10, map->dyn.addr, BPF_REG_0));
+	return 0;
+}
+
+static int quantize_annotate(node_t *call)
+{
+	node_t *map;
+
+	if (!call->call.vargs ||
+	    call->call.vargs->dyn.type != TYPE_INT ||
+	    call->call.vargs->next ||
+	    call->parent->type != TYPE_METHOD)
+		return -EINVAL;
+
+	/* only one bucket will be updated, so determine which one and
+	 * then load 'n' update just that one */
+	map = call->parent->method.map;
+	map->dyn.loc = LOC_VIRTUAL;
+
+	call->dyn.type = TYPE_REC;
+	call->dyn.size = 64 * sizeof(int64_t);
+	return 0;
+}
+
 
 #define BUILTIN_INT_VOID(_name) {			\
 		.name     = #_name,			\
@@ -278,6 +349,8 @@ static builtin_t builtins[] = {
 	BUILTIN(comm),
 	BUILTIN_ALIAS(execname, comm),
 	BUILTIN(count),
+	BUILTIN(quantize),
+	BUILTIN(log2),
 
 	BUILTIN(strcmp),
 

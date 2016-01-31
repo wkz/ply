@@ -2,7 +2,7 @@
 
 #include <linux/bpf.h>
 
-#define LOG_BUF_SIZE 0x1000
+#define LOG_BUF_SIZE 0x20000
 
 extern char bpf_log_buf[LOG_BUF_SIZE];
 

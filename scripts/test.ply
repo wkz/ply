@@ -1,4 +1,6 @@
-kprobe:SyS_read {
+kprobe:SyS_open {
 	/* on x86_64, di contains first argument to read, the fd */
-	fds[pid(), execname(), reg("di")].count()
+	/* fds[pid(), execname(), reg("di")].count() */
+	/* size[0].quantize(reg("dx")) */
+	printf("log2(%x) = %x\n", 256, log2(256));
 }
