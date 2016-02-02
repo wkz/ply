@@ -63,9 +63,6 @@ static int loc_assign_pre(node_t *n, void *_probe)
 		return 0;
 	case TYPE_METHOD:
 		c = n->method.map;
-		if (c->dyn.loc == LOC_VIRTUAL)
-			return 0;
-
 		c->dyn.loc  = LOC_STACK;
 		c->dyn.addr = node_probe_stack_get(probe, c->dyn.size);
 		return 0;

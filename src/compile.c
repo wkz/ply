@@ -204,31 +204,31 @@ int emit_stack_zero(prog_t *prog, const node_t *n)
 	return 0;
 }
 
-static int emit_xfer_literal(prog_t *prog, const node_t *to,
+static int emit_xfer_literal(prog_t *prog, const dyn_t *to,
 			     const void *_from, size_t size)
 {
 	const int64_t *integer = _from;
 	const int32_t *from = _from;
 	ssize_t at;
 
-	switch (to->dyn.loc) {
+	switch (to->loc) {
 	case LOC_NOWHERE:
 	case LOC_VIRTUAL:
-		_e("destination of %s is unknown", node_str(to));
+		_e("destination unknown");
 		return -EINVAL;
 
 	case LOC_REG:
 		if (*integer > 0xffffffff) {
-			emit(prog, MOV_IMM(to->dyn.reg, *integer >> 32));
-			emit(prog, ALU_IMM(ALU_OP_LSH, to->dyn.reg, 32));
-			emit(prog, ALU_IMM(ALU_OP_OR, to->dyn.reg, (*integer) >> 32));
+			emit(prog, MOV_IMM(to->reg, *integer >> 32));
+			emit(prog, ALU_IMM(ALU_OP_LSH, to->reg, 32));
+			emit(prog, ALU_IMM(ALU_OP_OR, to->reg, (*integer) & 0xffffffff));
 		} else {
-			emit(prog, MOV_IMM(to->dyn.reg, *integer));
+			emit(prog, MOV_IMM(to->reg, *integer));
 		}
 		return 0;
 
 	case LOC_STACK:
-		for (at = to->dyn.addr; size;
+		for (at = to->addr; size;
 		     at += sizeof(*from), size -= sizeof(*from), from++)
 			emit(prog, STW_IMM(BPF_REG_10, at, *from));
 		return 0;
@@ -280,7 +280,7 @@ static int emit_xfer_stack(prog_t *prog, const dyn_t *to, ssize_t from)
 	return -EINVAL;
 }
 
-int emit_xfer_dyn(prog_t *prog, const dyn_t *to, const dyn_t *from)
+int emit_xfer_dyns(prog_t *prog, const dyn_t *to, const dyn_t *from)
 {
 	switch (from->loc) {
 	case LOC_NOWHERE:
@@ -299,7 +299,7 @@ int emit_xfer_dyn(prog_t *prog, const dyn_t *to, const dyn_t *from)
 
 }
 
-int emit_xfer(prog_t *prog, const node_t *to, const node_t *from)
+int emit_xfer_dyn(prog_t *prog, const dyn_t *to, const node_t *from)
 {
 	switch (from->type) {
 	case TYPE_INT:
@@ -312,7 +312,35 @@ int emit_xfer(prog_t *prog, const node_t *to, const node_t *from)
 		break;
 	}
 
-	return emit_xfer_dyn(prog, &to->dyn, &from->dyn);
+	return emit_xfer_dyns(prog, to, &from->dyn);	
+}
+
+int emit_xfer(prog_t *prog, const node_t *to, const node_t *from)
+{
+	return emit_xfer_dyn(prog, &to->dyn, from);
+}
+
+#define LOG2_CMP(_bit)							\
+	emit(prog, JMP_IMM(JMP_JGT, src, ((1 << (_bit)) - 1), 1));	\
+	emit(prog, JMP_IMM(JMP_JA, 0, 0, 2));				\
+	emit(prog, ALU_IMM(ALU_OP_ADD, dst, _bit));			\
+	emit(prog, ALU_IMM(ALU_OP_RSH, src, _bit))
+
+int emit_log2_raw(prog_t *prog, int dst, int src)
+{
+	emit(prog, MOV_IMM(dst, 0));
+
+	emit(prog, JMP_IMM(JMP_JSGT, src, 0xffffffff, 1));
+	emit(prog, JMP_IMM(JMP_JA, 0, 0, 2));
+	emit(prog, ALU_IMM(ALU_OP_ADD, dst, 32));
+	emit(prog, ALU_IMM(ALU_OP_RSH, src, 32));
+
+	LOG2_CMP(16);
+	LOG2_CMP( 8);
+	LOG2_CMP( 4);
+	LOG2_CMP( 2);
+	LOG2_CMP( 1);
+	return 0;
 }
 
 int emit_read_raw(prog_t *prog, ssize_t to, int from, size_t size)
@@ -372,7 +400,7 @@ int emit_not(prog_t *prog, node_t *not)
 	int src = expr->dyn.loc == LOC_REG ? expr->dyn.reg : BPF_REG_0;
 	int err;
 	
-	err = emit_xfer_dyn(prog, &dyn_reg[src], &expr->dyn);
+	err = emit_xfer_dyns(prog, &dyn_reg[src], &expr->dyn);
 	if (err)
 		return err;
 
@@ -381,7 +409,7 @@ int emit_not(prog_t *prog, node_t *not)
 	emit(prog, JMP_IMM(JMP_JA, 0, 0, 1));
 	emit(prog, MOV_IMM(src, 0));
 
-	return emit_xfer_dyn(prog, &not->dyn, &dyn_reg[src]);
+	return emit_xfer_dyns(prog, &not->dyn, &dyn_reg[src]);
 }
 
 int emit_assign(prog_t *prog, node_t *assign)

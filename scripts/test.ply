@@ -1,6 +1,5 @@
 kprobe:SyS_open {
-	/* on x86_64, di contains first argument to read, the fd */
-	/* fds[pid(), execname(), reg("di")].count() */
-	/* size[0].quantize(reg("dx")) */
-	printf("log2(%x) = %x\n", 256, log2(256));
+	/* size[log2(reg("dx"))].count(); */
+	/* printf("dx:0x%x(%d)\n", reg("dx"), log2(reg("dx"))); */
+	printf("log2:%d\n", log2(0x80));
 }

@@ -36,7 +36,7 @@ static int int32_void_func(enum bpf_func_id func, enum extract_op op,
 		break;
 	}
 
-	return emit_xfer_dyn(prog, &call->dyn, &dyn_reg[BPF_REG_0]);
+	return emit_xfer_dyns(prog, &call->dyn, &dyn_reg[BPF_REG_0]);
 }
 
 static int gid_compile(node_t *call, prog_t *prog)
@@ -122,7 +122,7 @@ static int strcmp_compile(node_t *call, prog_t *prog)
 		emit(prog, JMP_IMM(JMP_JNE,       dst, 0, 5 * (l - 2) + 3));
 	}
 
-	return emit_xfer_dyn(prog, &call->dyn, &dyn_reg[dst]);
+	return emit_xfer_dyns(prog, &call->dyn, &dyn_reg[dst]);
 }
 
 static int strcmp_annotate(node_t *call)
@@ -164,7 +164,7 @@ static int reg_compile(node_t *call, prog_t *prog)
 
 		src = call->dyn;
 		src.loc = LOC_STACK;
-		return emit_xfer_dyn(prog, &call->dyn, &src);
+		return emit_xfer_dyns(prog, &call->dyn, &src);
 	}
 
 	return 0;
@@ -213,34 +213,19 @@ static int reg_annotate(node_t *call)
 	return 0;
 }
 
-#define LOG2_CMP(_bit)							\
-	emit(prog, JMP_IMM(JMP_JGT, src, (1 << (_bit)) - 1, 1));	\
-	emit(prog, JMP_IMM(JMP_JA, 0, 0, 2));				\
-	emit(prog, ALU_IMM(ALU_OP_ADD, dst, _bit));			\
-	emit(prog, ALU_IMM(ALU_OP_RSH, src, _bit))
-
 static int log2_compile(node_t *call, prog_t *prog)
 {
 	node_t *num = call->call.vargs;
 	int src, dst;
 
 	src = (num->dyn.loc == LOC_REG) ? num->dyn.reg : BPF_REG_0;
-	if (num->type == TYPE_INT)
-		emit(prog, MOV_IMM(src, num->integer));
-	else
-		emit_xfer_dyn(prog, &num->dyn, &dyn_reg[src]);
+	emit_xfer_dyn(prog, &dyn_reg[src], num);
 
 	dst = (call->dyn.loc == LOC_REG) ? call->dyn.reg : BPF_REG_1;
-	emit(prog, MOV_IMM(dst, 0));
 
-	/* LOG2_CMP(32); */
-	LOG2_CMP(16);
-	LOG2_CMP( 8);
-	LOG2_CMP( 4);
-	LOG2_CMP( 2);
-	LOG2_CMP( 1);
+	emit_log2_raw(prog, dst, src);
 
-	return emit_xfer_dyn(prog, &call->dyn, &dyn_reg[dst]);
+	return emit_xfer_dyns(prog, &call->dyn, &dyn_reg[dst]);
 }
 
 static int log2_annotate(node_t *call)
@@ -279,27 +264,30 @@ static int count_annotate(node_t *call)
 static int quantize_compile(node_t *call, prog_t *prog)
 {
 	node_t *map = call->parent->method.map;
+	node_t *num = call->call.vargs;
+	int src;
 
-	emit(prog, LDXDW(BPF_REG_0, map->dyn.addr, BPF_REG_10));
+	src = (num->dyn.loc == LOC_REG) ? num->dyn.reg : BPF_REG_0;
+	emit_xfer_dyn(prog, &dyn_reg[src], num);
+
+	emit_log2_raw(prog, BPF_REG_1, src);
+
+	emit(prog, ALU_IMM(ALU_OP_LSH, BPF_REG_1, 3));
+	emit(prog, ALU(ALU_OP_ADD, BPF_REG_1, BPF_REG_10));
+	
+	emit(prog, LDXDW(BPF_REG_0, map->dyn.addr, BPF_REG_1));
 	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_0, 1));
-	emit(prog, STXDW(BPF_REG_10, map->dyn.addr, BPF_REG_0));
+	emit(prog, STXDW(BPF_REG_1, map->dyn.addr, BPF_REG_0));
 	return 0;
 }
 
 static int quantize_annotate(node_t *call)
 {
-	node_t *map;
-
 	if (!call->call.vargs ||
 	    call->call.vargs->dyn.type != TYPE_INT ||
 	    call->call.vargs->next ||
 	    call->parent->type != TYPE_METHOD)
 		return -EINVAL;
-
-	/* only one bucket will be updated, so determine which one and
-	 * then load 'n' update just that one */
-	map = call->parent->method.map;
-	map->dyn.loc = LOC_VIRTUAL;
 
 	call->dyn.type = TYPE_REC;
 	call->dyn.size = 64 * sizeof(int64_t);

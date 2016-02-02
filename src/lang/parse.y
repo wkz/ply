@@ -19,7 +19,7 @@ void yyerror(node_t **node, yyscan_t scanner, const char *s)
 %union {
 	node_t *node;
 	char *string;
-	unsigned int integer;
+	int64_t integer;
 }
 %code requires {
 
