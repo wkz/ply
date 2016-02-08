@@ -1,5 +1,6 @@
-kprobe:SyS_open {
+kprobe:SyS_read {
 	/* size[log2(reg("dx"))].count(); */
 	/* printf("dx:0x%x(%d)\n", reg("dx"), log2(reg("dx"))); */
-	printf("log2:%d\n", log2(0x80));
+	/* printf("log2:%d\n", log2(0x1)); */
+	sizes[0].quantize(reg("dx"))
 }

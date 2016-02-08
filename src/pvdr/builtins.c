@@ -263,34 +263,49 @@ static int count_annotate(node_t *call)
 
 static int quantize_compile(node_t *call, prog_t *prog)
 {
-	node_t *map = call->parent->method.map;
-	node_t *num = call->call.vargs;
-	int src;
+	/* node_t *map = call->parent->method.map; */
+	/* node_t *num = call->call.vargs; */
+	/* int src; */
 
-	src = (num->dyn.loc == LOC_REG) ? num->dyn.reg : BPF_REG_0;
-	emit_xfer_dyn(prog, &dyn_reg[src], num);
+	/* src = (num->dyn.loc == LOC_REG) ? num->dyn.reg : BPF_REG_0; */
+	/* emit_xfer_dyn(prog, &dyn_reg[src], num); */
 
-	emit_log2_raw(prog, BPF_REG_1, src);
+	/* emit_log2_raw(prog, BPF_REG_1, src); */
 
-	emit(prog, ALU_IMM(ALU_OP_LSH, BPF_REG_1, 3));
-	emit(prog, ALU(ALU_OP_ADD, BPF_REG_1, BPF_REG_10));
+	/* emit(prog, ALU_IMM(ALU_OP_LSH, BPF_REG_1, 3)); */
+	/* emit(prog, ALU(ALU_OP_ADD, BPF_REG_1, BPF_REG_10)); */
 	
-	emit(prog, LDXDW(BPF_REG_0, map->dyn.addr, BPF_REG_1));
-	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_0, 1));
-	emit(prog, STXDW(BPF_REG_1, map->dyn.addr, BPF_REG_0));
-	return 0;
+	/* emit(prog, LDXDW(BPF_REG_0, map->dyn.addr, BPF_REG_1)); */
+	/* emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_0, 1)); */
+	/* emit(prog, STXDW(BPF_REG_1, map->dyn.addr, BPF_REG_0)); */
+	/* return 0; */
+	return count_compile(call, prog);
 }
 
 static int quantize_annotate(node_t *call)
 {
+	node_t *map = call->parent->method.map;
+	node_t *rec;
+
 	if (!call->call.vargs ||
 	    call->call.vargs->dyn.type != TYPE_INT ||
 	    call->call.vargs->next ||
 	    call->parent->type != TYPE_METHOD)
 		return -EINVAL;
 
-	call->dyn.type = TYPE_REC;
-	call->dyn.size = 64 * sizeof(int64_t);
+	for (rec = map->map.rec->rec.vargs; rec->next; rec = rec->next);
+
+	/* rewrite map[c1, c2].quantize(some_int)
+	 * into    map[c1, c2, log2(some_int)].quantize()
+	 */
+	rec->next = node_call_new(strdup("log2"), call->call.vargs);
+	rec->next->dyn.type = TYPE_INT;
+	rec->next->dyn.size = sizeof(int64_t);
+	rec->next->parent = map->map.rec;
+	call->call.vargs = NULL;
+
+	call->dyn.type = TYPE_INT;
+	call->dyn.size = sizeof(int64_t);
 	return 0;
 }
 

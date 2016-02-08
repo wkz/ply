@@ -47,11 +47,31 @@ static void node_dump(node_t *n, void *data)
 	}
 }
 
+static void __key_workaround(int fd, void *key, size_t key_sz, void *val)
+{
+	FILE *fp;
+	int err;
+
+	fp = fopen("/dev/urandom", "r");
+
+	while (1) {
+		err = bpf_map_lookup(fd, key, val);
+		if (err)
+			break;
+
+		fread(key, key_sz, 1, fp);
+	}
+
+	fclose(fp);
+}	
+
 void map_dump(mdyn_t *mdyn)
 {
 	node_t *map = mdyn->map, *rec = map->map.rec;
 	char *key = calloc(1, rec->dyn.size), *val = malloc(map->dyn.size);
 	int err;
+
+	__key_workaround(mdyn->mapfd, key, rec->dyn.size, val);
 
 	printf("\n%s:\n", map->string);
 	

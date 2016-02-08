@@ -143,10 +143,12 @@ void dump_insn(struct bpf_insn insn)
 			fprintf(stderr, "ja\t%+d\n", insn.off);
 			return;
 
-		case BPF_JEQ: fputs("jeq\t", stderr); break;
-		case BPF_JNE: fputs("jne\t", stderr); break;
-		case BPF_JGT: fputs("jgt\t", stderr); break;
-		case BPF_JGE: fputs("jge\t", stderr); break;
+		case BPF_JEQ:  fputs("jeq\t", stderr); break;
+		case BPF_JNE:  fputs("jne\t", stderr); break;
+		case BPF_JGT:  fputs("jgt\t", stderr); break;
+		case BPF_JGE:  fputs("jge\t", stderr); break;
+		case BPF_JSGE: fputs("jsge\t", stderr); break;
+		case BPF_JSGT: fputs("jsgt\t", stderr); break;
 		default:
 			goto unknown;
 		}
@@ -207,8 +209,8 @@ int emit_stack_zero(prog_t *prog, const node_t *n)
 static int emit_xfer_literal(prog_t *prog, const dyn_t *to,
 			     const void *_from, size_t size)
 {
-	const int64_t *integer = _from;
-	const int32_t *from = _from;
+	const uint64_t *u64 = _from;
+	const int32_t *s32 = _from;
 	ssize_t at;
 
 	switch (to->loc) {
@@ -218,19 +220,25 @@ static int emit_xfer_literal(prog_t *prog, const dyn_t *to,
 		return -EINVAL;
 
 	case LOC_REG:
-		if (*integer > 0xffffffff) {
-			emit(prog, MOV_IMM(to->reg, *integer >> 32));
-			emit(prog, ALU_IMM(ALU_OP_LSH, to->reg, 32));
-			emit(prog, ALU_IMM(ALU_OP_OR, to->reg, (*integer) & 0xffffffff));
+		if (*u64 > 0x3fffffffffffffff) {
+			emit(prog, MOV_IMM(to->reg, *u64 >> 33));
+			emit(prog, ALU_IMM(ALU_OP_LSH, to->reg, 31));
+			emit(prog, ALU_IMM(ALU_OP_OR, to->reg, (*u64 >> 2) & 0x7fffffff));
+			emit(prog, ALU_IMM(ALU_OP_LSH, to->reg, 2));
+			emit(prog, ALU_IMM(ALU_OP_OR, to->reg, *u64 & 0x3));
+		} else if (*u64 > 0x7fffffff) {
+			emit(prog, MOV_IMM(to->reg, *u64 >> 31));
+			emit(prog, ALU_IMM(ALU_OP_LSH, to->reg, 31));
+			emit(prog, ALU_IMM(ALU_OP_OR, to->reg, *u64 & 0x7fffffff));
 		} else {
-			emit(prog, MOV_IMM(to->reg, *integer));
+			emit(prog, MOV_IMM(to->reg, *u64));
 		}
 		return 0;
 
 	case LOC_STACK:
 		for (at = to->addr; size;
-		     at += sizeof(*from), size -= sizeof(*from), from++)
-			emit(prog, STW_IMM(BPF_REG_10, at, *from));
+		     at += sizeof(*s32), size -= sizeof(*s32), s32++)
+			emit(prog, STW_IMM(BPF_REG_10, at, *s32));
 		return 0;
 	}
 
@@ -328,9 +336,15 @@ int emit_xfer(prog_t *prog, const node_t *to, const node_t *from)
 
 int emit_log2_raw(prog_t *prog, int dst, int src)
 {
+	int cmp = BPF_REG_5;
+
 	emit(prog, MOV_IMM(dst, 0));
 
-	emit(prog, JMP_IMM(JMP_JSGT, src, 0xffffffff, 1));
+	emit(prog, MOV_IMM(cmp, 1));
+	emit(prog, ALU_IMM(ALU_OP_LSH, cmp, 32));
+	emit(prog, ALU_IMM(ALU_OP_SUB, cmp, 1));
+
+	emit(prog, JMP(JMP_JGT, src, cmp, 1));
 	emit(prog, JMP_IMM(JMP_JA, 0, 0, 2));
 	emit(prog, ALU_IMM(ALU_OP_ADD, dst, 32));
 	emit(prog, ALU_IMM(ALU_OP_RSH, src, 32));

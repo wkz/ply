@@ -1,6 +1,7 @@
 #include <getopt.h>
 #include <signal.h>
 #include <stdio.h>
+#include <unistd.h>
 
 #include "ply.h"
 #include "map.h"
@@ -9,11 +10,13 @@
 
 FILE *scriptfp;
 int debug = 0;
+int timeout = 0;
 
-static const char *sopts = "cd";
+static const char *sopts = "cdt:";
 static struct option lopts[] = {
-	{ "command", no_argument, 0, 'c' },
-	{ "debug",   no_argument, 0, 'd' },
+	{ "command", no_argument,       0, 'c' },
+	{ "debug",   no_argument,       0, 'd' },
+	{ "timeout", required_argument, 0, 't' },
 
 	{ NULL }
 };
@@ -30,6 +33,13 @@ int parse_opts(int argc, char **argv, FILE **sfp)
 			break;
 		case 'd':
 			debug++;
+			break;
+		case 't':
+			timeout = strtol(optarg, NULL, 0);
+			if (timeout <= 0) {
+				_e("timeout option must be a positive integer");
+				return -EINVAL;
+			}
 			break;
 		default:
 			_e("unknown option '%c'", opt);
@@ -104,6 +114,12 @@ int main(int argc, char **argv)
 	err = node_get_pvdr(script->script.probes)->setup(script->script.probes, prog);
 	if (err)
 		goto err_free_prog;
+
+	if (timeout) {
+		siginterrupt(SIGALRM, 1);
+		signal(SIGALRM, sigint);
+		alarm(timeout);
+	}
 
 	siginterrupt(SIGINT, 1);
 	signal(SIGINT, sigint);
