@@ -108,7 +108,7 @@ int map_setup(node_t *script)
 			vsize = mdyn->map->dyn.size;
 		}
 
-		mdyn->mapfd = bpf_map_create(BPF_MAP_TYPE_HASH, ksize, vsize, 256);
+		mdyn->mapfd = bpf_map_create(BPF_MAP_TYPE_HASH, ksize, vsize, MAP_LEN);
 		if (mdyn->mapfd <= 0) {
 			_pe("failed creating map");
 			return mdyn->mapfd;

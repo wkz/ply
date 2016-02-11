@@ -55,9 +55,11 @@ static void printf_output(node_t *script, void *rec)
 	char *fmt, *seg, *save, *end;
 
 	meta = rec;
-	if (*meta < 0 || *meta >= 64)
-		return;
+	if (*meta & PRINTF_META_OF) {
+		_e("buffer overrun");
+	}
 
+	*meta &= 0xffff;
 	call = script->script.printf[*meta];
 	if (!call)
 		return;
@@ -175,7 +177,7 @@ int printf_compile(node_t *call, prog_t *prog)
 	emit(prog, STXDW(BPF_REG_10, rec->rec.vargs->dyn.addr, BPF_REG_0));
 
 	/* store next index */
-	emit(prog, MOV_IMM(BPF_REG_0, PRINTF_BUF_LEN));
+	emit(prog, MOV_IMM(BPF_REG_0, PRINTF_BUF_LEN - 1));
 	emit(prog, STXDW(BPF_REG_10, call->dyn.addr, BPF_REG_0));
 	emit_map_update_raw(prog, map_fd, call->dyn.addr, rec->dyn.addr);
 	return 0;

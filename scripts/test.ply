@@ -8,7 +8,7 @@ kprobe:SyS_open
 	/* sizes[comm()].quantize(arg(2)) */
 
 	/* printf("flags:%x\n", arg(1)); */
-	printf("test\n");
+	/* printf("comm:%s\n", comm()); */
 
-	/* opens[comm()].count(); */
+	flags[arg(1)].count();
 }

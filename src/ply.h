@@ -4,7 +4,9 @@
 
 #include "lang/ast.h"
 
-#define PRINTF_BUF_LEN 64
+#define MAP_LEN 512
+
+#define PRINTF_BUF_LEN MAP_LEN
 #define PRINTF_META_OF (1 << 30)
 
 #define _d(_fmt, ...) if (debug) { fprintf(stderr, "DEBUG %s: " _fmt "\n", __func__, ##__VA_ARGS__); }
