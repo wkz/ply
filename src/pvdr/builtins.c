@@ -18,6 +18,7 @@ enum extract_op {
 	EXTRACT_OP_NONE,
 	EXTRACT_OP_MASK,
 	EXTRACT_OP_SHIFT,
+	EXTRACT_OP_DIV_1G,
 };
 
 static int int32_void_func(enum bpf_func_id func, enum extract_op op,
@@ -31,6 +32,9 @@ static int int32_void_func(enum bpf_func_id func, enum extract_op op,
 		break;
 	case EXTRACT_OP_SHIFT:
 		emit(prog, ALU_IMM(ALU_OP_RSH, BPF_REG_0, 32));
+		break;
+	case EXTRACT_OP_DIV_1G:
+		emit(prog, ALU_IMM(ALU_OP_DIV, BPF_REG_0, 1000000000));
 		break;
 	default:
 		break;
@@ -69,13 +73,19 @@ static int nsecs_compile(node_t *call, prog_t *prog)
 			       EXTRACT_OP_NONE, call, prog);
 }
 
+static int secs_compile(node_t *call, prog_t *prog)
+{
+	return int32_void_func(BPF_FUNC_ktime_get_ns,
+			       EXTRACT_OP_DIV_1G, call, prog);
+}
+
 static int int_noargs_annotate(node_t *call)
 {
 	if (call->call.vargs)
 		return -EINVAL;
 
 	call->dyn.type = TYPE_INT;
-	call->dyn.size = 8;
+	call->dyn.size = sizeof(int64_t);
 	return 0;
 }
 
@@ -141,14 +151,13 @@ static int strcmp_annotate(node_t *call)
 		return -EINVAL;
 
 	call->dyn.type = TYPE_INT;
-	call->dyn.size = 8;	
+	call->dyn.size = sizeof(int64_t);	
 	return 0;
 }
 
 static int reg_compile(node_t *call, prog_t *prog)
 {
 	node_t *arg = call->call.vargs;
-	int reg_no = arg->type == TYPE_INT ? arg->integer : (intptr_t)call->call.priv;
 
 	emit_stack_zero(prog, call);
 
@@ -156,7 +165,7 @@ static int reg_compile(node_t *call, prog_t *prog)
 	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_1, call->dyn.addr));
 	emit(prog, MOV_IMM(BPF_REG_2, arch_reg_width()));
 	emit(prog, MOV(BPF_REG_3, BPF_REG_9));
-	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_3, sizeof(uintptr_t)*reg_no));
+	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_3, sizeof(uintptr_t)*arg->integer));
 	emit(prog, CALL(BPF_FUNC_probe_read));
 
 	if (call->dyn.loc == LOC_REG) {
@@ -182,9 +191,7 @@ static int reg_loc_assign(node_t *call)
 		call->dyn.addr = node_probe_stack_get(probe, call->dyn.size);
 	}
 
-	if (call->call.vargs->type == TYPE_STR)
-		call->call.vargs->dyn.loc = LOC_VIRTUAL;
-
+	call->call.vargs->dyn.loc = LOC_VIRTUAL;
 	return 0;
 }
 
@@ -201,15 +208,49 @@ static int reg_annotate(node_t *call)
 		if (reg < 0)
 			return reg;
 
-		call->call.priv = (void *)reg;
+		arg->integer = reg;
 	} else if (arg->type != TYPE_INT) {
-		_e("reg only support literals at the moment, not '%s'",
+		_e("reg only supports literals at the moment, not '%s'",
 		   type_str(arg->type));
 		return -ENOSYS;
 	}
 
 	call->dyn.type = TYPE_INT;
-	call->dyn.size = 8;
+	call->dyn.size = sizeof(int64_t);
+	return 0;
+}
+
+static int arg_compile(node_t *call, prog_t *prog)
+{
+	return reg_compile(call, prog);
+}
+
+static int arg_loc_assign(node_t *call)
+{
+	return reg_loc_assign(call);
+}
+
+static int arg_annotate(node_t *call)
+{
+	node_t *arg = call->call.vargs;
+	intptr_t reg;
+
+	if (!arg || arg->next)
+		return -EINVAL;
+
+	if (arg->type != TYPE_INT) {
+		_e("arg only supports literals at the moment, not '%s'",
+		   type_str(arg->type));
+		return -ENOSYS;
+	}
+
+	reg = arch_reg_arg(arg->integer);
+	if (reg < 0)
+		return reg;
+
+	arg->integer = reg;
+	call->dyn.type = TYPE_INT;
+	call->dyn.size = sizeof(int64_t);
 	return 0;
 }
 
@@ -257,28 +298,12 @@ static int count_annotate(node_t *call)
 		return -EINVAL;
 
 	call->dyn.type = TYPE_INT;
-	call->dyn.size = 8;
+	call->dyn.size = sizeof(int64_t);
 	return 0;
 }
 
 static int quantize_compile(node_t *call, prog_t *prog)
 {
-	/* node_t *map = call->parent->method.map; */
-	/* node_t *num = call->call.vargs; */
-	/* int src; */
-
-	/* src = (num->dyn.loc == LOC_REG) ? num->dyn.reg : BPF_REG_0; */
-	/* emit_xfer_dyn(prog, &dyn_reg[src], num); */
-
-	/* emit_log2_raw(prog, BPF_REG_1, src); */
-
-	/* emit(prog, ALU_IMM(ALU_OP_LSH, BPF_REG_1, 3)); */
-	/* emit(prog, ALU(ALU_OP_ADD, BPF_REG_1, BPF_REG_10)); */
-	
-	/* emit(prog, LDXDW(BPF_REG_0, map->dyn.addr, BPF_REG_1)); */
-	/* emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_0, 1)); */
-	/* emit(prog, STXDW(BPF_REG_1, map->dyn.addr, BPF_REG_0)); */
-	/* return 0; */
 	return count_compile(call, prog);
 }
 
@@ -322,6 +347,13 @@ static int quantize_annotate(node_t *call)
 		.compile  = _name ## _compile,	\
 	}
 
+#define BUILTIN_LOC(_name) {				\
+		.name       = #_name,			\
+		.annotate   = _name ## _annotate,	\
+		.loc_assign = _name ## _loc_assign,	\
+		.compile    = _name ## _compile,	\
+	}
+
 #define BUILTIN_ALIAS(_name, _real) {		\
 		.name     = #_name,		\
 		.annotate = _real ## _annotate,	\
@@ -329,25 +361,16 @@ static int quantize_annotate(node_t *call)
 	}
 
 static builtin_t builtins[] = {
-	{
-		.name = "reg",
-		.annotate   = reg_annotate,
-		.loc_assign = reg_loc_assign,
-		.compile    = reg_compile,
-	},
+	BUILTIN_LOC(reg),
+	BUILTIN_LOC(arg),
 
-	{
-		.name = "printf",
-		.annotate   = printf_annotate,
-		.loc_assign = printf_loc_assign,
-		.compile    = printf_compile,
-	},
-
+	BUILTIN_LOC(printf),
 	BUILTIN_INT_VOID(  gid),
 	BUILTIN_INT_VOID(  uid),
 	BUILTIN_INT_VOID( tgid),
 	BUILTIN_INT_VOID(  pid),
 	BUILTIN_INT_VOID(nsecs),
+	BUILTIN_INT_VOID( secs),
 
 	BUILTIN(comm),
 	BUILTIN_ALIAS(execname, comm),

@@ -114,7 +114,9 @@ void printf_drain(node_t *script)
 		} else {
 			printf_output(script, val);
 			bpf_map_delete(mdyn->mapfd, &key);
-			key = (key + 1) & (PRINTF_BUF_LEN - 1);
+			key++;
+			if (key >= (PRINTF_BUF_LEN - 1))
+				key = 0;
 		}
 	}
 }
@@ -136,7 +138,7 @@ int printf_compile(node_t *call, prog_t *prog)
 		
 	/* lookup index into print buffer, stored out-of-band after
 	 * the last entry */
-	emit(prog, MOV_IMM(BPF_REG_0, PRINTF_BUF_LEN));
+	emit(prog, MOV_IMM(BPF_REG_0, PRINTF_BUF_LEN - 1));
 	emit(prog, STXDW(BPF_REG_10, call->dyn.addr, BPF_REG_0));
 	emit_map_lookup_raw(prog, map_fd, call->dyn.addr);
 
@@ -168,7 +170,8 @@ int printf_compile(node_t *call, prog_t *prog)
 	/* calculate next index and store that in the record */
 	emit(prog, LDXDW(BPF_REG_0, call->dyn.addr, BPF_REG_10));
 	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_0, 1));
-	emit(prog, ALU_IMM(ALU_OP_AND, BPF_REG_0, PRINTF_BUF_LEN - 1));
+	emit(prog, JMP_IMM(JMP_JNE, BPF_REG_0, PRINTF_BUF_LEN - 1, 1));
+	emit(prog, MOV_IMM(BPF_REG_0, 0));
 	emit(prog, STXDW(BPF_REG_10, rec->rec.vargs->dyn.addr, BPF_REG_0));
 
 	/* store next index */
@@ -254,11 +257,6 @@ int printf_loc_assign(node_t *call)
 	rec_max_size  = printf_rec_size(probe->parent);
 	rec->dyn.loc  = LOC_STACK;
 	rec->dyn.addr = node_probe_stack_get(probe, rec_max_size);
-	/* node_foreach(varg, varg->next) { */
-	/* 	varg->dyn.loc  = LOC_STACK; */
-	/* 	varg->dyn.addr = addr; */
-	/* 	addr += varg->dyn.size; */
-	/* } */
 
 	/* allocate storage for printf's map key */
 	call->dyn.size = rec_max_size + sizeof(int64_t) - rec->dyn.size;

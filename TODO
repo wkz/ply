@@ -1,21 +1,22 @@
 * general
-** ply script license, option to ply (can go in hashbang)
+** X ply script license, option to ply (can go in hashbang)
 ** X sigint handling
 ** pspec wildcards
 ** kallsyms resolve
 
 * printf
 ** X width
+** overrun
 
 * map
-** dump
+** X dump
 *** X records
 ** hints
 *** type/length
-** methods (aggregations)
-*** count (dump:hbar)
-*** dist (log/lin dump:hbar)
-*** checkpoint (dump:hbar per delta)
+** X methods (aggregations)
+*** X count (dump:hbar)
+*** X quantize (log/lin dump:hbar)
+*** ! checkpoint (dump:hbar per delta)
 
 * doc
 ** license

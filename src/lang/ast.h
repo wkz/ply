@@ -166,8 +166,6 @@ struct node {
 		node_t  *ret;
 		int64_t  integer;
 	};
-
-	void *priv;
 };
 
 static inline const char *node_str(const node_t *node)

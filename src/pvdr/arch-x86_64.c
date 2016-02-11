@@ -46,3 +46,17 @@ int arch_reg_atoi(const char *name)
 
 	return -ENOENT;
 }
+
+int arch_reg_arg(int num)
+{
+	switch (num) {
+	case 0: return arch_reg_atoi("di");
+	case 1: return arch_reg_atoi("si");
+	case 2: return arch_reg_atoi("dx");
+	case 3: return arch_reg_atoi("r10");
+	case 4: return arch_reg_atoi("r8");
+	case 5: return arch_reg_atoi("r9");
+	}
+
+	return -ENOSYS;
+}

@@ -12,3 +12,8 @@ int __attribute__ ((weak)) arch_reg_atoi(const char *name)
 {
 	return -ENOSYS;
 }
+
+int __attribute__ ((weak)) arch_reg_arg(int num) 
+{
+	return -ENOSYS;
+}

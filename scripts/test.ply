@@ -1,6 +1,14 @@
-kprobe:SyS_read {
+#!/usr/local/bin/ply -G
+
+kprobe:SyS_open
+{
 	/* size[log2(reg("dx"))].count(); */
 	/* printf("dx:0x%x(%d)\n", reg("dx"), log2(reg("dx"))); */
 	/* printf("log2:%d\n", log2(0x1)); */
-	sizes[0].quantize(reg("dx"))
+	/* sizes[comm()].quantize(arg(2)) */
+
+	/* printf("flags:%x\n", arg(1)); */
+	printf("test\n");
+
+	/* opens[comm()].count(); */
 }

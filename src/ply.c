@@ -9,13 +9,16 @@
 #include "pvdr/pvdr.h"
 
 FILE *scriptfp;
+
 int debug = 0;
+char *license = "proprietary";
 int timeout = 0;
 
-static const char *sopts = "cdt:";
+static const char *sopts = "cdGt:";
 static struct option lopts[] = {
 	{ "command", no_argument,       0, 'c' },
 	{ "debug",   no_argument,       0, 'd' },
+	{ "gpl",     required_argument, 0, 'G' },
 	{ "timeout", required_argument, 0, 't' },
 
 	{ NULL }
@@ -34,10 +37,13 @@ int parse_opts(int argc, char **argv, FILE **sfp)
 		case 'd':
 			debug++;
 			break;
+		case 'G':
+			license = "GPL";
+			break;
 		case 't':
 			timeout = strtol(optarg, NULL, 0);
 			if (timeout <= 0) {
-				_e("timeout option must be a positive integer");
+				_e("timeout must be a positive integer");
 				return -EINVAL;
 			}
 			break;

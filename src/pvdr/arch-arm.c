@@ -43,3 +43,11 @@ int arch_reg_atoi(const char *name)
 
 	return -ENOENT;
 }
+
+int arch_reg_arg(int num)
+{
+	if (num < 0 || num > 6)
+		return -ENOSYS;
+
+	return num;
+}

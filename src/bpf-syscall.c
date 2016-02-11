@@ -8,6 +8,8 @@
 
 #include "bpf-syscall.h"
 
+extern char *license;
+
 char bpf_log_buf[LOG_BUF_SIZE];
 
 static __u64 ptr_to_u64(const void *ptr)
@@ -27,7 +29,7 @@ int bpf_prog_load(const struct bpf_insn *insns, int insn_cnt)
 	attr.prog_type = BPF_PROG_TYPE_KPROBE;
 	attr.insns     = ptr_to_u64(insns);
 	attr.insn_cnt  = insn_cnt;
-	attr.license   = ptr_to_u64("GPL");
+	attr.license   = ptr_to_u64(license);
 	attr.log_buf   = ptr_to_u64(bpf_log_buf);
 	attr.log_size  = LOG_BUF_SIZE;
 	attr.log_level = 1;
