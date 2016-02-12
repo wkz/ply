@@ -85,7 +85,7 @@ int main(int argc, char **argv)
 	node_t *probe, *script;
 	prog_t *prog;
 	pvdr_t *pvdr;
-	int err = 0;
+	int err = 0, num;
 
 	scriptfp = stdin;
 	err = parse_opts(argc, argv, &sfp);
@@ -123,8 +123,8 @@ int main(int argc, char **argv)
 			continue;
 
 		pvdr = node_get_pvdr(probe);
-		err = pvdr->setup(probe, prog);
-		if (err)
+		num = pvdr->setup(probe, prog);
+		if (num < 0)
 			break;
 	}
 
@@ -132,8 +132,10 @@ int main(int argc, char **argv)
 	if (dump)
 		goto done;
 	
-	if (err)
+	if (num < 0) {
+		err = num;
 		goto err;
+	}
 
 	if (timeout) {
 		siginterrupt(SIGALRM, 1);
@@ -144,13 +146,14 @@ int main(int argc, char **argv)
 	siginterrupt(SIGINT, 1);
 	signal(SIGINT, sigint);
 
+	_d("enabling %d probe(s)", num);
 	system("echo 1 >/sys/kernel/debug/tracing/events/kprobes/enable");
-	printf_drain(script);
-	system("echo 0 >/sys/kernel/debug/tracing/events/kprobes/enable");
 
-	/* err = node_get_pvdr(script->script.probes)->teardown(script->script.probes, prog); */
-	/* if (err) */
-	/* 	goto err_free_ebpf; */
+	_i("%d probe%s active", num, (num == 1) ? "" : "s");
+	printf_drain(script);
+
+	_i("de-activating probes");
+	system("echo 0 >/sys/kernel/debug/tracing/events/kprobes/enable");
 
 	map_teardown(script);
 

@@ -44,7 +44,7 @@ static int kprobe_event_id(const char *func, FILE *ctrl)
 	free(ev_id);
 	if (!fp) {
 		_pe("unable to create kprobe for \"%s\"", func);
-		return -1;
+		return -EIO;
 	}
 
 	fgets(ev_str, sizeof(ev_str), fp);
@@ -70,27 +70,27 @@ static int kprobe_attach_one(const char *func, int bfd, FILE *ctrl)
 	efd = perf_event_open(&attr, -1/*pid*/, 0/*cpu*/, -1/*group_fd*/, 0);
 	if (efd < 0) {
 		perror("perf_event_open");
-		return 1;
+		return -errno;
 	}
 
 	if (ioctl(efd, PERF_EVENT_IOC_ENABLE, 0)) {
 		perror("perf enable");
-		return 1;
+		return -errno;
 	}
 
 	if (ioctl(efd, PERF_EVENT_IOC_SET_BPF, bfd)) {
 		perror("perf attach");
-		return 1;
+		return -errno;
 	}
 
-	return 0;
+	return 1;
 }
 
 static int kprobe_attach_pattern(const char *pattern, int bfd, FILE *ctrl)
 {
 	FILE *ksyms;
 	char *line;
-	int err = 0;
+	int err = 0, num = 0;
 
 	_d("pattern:%s", pattern);
 
@@ -102,7 +102,7 @@ static int kprobe_attach_pattern(const char *pattern, int bfd, FILE *ctrl)
 
 	line = malloc(256);
 	assert(line);
-	while (!err && fgets(line, 256, ksyms)) {
+	while (err >= 0 && fgets(line, 256, ksyms)) {
 		char *func, *pos;
 
 		pos = strchr(line, ' ') + 1;
@@ -113,13 +113,20 @@ static int kprobe_attach_pattern(const char *pattern, int bfd, FILE *ctrl)
 		func = strtok(pos, " ");
 		if (strchr(func, '.'))
 			continue;
-		
-		if (!fnmatch(pattern, func, 0))
-			err = kprobe_attach_one(func, bfd, ctrl);
+
+		pos = strchr(func, '\n');
+		if (pos)
+			*pos = '\0';
+
+		if (fnmatch(pattern, func, 0))
+			continue;
+
+		err = kprobe_attach_one(func, bfd, ctrl);		
+		num++;
 	}
 	free(line);
 	fclose(ksyms);
-	return err;
+	return (err < 0) ? err : num;
 }
 
 static int kprobe_setup(node_t *probe, prog_t *prog)
@@ -132,14 +139,14 @@ static int kprobe_setup(node_t *probe, prog_t *prog)
 	ctrl = fopen("/sys/kernel/debug/tracing/kprobe_events", "a+");
 	if (!ctrl) {
 		perror("unable to open kprobe_events");
-		return 1;
+		return -EIO;
 	}
 
 	bfd = bpf_prog_load(prog->insns, prog->ip - prog->insns);
 	if (bfd < 0) {
 		perror("bpf");
 		fprintf(stderr, "bpf verifier:\n%s\n", bpf_log_buf);
-		return 1;
+		return -EINVAL;
 	}
 
 	func = strchr(probe->string, ':') + 1;

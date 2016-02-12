@@ -1,6 +1,7 @@
-#!/usr/local/bin/ply -G
+#!/usr/bin/env ply
+/* -*- mode: c -*- */
 
-kprobe:SyS_*
+kprobe:SyS_open
 {
 	/* size[log2(reg("dx"))].count(); */
 	/* printf("dx:0x%x(%d)\n", reg("dx"), log2(reg("dx"))); */
