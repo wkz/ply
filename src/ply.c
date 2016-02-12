@@ -11,13 +11,15 @@
 FILE *scriptfp;
 
 int debug = 0;
+int dump = 0;
 char *license = "proprietary";
 int timeout = 0;
 
-static const char *sopts = "cdGt:";
+static const char *sopts = "cdDGt:";
 static struct option lopts[] = {
 	{ "command", no_argument,       0, 'c' },
 	{ "debug",   no_argument,       0, 'd' },
+	{ "dump",    no_argument,       0, 'D' },
 	{ "gpl",     required_argument, 0, 'G' },
 	{ "timeout", required_argument, 0, 't' },
 
@@ -36,6 +38,9 @@ int parse_opts(int argc, char **argv, FILE **sfp)
 			break;
 		case 'd':
 			debug++;
+			break;
+		case 'D':
+			dump++;
 			break;
 		case 'G':
 			license = "GPL";
@@ -77,8 +82,9 @@ void sigint(int sigint)
 int main(int argc, char **argv)
 {
 	FILE *sfp;
-	node_t *script;
+	node_t *probe, *script;
 	prog_t *prog;
+	pvdr_t *pvdr;
 	int err = 0;
 
 	scriptfp = stdin;
@@ -94,32 +100,40 @@ int main(int argc, char **argv)
 
 	err = pvdr_resolve(script);
 	if (err)
-		goto err_free_script;
+		goto err;
 
 	err = annotate_script(script);
 	if (err)
-		goto err_free_script;
+		goto err;
 
 	err = map_setup(script);
 	if (err)
-		goto err_free_script;
+		goto err;
 		
-	if (debug)
+	if (dump)
 		node_ast_dump(script);
 
-	prog = compile_probe(script->script.probes);
-	if (!prog) {
+	node_foreach(probe, script->script.probes) {
 		err = -EINVAL;
-		goto err_free_script;
+		prog = compile_probe(probe);
+		if (!prog)
+			break;
+
+		if (dump)
+			continue;
+
+		pvdr = node_get_pvdr(probe);
+		err = pvdr->setup(probe, prog);
+		if (err)
+			break;
 	}
 
 	_d("compilation ok");
-	if (debug)
+	if (dump)
 		goto done;
-
-	err = node_get_pvdr(script->script.probes)->setup(script->script.probes, prog);
+	
 	if (err)
-		goto err_free_prog;
+		goto err;
 
 	if (timeout) {
 		siginterrupt(SIGALRM, 1);
@@ -141,10 +155,11 @@ int main(int argc, char **argv)
 	map_teardown(script);
 
 done:
-err_free_prog:
-	free(prog);
-err_free_script:
-	node_free(script);
 err:
+	if (prog)
+		free(prog);
+	if (script)
+		node_free(script);
+
 	return err;
 }

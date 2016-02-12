@@ -1,4 +1,7 @@
+#define _GNU_SOURCE
+
 #include <errno.h>
+#include <fnmatch.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -17,24 +20,6 @@
 #include "../bpf-syscall.h"
 #include "pvdr.h"
 
-/* typedef struct evlist { */
-/* 	size_t cap, len; */
-/* 	uint32_t *ids; */
-/* } evlist_t; */
-
-/* static int evlist_init(evlist_t *el, size_t cap) */
-/* { */
-/* 	if (el->ids) */
-/* 		return -EBUSY; */
-
-/* 	el->ids = malloc(cap * sizeof(*el->ids)); */
-/* 	if (!el) */
-/* 		return -ENOMEM; */
-
-/* 	el->cap = cap; */
-/* 	el->len = 0; */
-/* } */
-
 static long
 perf_event_open(struct perf_event_attr *hw_event, pid_t pid,
 		int cpu, int group_fd, unsigned long flags)
@@ -46,69 +31,122 @@ perf_event_open(struct perf_event_attr *hw_event, pid_t pid,
 	return ret;
 }
 
-static int _eventid(char *pspec)
+static int kprobe_event_id(const char *func, FILE *ctrl)
 {
 	FILE *fp;
-	char *func, str[128];
+	char *ev_id, ev_str[16];
 
-	strtok(pspec, ":");
-	func = strtok(NULL, ":");
+	fprintf(ctrl, "p %s\n", func);
+	fflush(ctrl);
 
-	sprintf(str, "echo 'p %s' >/sys/kernel/debug/tracing/kprobe_events", func);
-	system(str);
-
-	sprintf(str, "/sys/kernel/debug/tracing/events/kprobes/p_%s_0/id", func);
-	fp = fopen(str, "r");
+	asprintf(&ev_id, "/sys/kernel/debug/tracing/events/kprobes/p_%s_0/id", func);
+	fp = fopen(ev_id, "r");
+	free(ev_id);
 	if (!fp) {
 		_pe("unable to create kprobe for \"%s\"", func);
 		return -1;
 	}
 
-	fgets(str, sizeof(str), fp);
+	fgets(ev_str, sizeof(ev_str), fp);
 	fclose(fp);
-	return strtol(str, NULL, 0);
+	return strtol(ev_str, NULL, 0);
 }
 
-static int kprobe_setup(node_t *probe, prog_t *prog)
+static int kprobe_attach_one(const char *func, int bfd, FILE *ctrl)
 {
-	int bd, ed, eventid;
 	struct perf_event_attr attr = {};
+	int efd, id;
 
-	_d("");
-	eventid = _eventid(probe->string);
-	if (eventid <= 0)
-		return eventid;
-	
+	id = kprobe_event_id(func, ctrl);
+	if (id < 0)
+		return id;
+
 	attr.type = PERF_TYPE_TRACEPOINT;
 	attr.sample_type = PERF_SAMPLE_RAW;
 	attr.sample_period = 1;
 	attr.wakeup_events = 1;
-	attr.config = eventid;
+	attr.config = id;
 
-	bd = bpf_prog_load(prog->insns, prog->ip - prog->insns);
-	if (bd < 0) {
-		perror("bpf");
-		fprintf(stderr, "bpf verifier:\n%s\n", bpf_log_buf);
-		return 1;
-	}
-
-	ed = perf_event_open(&attr, -1/*pid*/, 0/*cpu*/, -1/*group_fd*/, 0);
-	if (ed < 0) {
+	efd = perf_event_open(&attr, -1/*pid*/, 0/*cpu*/, -1/*group_fd*/, 0);
+	if (efd < 0) {
 		perror("perf_event_open");
 		return 1;
 	}
 
-	if (ioctl(ed, PERF_EVENT_IOC_ENABLE, 0)) {
+	if (ioctl(efd, PERF_EVENT_IOC_ENABLE, 0)) {
 		perror("perf enable");
 		return 1;
 	}
 
-	if (ioctl(ed, PERF_EVENT_IOC_SET_BPF, bd)) {
+	if (ioctl(efd, PERF_EVENT_IOC_SET_BPF, bfd)) {
 		perror("perf attach");
 		return 1;
 	}
 
 	return 0;
+}
+
+static int kprobe_attach_pattern(const char *pattern, int bfd, FILE *ctrl)
+{
+	FILE *ksyms;
+	char *line;
+	int err = 0;
+
+	_d("pattern:%s", pattern);
+
+	ksyms = fopen("/proc/kallsyms", "r");
+	if (!ksyms) {
+		perror("no kernel symbols available");
+		return -ENOENT;
+	}
+
+	line = malloc(256);
+	assert(line);
+	while (!err && fgets(line, 256, ksyms)) {
+		char *func, *pos;
+
+		pos = strchr(line, ' ') + 1;
+		if (*pos != 't' && *pos != 'T')
+			continue;
+
+		pos = strchr(pos, ' ') + 1;
+		func = strtok(pos, " ");
+		if (strchr(func, '.'))
+			continue;
+		
+		if (!fnmatch(pattern, func, 0))
+			err = kprobe_attach_one(func, bfd, ctrl);
+	}
+	free(line);
+	fclose(ksyms);
+	return err;
+}
+
+static int kprobe_setup(node_t *probe, prog_t *prog)
+{
+	FILE *ctrl;
+	int bfd;
+	char *func;
+
+	_d("");
+	ctrl = fopen("/sys/kernel/debug/tracing/kprobe_events", "a+");
+	if (!ctrl) {
+		perror("unable to open kprobe_events");
+		return 1;
+	}
+
+	bfd = bpf_prog_load(prog->insns, prog->ip - prog->insns);
+	if (bfd < 0) {
+		perror("bpf");
+		fprintf(stderr, "bpf verifier:\n%s\n", bpf_log_buf);
+		return 1;
+	}
+
+	func = strchr(probe->string, ':') + 1;
+	if (strchr(func, '?') || strchr(func, '*'))
+		return kprobe_attach_pattern(func, bfd, ctrl);
+	else
+		return kprobe_attach_one(func, bfd, ctrl);
 }
 
 

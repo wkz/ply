@@ -95,7 +95,7 @@ int map_setup(node_t *script)
 	size_t ksize, vsize;
 
 	for (mdyn = script->script.mdyns; mdyn; mdyn = mdyn->next) {
-		if (debug) {
+		if (dump) {
 			mdyn->mapfd = dumpfd++;
 			continue;
 		}
@@ -122,7 +122,7 @@ int map_teardown(node_t *script)
 {
 	mdyn_t *mdyn;
 
-	if (debug)
+	if (dump)
 		return 0;
 
 	for (mdyn = script->script.mdyns; mdyn; mdyn = mdyn->next) {

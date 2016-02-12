@@ -1,6 +1,6 @@
 #!/usr/local/bin/ply -G
 
-kprobe:SyS_open
+kprobe:SyS_*
 {
 	/* size[log2(reg("dx"))].count(); */
 	/* printf("dx:0x%x(%d)\n", reg("dx"), log2(reg("dx"))); */
@@ -10,5 +10,11 @@ kprobe:SyS_open
 	/* printf("flags:%x\n", arg(1)); */
 	/* printf("comm:%s\n", comm()); */
 
-	flags[arg(1)].count();
+	syscalls[reg("ip")].count();
 }
+
+/* kprobe:SyS_read */
+/* { */
+/* 	/\* polls[comm()].count(); *\/ */
+/* 	a["read", comm()].count(); */
+/* } */
