@@ -85,11 +85,13 @@ static int kprobe_attach_one(kprobe_t *kp, const char *func)
 
 	if (ioctl(efd, PERF_EVENT_IOC_ENABLE, 0)) {
 		perror("perf enable");
+		close(efd);
 		return -errno;
 	}
 
 	if (ioctl(efd, PERF_EVENT_IOC_SET_BPF, kp->bfd)) {
-		perror("perf attach");
+		_pe("perf-set-bpf: %s", func);
+		close(efd);
 		return -errno;
 	}
 
@@ -98,7 +100,6 @@ static int kprobe_attach_one(kprobe_t *kp, const char *func)
 
 		kp->efds.fds = realloc(kp->efds.fds, sz << 1);
 		assert(kp->efds.fds);
-		memset(&kp->efds.fds[kp->efds.cap], 0, sz);
 		kp->efds.cap <<= 1;
 	}
 
@@ -112,9 +113,7 @@ static int kprobe_attach_pattern(kprobe_t *kp, const char *pattern)
 	char *line;
 	int err = 0;
 
-	_d("pattern:%s", pattern);
-
-	ksyms = fopen("/proc/kallsyms", "r");
+	ksyms = fopen("/sys/kernel/debug/tracing/available_filter_functions", "r");
 	if (!ksyms) {
 		perror("no kernel symbols available");
 		return -ENOENT;
@@ -123,25 +122,21 @@ static int kprobe_attach_pattern(kprobe_t *kp, const char *pattern)
 	line = malloc(256);
 	assert(line);
 	while (err >= 0 && fgets(line, 256, ksyms)) {
-		char *func, *pos;
+		char *end;
 
-		pos = strchr(line, ' ') + 1;
-		if (*pos != 't' && *pos != 'T')
+		if (strchr(line, '.'))
 			continue;
 
-		pos = strchr(pos, ' ') + 1;
-		func = strtok(pos, " ");
-		if (strchr(func, '.'))
+		end = strchr(line, '\n');
+		if (end)
+			*end = '\0';
+
+		if (fnmatch(pattern, line, 0))
 			continue;
 
-		pos = strchr(func, '\n');
-		if (pos)
-			*pos = '\0';
-
-		if (fnmatch(pattern, func, 0))
-			continue;
-
-		err = kprobe_attach_one(kp, func);		
+		err = kprobe_attach_one(kp, line);
+		if (err == -EEXIST)
+			err = 0;
 	}
 	free(line);
 	fclose(ksyms);
@@ -153,7 +148,7 @@ static int kprobe_setup(node_t *probe, prog_t *prog)
 	kprobe_t *kp;
 	char *func;
 
-	kp = calloc(1, sizeof(*kp));
+	kp = malloc(sizeof(*kp));
 	assert(kp);
 
 	kp->efds.fds = calloc(1, sizeof(*kp->efds.fds));

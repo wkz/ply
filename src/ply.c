@@ -160,7 +160,7 @@ int main(int argc, char **argv)
 	fprintf(stderr, "%d probe%s active\n", num, (num == 1) ? "" : "s");
 	printf_drain(script);
 
-	fprintf(stderr, "de-activating probes");
+	fprintf(stderr, "de-activating probes\n");
 	fputs("0\n", enable);
 	fflush(enable);
 	fclose(enable);
@@ -173,9 +173,8 @@ int main(int argc, char **argv)
 	}
 
 	fclose(fopen("/sys/kernel/debug/tracing/kprobe_events", "w"));
-	
-	map_teardown(script);
 
+	map_teardown(script);
 done:
 err:
 	if (prog)
