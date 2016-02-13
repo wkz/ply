@@ -153,15 +153,14 @@ int main(int argc, char **argv)
 		goto err;
 	}
 
-	_d("enabling %d probe(s)", num);
 	fputs("1\n", enable);
 	fflush(enable);
 	rewind(enable);
 
-	_i("%d probe%s active", num, (num == 1) ? "" : "s");
+	fprintf(stderr, "%d probe%s active\n", num, (num == 1) ? "" : "s");
 	printf_drain(script);
 
-	_i("de-activating probes");
+	fprintf(stderr, "de-activating probes");
 	fputs("0\n", enable);
 	fflush(enable);
 	fclose(enable);

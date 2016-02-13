@@ -1,12 +1,12 @@
 * general
 ** X ply script license, option to ply (can go in hashbang)
 ** X sigint handling
-** pspec wildcards
+** X pspec wildcards
 ** kallsyms resolve
 
 * printf
 ** X width
-** overrun
+** X overrun
 
 * map
 ** X dump
