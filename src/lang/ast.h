@@ -142,6 +142,12 @@ struct dyn {
 	ssize_t addr;
 
 	int     free_regs;
+
+	union {
+		struct {
+			void *pvdr_priv;
+		} probe;
+	};
 };
 
 struct node {

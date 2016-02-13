@@ -15,6 +15,7 @@ typedef struct pvdr {
 	int (*loc_assign)(node_t *call);
 	int  (*compile)  (node_t *call,  prog_t *prog);
 	int    (*setup)  (node_t *probe, prog_t *prog);
+	int (*teardown)  (node_t *probe);
 } pvdr_t;
 
 pvdr_t *pvdr_find    (const char *name);

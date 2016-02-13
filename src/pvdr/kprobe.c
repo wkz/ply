@@ -20,6 +20,16 @@
 #include "../bpf-syscall.h"
 #include "pvdr.h"
 
+typedef struct kprobe {
+	FILE *ctrl;
+	int bfd;
+
+	struct {
+		int cap, len;
+		int *fds;
+	} efds;
+} kprobe_t;
+
 static long
 perf_event_open(struct perf_event_attr *hw_event, pid_t pid,
 		int cpu, int group_fd, unsigned long flags)
@@ -52,12 +62,12 @@ static int kprobe_event_id(const char *func, FILE *ctrl)
 	return strtol(ev_str, NULL, 0);
 }
 
-static int kprobe_attach_one(const char *func, int bfd, FILE *ctrl)
+static int kprobe_attach_one(kprobe_t *kp, const char *func)
 {
 	struct perf_event_attr attr = {};
 	int efd, id;
 
-	id = kprobe_event_id(func, ctrl);
+	id = kprobe_event_id(func, kp->ctrl);
 	if (id < 0)
 		return id;
 
@@ -78,19 +88,29 @@ static int kprobe_attach_one(const char *func, int bfd, FILE *ctrl)
 		return -errno;
 	}
 
-	if (ioctl(efd, PERF_EVENT_IOC_SET_BPF, bfd)) {
+	if (ioctl(efd, PERF_EVENT_IOC_SET_BPF, kp->bfd)) {
 		perror("perf attach");
 		return -errno;
 	}
 
+	if (kp->efds.len == kp->efds.cap) {
+		size_t sz = kp->efds.cap * sizeof(*kp->efds.fds);
+
+		kp->efds.fds = realloc(kp->efds.fds, sz << 1);
+		assert(kp->efds.fds);
+		memset(&kp->efds.fds[kp->efds.cap], 0, sz);
+		kp->efds.cap <<= 1;
+	}
+
+	kp->efds.fds[kp->efds.len++] = efd;
 	return 1;
 }
 
-static int kprobe_attach_pattern(const char *pattern, int bfd, FILE *ctrl)
+static int kprobe_attach_pattern(kprobe_t *kp, const char *pattern)
 {
 	FILE *ksyms;
 	char *line;
-	int err = 0, num = 0;
+	int err = 0;
 
 	_d("pattern:%s", pattern);
 
@@ -121,41 +141,60 @@ static int kprobe_attach_pattern(const char *pattern, int bfd, FILE *ctrl)
 		if (fnmatch(pattern, func, 0))
 			continue;
 
-		err = kprobe_attach_one(func, bfd, ctrl);		
-		num++;
+		err = kprobe_attach_one(kp, func);		
 	}
 	free(line);
 	fclose(ksyms);
-	return (err < 0) ? err : num;
+	return (err < 0) ? err : kp->efds.len;
 }
 
 static int kprobe_setup(node_t *probe, prog_t *prog)
 {
-	FILE *ctrl;
-	int bfd;
+	kprobe_t *kp;
 	char *func;
 
+	kp = calloc(1, sizeof(*kp));
+	assert(kp);
+
+	kp->efds.fds = calloc(1, sizeof(*kp->efds.fds));
+	assert(kp->efds.fds);
+	kp->efds.cap = 1;
+
+	probe->dyn.probe.pvdr_priv = kp;
+
 	_d("");
-	ctrl = fopen("/sys/kernel/debug/tracing/kprobe_events", "a+");
-	if (!ctrl) {
+	kp->ctrl = fopen("/sys/kernel/debug/tracing/kprobe_events", "a+");
+	if (!kp->ctrl) {
 		perror("unable to open kprobe_events");
 		return -EIO;
 	}
 
-	bfd = bpf_prog_load(prog->insns, prog->ip - prog->insns);
-	if (bfd < 0) {
+	kp->bfd = bpf_prog_load(prog->insns, prog->ip - prog->insns);
+	if (kp->bfd < 0) {
 		perror("bpf");
 		fprintf(stderr, "bpf verifier:\n%s\n", bpf_log_buf);
 		return -EINVAL;
 	}
-
+	
 	func = strchr(probe->string, ':') + 1;
 	if (strchr(func, '?') || strchr(func, '*'))
-		return kprobe_attach_pattern(func, bfd, ctrl);
+		return kprobe_attach_pattern(kp, func);
 	else
-		return kprobe_attach_one(func, bfd, ctrl);
+		return kprobe_attach_one(kp, func);
 }
 
+static int kprobe_teardown(node_t *probe)
+{
+	kprobe_t *kp = probe->dyn.probe.pvdr_priv;
+	int i;
+
+	for (i = 0; i < kp->efds.len; i++)
+		close(kp->efds.fds[i]);
+
+	free(kp->efds.fds);
+	free(kp);
+	return 0;
+}
 
 static int kprobe_compile(node_t *call, prog_t *prog)
 {
@@ -178,6 +217,7 @@ pvdr_t kprobe_pvdr = {
 	.loc_assign = kprobe_loc_assign,
 	.compile    = kprobe_compile,
 	.setup      = kprobe_setup,
+	.teardown   = kprobe_teardown,
 };
 
 __attribute__((constructor))

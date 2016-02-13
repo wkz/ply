@@ -81,7 +81,7 @@ void sigint(int sigint)
 
 int main(int argc, char **argv)
 {
-	FILE *sfp;
+	FILE *sfp, *enable;
 	node_t *probe, *script;
 	prog_t *prog;
 	pvdr_t *pvdr;
@@ -145,16 +145,36 @@ int main(int argc, char **argv)
 
 	siginterrupt(SIGINT, 1);
 	signal(SIGINT, sigint);
+	
+	enable = fopen("/sys/kernel/debug/tracing/events/kprobes/enable", "w");
+	if (!enable) {
+		perror("unable to enable probes");
+		err = -errno;
+		goto err;
+	}
 
 	_d("enabling %d probe(s)", num);
-	system("echo 1 >/sys/kernel/debug/tracing/events/kprobes/enable");
+	fputs("1\n", enable);
+	fflush(enable);
+	rewind(enable);
 
 	_i("%d probe%s active", num, (num == 1) ? "" : "s");
 	printf_drain(script);
 
 	_i("de-activating probes");
-	system("echo 0 >/sys/kernel/debug/tracing/events/kprobes/enable");
+	fputs("0\n", enable);
+	fflush(enable);
+	fclose(enable);
 
+	node_foreach(probe, script->script.probes) {
+		pvdr = node_get_pvdr(probe);
+		err = pvdr->teardown(probe);
+		if (err)
+			break;
+	}
+
+	fclose(fopen("/sys/kernel/debug/tracing/kprobe_events", "w"));
+	
 	map_teardown(script);
 
 done:
