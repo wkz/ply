@@ -60,3 +60,8 @@ int arch_reg_arg(int num)
 
 	return -ENOSYS;
 }
+
+int arch_reg_func(void) 
+{
+	return arch_reg_atoi("ip");
+}
