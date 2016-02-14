@@ -166,7 +166,7 @@ pvdr_t *node_get_pvdr(node_t *n)
 {
 	node_t *probe = node_get_probe(n);
 
-	return probe ? probe->probe.pvdr : NULL;
+	return probe ? probe->dyn.probe.pvdr : NULL;
 }
 
 node_t *node_get_script(node_t *n)
@@ -180,7 +180,7 @@ int node_map_get_fd(node_t *map)
 	node_t *script = node_get_script(map);
 	mdyn_t *mdyn;
 
-	for (mdyn = script->script.mdyns; mdyn; mdyn = mdyn->next) {
+	for (mdyn = script->dyn.script.mdyns; mdyn; mdyn = mdyn->next) {
 		if (!strcmp(mdyn->map->string, map->string))
 			return mdyn->mapfd;
 	}
@@ -204,8 +204,8 @@ int node_stmt_reg_get(node_t *stmt)
 
 ssize_t node_probe_stack_get(node_t *probe, size_t size)
 {
-	probe->probe.sp -= size;
-	return probe->probe.sp;
+	probe->dyn.probe.sp -= size;
+	return probe->dyn.probe.sp;
 }
 
 static inline node_t *node_new(type_t type) {

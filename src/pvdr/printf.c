@@ -60,7 +60,7 @@ static void printf_output(node_t *script, void *rec)
 	}
 
 	*meta &= 0xffff;
-	call = script->script.printf[*meta];
+	call = script->dyn.script.printf[*meta];
 	if (!call)
 		return;
 
@@ -94,7 +94,7 @@ void printf_drain(node_t *script)
 	char *val;
 	int err;
 
-	for (mdyn = script->script.mdyns; mdyn; mdyn = mdyn->next)
+	for (mdyn = script->dyn.script.mdyns; mdyn; mdyn = mdyn->next)
 		if (!strcmp(mdyn->map->string, "printf"))
 			break;
 
@@ -216,10 +216,10 @@ static size_t printf_store_mdyn(node_t *script)
 
 	node_walk(script, NULL, printf_walk, mdyn);
 
-	if (!script->script.mdyns)
-		script->script.mdyns = mdyn;
+	if (!script->dyn.script.mdyns)
+		script->dyn.script.mdyns = mdyn;
 	else
-		insque_tail(mdyn, script->script.mdyns);
+		insque_tail(mdyn, script->dyn.script.mdyns);
 
 	return mdyn->map->call.vargs->next->dyn.size;
 }
@@ -228,14 +228,14 @@ static size_t printf_rec_size(node_t *script)
 {
 	mdyn_t *mdyn;
 
-	for (mdyn = script->script.mdyns; mdyn; mdyn = mdyn->next) {
+	for (mdyn = script->dyn.script.mdyns; mdyn; mdyn = mdyn->next) {
 		if (!strcmp(mdyn->map->string, "printf"))
 			return mdyn->map->call.vargs->next->dyn.size;
 	}
 
 	printf_store_mdyn(script);
 
-	for (mdyn = script->script.mdyns; mdyn; mdyn = mdyn->next) {
+	for (mdyn = script->dyn.script.mdyns; mdyn; mdyn = mdyn->next) {
 		if (!strcmp(mdyn->map->string, "printf"))
 			return mdyn->map->call.vargs->next->dyn.size;
 	}
@@ -285,7 +285,7 @@ int printf_annotate(node_t *call)
 	/* rewrite printf("a:%d b:%d", a(), b())
          *    into printf("a:%d b:%d", [meta, a(), b()])
 	 */
-	meta = node_int_new(script->script.fmt_id++);
+	meta = node_int_new(script->dyn.script.fmt_id++);
 	meta->dyn.type = TYPE_INT;
 	meta->dyn.size = 8;
 	meta->next = varg->next;
@@ -297,6 +297,6 @@ int printf_annotate(node_t *call)
 		varg->parent = rec;
 	}
 
-	script->script.printf[meta->integer] = call;
+	script->dyn.script.printf[meta->integer] = call;
 	return 0;
 }

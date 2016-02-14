@@ -43,7 +43,7 @@ static int loc_assign_pre(node_t *n, void *_probe)
 			n->dyn.reg = BPF_REG_0;
 		}
 
-		return probe->probe.pvdr->loc_assign(n);
+		return probe->dyn.probe.pvdr->loc_assign(n);
 
 	case TYPE_ASSIGN:
 		n->dyn.loc = LOC_REG;
@@ -203,7 +203,7 @@ static int type_infer_map(node_t *script, node_t *n)
 {
 	mdyn_t *mdyn;
 
-	for (mdyn = script->script.mdyns; mdyn; mdyn = mdyn->next) {
+	for (mdyn = script->dyn.script.mdyns; mdyn; mdyn = mdyn->next) {
 		if (!strcmp(mdyn->map->string, n->string))
 			return type_sync_map(n, mdyn->map);
 	}
@@ -213,10 +213,10 @@ static int type_infer_map(node_t *script, node_t *n)
 
 	mdyn->map = n;
 
-	if (!script->script.mdyns)
-		script->script.mdyns = mdyn;
+	if (!script->dyn.script.mdyns)
+		script->dyn.script.mdyns = mdyn;
 	else
-		insque_tail(mdyn, script->script.mdyns);
+		insque_tail(mdyn, script->dyn.script.mdyns);
 
 	return 0;
 }

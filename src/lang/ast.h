@@ -76,31 +76,15 @@ typedef struct method {
 
 typedef struct call {
 	node_t *vargs;
-	void   *priv;
 } call_t;
 
 typedef struct probe {
 	node_t *pred;
 	node_t *stmts;
-
-	pvdr_t *pvdr;
-
-	ssize_t sp;
 } probe_t;
-
-struct mdyn {
-	mdyn_t *next, *prev;
-
-	node_t *map;
-	int     mapfd;
-};
 
 typedef struct script {
 	node_t *probes;
-	mdyn_t *mdyns;
-
-	int     fmt_id;
-	node_t *printf[64];
 } script_t;
 
 #define NODE_TYPE_TABLE \
@@ -126,6 +110,13 @@ typedef enum type {
 
 const char *type_str(type_t type);
 
+struct mdyn {
+	mdyn_t *next, *prev;
+
+	node_t *map;
+	int     mapfd;
+};
+
 typedef enum loc {
 	LOC_NOWHERE,
 	LOC_VIRTUAL,
@@ -145,8 +136,18 @@ struct dyn {
 
 	union {
 		struct {
-			void *pvdr_priv;
+			pvdr_t *pvdr;
+			void   *pvdr_priv;
+
+			ssize_t sp;
 		} probe;
+
+		struct {
+			mdyn_t *mdyns;
+
+			int     fmt_id;
+			node_t *printf[64];
+		} script;
 	};
 };
 

@@ -37,7 +37,7 @@ int pvdr_resolve(node_t *script)
 			return -ENOENT;
 		}
 
-		probe->probe.pvdr = pvdr;
+		probe->dyn.probe.pvdr = pvdr;
 	}
 
 	return 0;
