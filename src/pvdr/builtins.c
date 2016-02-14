@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "../ply.h"
+#include "../map.h"
 #include "arch.h"
 #include "pvdr.h"
 
@@ -279,6 +280,7 @@ static int func_annotate(node_t *call)
 	call->call.vargs = node_int_new(reg);
 	call->dyn.type = TYPE_INT;
 	call->dyn.size = sizeof(int64_t);
+	call->dumper = dump_sym;
 	return 0;
 }
 

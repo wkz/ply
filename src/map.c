@@ -1,4 +1,5 @@
 #include <inttypes.h>
+#include <limits.h>
 #include <stdio.h>
 #include <unistd.h>
 
@@ -6,27 +7,83 @@
 #include "bpf-syscall.h"
 #include "map.h"
 
-static void int_dump(node_t *integer, void *data)
+void dump_sym(node_t *integer, void *data)
+{
+	uint64_t *target = data;
+	FILE *ksyms;
+	char *pos, *line[2];
+	uint64_t addr[2] = { ULLONG_MAX, ULLONG_MAX };
+	int i = 0;
+
+	line[0] = malloc(256);
+	line[1] = malloc(256);
+	assert(line[0] && line[1]);
+
+	ksyms = fopen("/proc/kallsyms", "r");
+	if (!ksyms) {
+		_e("unable to read out kernel symbols");
+		goto fallback;
+	}
+
+	for (i = 0; fgets(line[i], 256, ksyms); i = !i) {
+		addr[i] = strtoull(line[i], NULL, 16);
+		if (addr[i] == ULLONG_MAX)
+			goto fallback;
+
+		if (addr[i] == *target)
+			break;
+
+		if (addr[i] > *target) {
+			i = !i;
+			break;
+		}
+	}
+
+	pos = strchr(line[i], '\n');
+	if (pos)
+		*pos = '\0';
+
+	pos = strrchr(line[i], ' ');
+	if (!pos)
+		goto fallback;
+
+	printf("%-20s", pos + 1);
+	fclose(ksyms);
+	return;
+
+fallback:
+	if (ksyms)
+		fclose(ksyms);
+
+	printf("<%8" PRIx64 ">", *((int64_t *)data));
+}
+
+static void dump_int(node_t *integer, void *data)
 {
 	printf("%8" PRId64, *((int64_t *)data));
 }
 
-static void str_dump(node_t *str, void *data)
+static void dump_str(node_t *str, void *data)
 {
 	printf("%-*.*s", (int)str->dyn.size, (int)str->dyn.size,
 	       (const char *)data);
 }
 
-static void node_dump(node_t *n, void *data)
+static void dump_node(node_t *n, void *data)
 {
 	node_t *varg;
 
+	if (n->dumper) {
+		n->dumper(n, data);
+		return;
+	}
+
 	switch (n->dyn.type) {
 	case TYPE_INT:
-		int_dump(n, data);
+		dump_int(n, data);
 		break;
 	case TYPE_STR:
-		str_dump(n, data);
+		dump_str(n, data);
 		break;
 	case TYPE_REC:
 		fputs("[ ", stdout);
@@ -35,7 +92,7 @@ static void node_dump(node_t *n, void *data)
 			if (varg != n->rec.vargs)
 				fputs(", ", stdout);
 
-			node_dump(varg, data);
+			dump_node(varg, data);
 			data += varg->dyn.size;
 		}
 
@@ -63,9 +120,9 @@ static void __key_workaround(int fd, void *key, size_t key_sz, void *val)
 	}
 
 	fclose(fp);
-}	
+}
 
-void map_dump(mdyn_t *mdyn)
+void dump_map(mdyn_t *mdyn)
 {
 	node_t *map = mdyn->map, *rec = map->map.rec;
 	char *key = calloc(1, rec->dyn.size), *val = malloc(map->dyn.size);
@@ -74,16 +131,16 @@ void map_dump(mdyn_t *mdyn)
 	__key_workaround(mdyn->mapfd, key, rec->dyn.size, val);
 
 	printf("\n%s:\n", map->string);
-	
+
 	for (err = bpf_map_next(mdyn->mapfd, key, key); !err;
 	     err = bpf_map_next(mdyn->mapfd, key, key)) {
 		err = bpf_map_lookup(mdyn->mapfd, key, val);
 		if (err)
 			return;
 
-		node_dump(rec, key);
+		dump_node(rec, key);
 		fputs("\t", stdout);
-		node_dump(map, val);
+		dump_node(map, val);
 		fputs("\n", stdout);
 	}
 }
@@ -128,8 +185,8 @@ int map_teardown(node_t *script)
 	for (mdyn = script->dyn.script.mdyns; mdyn; mdyn = mdyn->next) {
 		if (mdyn->mapfd) {
 			if (strcmp(mdyn->map->string, "printf"))
-				map_dump(mdyn);
-			
+				dump_map(mdyn);
+
 			close(mdyn->mapfd);
 		}
 	}
