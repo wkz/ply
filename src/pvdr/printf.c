@@ -9,16 +9,24 @@
 #include "../bpf-syscall.h"
 #include "../lang/ast.h"
 
-static void printf_spec(const char *spec, void *data)
+static void printf_spec(const char *spec, const char *term, void *data)
 {
 	int64_t *num = data;
-
+	char strfmt[16];
+	size_t fmt_len;
 	/* TODO: flags/length/precision is only handled on strings for
 	 * now */
-	switch (spec[strlen(spec) - 1]) {
+	switch (*term) {
 	case 's':
+		fmt_len = term - spec + 1;
+		if (fmt_len >= sizeof(strfmt)) {
+			printf("%s", (char *)data);
+			break;
+		}
+		strncpy(strfmt, spec, fmt_len);
+		strfmt[fmt_len] = '\0';
 #pragma GCC diagnostic ignored "-Wformat-security"
-		printf(spec, data);
+		printf(strfmt, (char *)data);
 #pragma GCC diagnostic pop
 		break;
 	case 'c':
@@ -51,8 +59,7 @@ static void printf_output(node_t *script, void *rec)
 	node_t *call, *arg;
 	int64_t *meta;
 	size_t offs;
-	char spec[16] = "%";
-	char *fmt, *seg, *save, *end;
+	char *fmt, *spec;
 
 	meta = rec;
 	if (*meta & PRINTF_META_OF) {
@@ -64,25 +71,21 @@ static void printf_output(node_t *script, void *rec)
 	if (!call)
 		return;
 
-	fmt  = strdup(call->call.vargs->string);
 	arg  = call->call.vargs->next->rec.vargs->next;
 	offs = sizeof(*meta);
-	for (seg = strtok_r(fmt, "%", &save); seg; seg = strtok_r(NULL, "%", &save)) {
-		fputs(seg, stdout);
+	for (fmt = call->call.vargs->string; *fmt; fmt++) {
+		if (*fmt == '%' && arg) {
+			spec = fmt;
+			fmt = strpbrk(spec, "cdiopsuxX");
+			if (!fmt)
+				break;
 
-		end = strpbrk(save, "cdiopsuxX");
-		if (!end)
-			break;
-
-		strncpy(&spec[1], save, end - save + 1);
-		spec[1 + (end - save) + 1] = '\0';
-
-		printf_spec(spec, rec + offs);
-
-		*end = '\0';
-		save = end + 1;
-		offs += arg->dyn.size;
-		arg = arg->next;
+			printf_spec(spec, fmt, rec + offs);
+			offs += arg->dyn.size;
+			arg = arg->next;
+		} else {
+			fputc(*fmt, stdout);
+		}
 	}
 }
 
