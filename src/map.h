@@ -2,7 +2,7 @@
 
 #include "lang/ast.h"
 
-void dump_sym(node_t *integer, void *data);
+void dump_sym(FILE *fp, node_t *integer, void *data);
 
 int map_setup   (node_t *script);
 int map_teardown(node_t *script);

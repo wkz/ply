@@ -1,13 +1,16 @@
+#define _GNU_SOURCE
+
 #include <inttypes.h>
 #include <limits.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 #include "ply.h"
 #include "bpf-syscall.h"
 #include "map.h"
 
-void dump_sym(node_t *integer, void *data)
+void dump_sym(FILE *fp, node_t *integer, void *data)
 {
 	uint64_t *target = data;
 	FILE *ksyms;
@@ -47,7 +50,7 @@ void dump_sym(node_t *integer, void *data)
 	if (!pos)
 		goto fallback;
 
-	printf("%-20s", pos + 1);
+	fprintf(fp, "%-20s", pos + 1);
 	fclose(ksyms);
 	return;
 
@@ -55,48 +58,49 @@ fallback:
 	if (ksyms)
 		fclose(ksyms);
 
-	printf("<%8" PRIx64 ">", *((int64_t *)data));
+	fprintf(fp, "<%8" PRIx64 ">", *((int64_t *)data));
 }
 
-static void dump_int(node_t *integer, void *data)
+static void dump_int(FILE *fp, node_t *integer, void *data)
 {
-	printf("%8" PRId64, *((int64_t *)data));
+	fprintf(fp, "%8" PRId64, *((int64_t *)data));
 }
 
-static void dump_str(node_t *str, void *data)
+static void dump_str(FILE *fp, node_t *str, void *data)
 {
-	printf("%-*.*s", (int)str->dyn.size, (int)str->dyn.size,
-	       (const char *)data);
+	int size = (int)str->dyn.size;
+
+	fprintf(fp, "%-*.*s", size, size, (const char *)data);
 }
 
-static void dump_node(node_t *n, void *data)
+static void dump_node(FILE *fp, node_t *n, void *data)
 {
 	node_t *varg;
 
-	if (n->dumper) {
-		n->dumper(n, data);
+	if (n->dump) {
+		n->dump(fp, n, data);
 		return;
 	}
 
 	switch (n->dyn.type) {
 	case TYPE_INT:
-		dump_int(n, data);
+		dump_int(fp, n, data);
 		break;
 	case TYPE_STR:
-		dump_str(n, data);
+		dump_str(fp, n, data);
 		break;
 	case TYPE_REC:
-		fputs("[ ", stdout);
+		fputs("[ ", fp);
 
 		node_foreach(varg, n->rec.vargs) {
 			if (varg != n->rec.vargs)
-				fputs(", ", stdout);
+				fputs(", ", fp);
 
-			dump_node(varg, data);
+			dump_node(fp, varg, data);
 			data += varg->dyn.size;
 		}
 
-		fputs(" ]", stdout);
+		fputs(" ]", fp);
 		break;
 	default:
 		_e("unknown node type  %d", n->dyn.type);
@@ -104,11 +108,59 @@ static void dump_node(node_t *n, void *data)
 	}
 }
 
+int cmp_node(node_t *n, const void *a, const void *b)
+{
+	node_t *varg;
+	int cmp;
+
+	if (n->cmp)
+		return n->cmp(n, a, b);
+
+	switch (n->dyn.type) {
+	case TYPE_INT:
+		return *((int64_t *)a) - *((int64_t *)b);
+	case TYPE_STR:
+		return strncmp(a, b, n->dyn.size);
+	case TYPE_REC:
+		node_foreach(varg, n->rec.vargs) {
+			cmp = cmp_node(varg, a, b);
+			if (cmp)
+				return cmp;
+
+			a += varg->dyn.size;
+			b += varg->dyn.size;
+		}
+		return 0;
+
+	default:
+		return 0;
+	}
+
+	return 0;
+}
+
+int cmp_map(const void *ak, const void *bk, void *_map)
+{
+	node_t *map = _map, *rec = map->map.rec;
+	const void *av = ak + rec->dyn.size;
+	const void *bv = bk + rec->dyn.size;
+	int cmp;
+
+	cmp = cmp_node(map, av, bv);
+	if (cmp)
+		return cmp;
+
+	return cmp_node(rec, ak, bk);
+}
+
 static void __key_workaround(int fd, void *key, size_t key_sz, void *val)
 {
 	FILE *fp;
 	int err;
 
+	/* Yep, that's urandom baby! There seems to be no way to
+	 * iterate over all keys in a map. However, if you ask for a
+	 * non-existing key; the kernel will return the "first one". */
 	fp = fopen("/dev/urandom", "r");
 
 	while (1) {
@@ -122,26 +174,39 @@ static void __key_workaround(int fd, void *key, size_t key_sz, void *val)
 	fclose(fp);
 }
 
-void dump_map(mdyn_t *mdyn)
+void dump_mdyn(mdyn_t *mdyn)
 {
 	node_t *map = mdyn->map, *rec = map->map.rec;
-	char *key = calloc(1, rec->dyn.size), *val = malloc(map->dyn.size);
-	int err;
+	size_t entry_size = rec->dyn.size + map->dyn.size;
+	char *data = malloc(entry_size*MAP_LEN);
+	/* char *key = calloc(1, rec->dyn.size), *val = malloc(map->dyn.size); */
+	char *key = data, *val = data + rec->dyn.size;
+	int err, n = 0;
 
 	__key_workaround(mdyn->mapfd, key, rec->dyn.size, val);
 
-	printf("\n%s:\n", map->string);
-
 	for (err = bpf_map_next(mdyn->mapfd, key, key); !err;
-	     err = bpf_map_next(mdyn->mapfd, key, key)) {
+	     err = bpf_map_next(mdyn->mapfd, key - entry_size, key)) {
 		err = bpf_map_lookup(mdyn->mapfd, key, val);
 		if (err)
 			return;
 
-		dump_node(rec, key);
+		n++;
+		key += entry_size;
+		val += entry_size;
+	}
+
+	qsort_r(data, n, entry_size, cmp_map, map);
+
+	printf("\n%s:\n", map->string);
+	for (key = data, val = data + rec->dyn.size; n > 0; n--) {
+		dump_node(stdout, rec, key);
 		fputs("\t", stdout);
-		dump_node(map, val);
+		dump_node(stdout, map, val);
 		fputs("\n", stdout);
+
+		key += entry_size;
+		val += entry_size;
 	}
 }
 
@@ -185,7 +250,7 @@ int map_teardown(node_t *script)
 	for (mdyn = script->dyn.script.mdyns; mdyn; mdyn = mdyn->next) {
 		if (mdyn->mapfd) {
 			if (strcmp(mdyn->map->string, "printf"))
-				dump_map(mdyn);
+				dump_mdyn(mdyn);
 
 			close(mdyn->mapfd);
 		}

@@ -151,7 +151,8 @@ struct dyn {
 	};
 };
 
-typedef void (*dumper_t)(node_t *n, void *data);
+typedef void (*dumper_t)(FILE *fp, node_t *n, void *data);
+typedef int   (*cmper_t)(const void *a, const void *b, void *_map);
 
 struct node {
 	node_t *next, *prev;
@@ -162,7 +163,8 @@ struct node {
 	char   *string;
 	node_t *parent;
 
-	dumper_t dumper;
+	dumper_t dump;
+	cmper_t  cmp;
 
 	union {
 		script_t script;
