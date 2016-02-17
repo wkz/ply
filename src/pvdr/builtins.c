@@ -15,6 +15,8 @@ typedef struct builtin {
 	int  (*compile)  (node_t *call, prog_t *prog);
 } builtin_t;
 
+static int default_loc_assign(node_t *call);
+
 enum extract_op {
 	EXTRACT_OP_NONE,
 	EXTRACT_OP_MASK,
@@ -280,7 +282,7 @@ static int func_annotate(node_t *call)
 	call->call.vargs = node_int_new(reg);
 	call->dyn.type = TYPE_INT;
 	call->dyn.size = sizeof(int64_t);
-	call->dumper = dump_sym;
+	call->dump = dump_sym;
 	return 0;
 }
 
@@ -321,6 +323,30 @@ static int count_compile(node_t *call, prog_t *prog)
 	return 0;
 }
 
+static int count_cmp(node_t *map, const void *ak, const void *bk)
+{
+	node_t *rec = map->map.rec;
+	const void *av = ak + rec->dyn.size;
+	const void *bv = bk + rec->dyn.size;
+	int cmp;
+
+	cmp = cmp_node(map, av, bv);
+	if (cmp)
+		return cmp;
+
+	return cmp_node(rec, ak, bk);
+	
+}
+
+static int count_loc_assign(node_t *call)
+{
+	mdyn_t *mdyn;
+
+	mdyn = node_map_get_mdyn(call->parent->method.map);
+	mdyn->cmp = count_cmp;
+	return default_loc_assign(call);
+}
+
 static int count_annotate(node_t *call)
 {
 	if (call->call.vargs ||
@@ -329,12 +355,18 @@ static int count_annotate(node_t *call)
 
 	call->dyn.type = TYPE_INT;
 	call->dyn.size = sizeof(int64_t);
+
 	return 0;
 }
 
 static int quantize_compile(node_t *call, prog_t *prog)
 {
 	return count_compile(call, prog);
+}
+
+static void quantize_dump(FILE *fp, node_t *log2, void *data)
+{
+	fprintf(fp, "%5ld - %5ld", 1L << (*((int64_t *)data) - 1), 1L << *((int64_t *)data));
 }
 
 static int quantize_annotate(node_t *call)
@@ -354,6 +386,7 @@ static int quantize_annotate(node_t *call)
 	 * into    map[c1, c2, log2(some_int)].quantize()
 	 */
 	rec->next = node_call_new(strdup("log2"), call->call.vargs);
+	rec->next->dump = quantize_dump;
 	rec->next->dyn.type = TYPE_INT;
 	rec->next->dyn.size = sizeof(int64_t);
 	rec->next->parent = map->map.rec;
@@ -413,7 +446,7 @@ static builtin_t builtins[] = {
 
 	BUILTIN(comm),
 	BUILTIN_ALIAS(execname, comm),
-	BUILTIN(count),
+	BUILTIN_LOC(count),
 	BUILTIN(quantize),
 	BUILTIN(log2),
 

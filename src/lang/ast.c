@@ -174,18 +174,24 @@ node_t *node_get_script(node_t *n)
 	return node_get_parent_of_type(TYPE_SCRIPT, n);
 }
 
-
-int node_map_get_fd(node_t *map)
+mdyn_t *node_map_get_mdyn(node_t *map)
 {
 	node_t *script = node_get_script(map);
 	mdyn_t *mdyn;
 
 	for (mdyn = script->dyn.script.mdyns; mdyn; mdyn = mdyn->next) {
 		if (!strcmp(mdyn->map->string, map->string))
-			return mdyn->mapfd;
+			return mdyn;
 	}
 
-	return -ENOENT;
+	return NULL;
+}
+
+int node_map_get_fd(node_t *map)
+{
+	mdyn_t *mdyn = node_map_get_mdyn(map);
+
+	return mdyn ? mdyn->mapfd : -ENOENT;
 }
 
 int node_stmt_reg_get(node_t *stmt)

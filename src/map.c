@@ -139,18 +139,22 @@ int cmp_node(node_t *n, const void *a, const void *b)
 	return 0;
 }
 
-int cmp_map(const void *ak, const void *bk, void *_map)
+int cmp_mdyn(const void *ak, const void *bk, void *_mdyn)
 {
-	node_t *map = _map, *rec = map->map.rec;
+	mdyn_t *mdyn = _mdyn;
+	node_t *map = mdyn->map, *rec = map->map.rec;
 	const void *av = ak + rec->dyn.size;
 	const void *bv = bk + rec->dyn.size;
 	int cmp;
 
-	cmp = cmp_node(map, av, bv);
+	if (mdyn->cmp)
+		return mdyn->cmp(map, ak, bk);
+	
+	cmp = cmp_node(rec, ak, bk);
 	if (cmp)
 		return cmp;
 
-	return cmp_node(rec, ak, bk);
+	return cmp_node(map, av, bv);
 }
 
 static void __key_workaround(int fd, void *key, size_t key_sz, void *val)
@@ -196,9 +200,13 @@ void dump_mdyn(mdyn_t *mdyn)
 		val += entry_size;
 	}
 
-	qsort_r(data, n, entry_size, cmp_map, map);
+	qsort_r(data, n, entry_size, cmp_mdyn, mdyn);
 
 	printf("\n%s:\n", map->string);
+
+	if (mdyn->dump)
+		return mdyn->dump(stdout, map, data);
+
 	for (key = data, val = data + rec->dyn.size; n > 0; n--) {
 		dump_node(stdout, rec, key);
 		fputs("\t", stdout);

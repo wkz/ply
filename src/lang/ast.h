@@ -110,11 +110,17 @@ typedef enum type {
 
 const char *type_str(type_t type);
 
+typedef void (*dumper_t)(FILE *fp, node_t *n, void *data);
+typedef int   (*cmper_t)(node_t *n, const void *a, const void *b);
+
 struct mdyn {
 	mdyn_t *next, *prev;
 
 	node_t *map;
 	int     mapfd;
+
+	dumper_t dump;
+	cmper_t  cmp;
 };
 
 typedef enum loc {
@@ -150,9 +156,6 @@ struct dyn {
 		} script;
 	};
 };
-
-typedef void (*dumper_t)(FILE *fp, node_t *n, void *data);
-typedef int   (*cmper_t)(const void *a, const void *b, void *_map);
 
 struct node {
 	node_t *next, *prev;
@@ -201,6 +204,7 @@ pvdr_t *node_get_pvdr  (node_t *n);
 node_t *node_get_probe (node_t *n);
 node_t *node_get_script(node_t *n);
 
+mdyn_t *node_map_get_mdyn   (node_t *map);
 int     node_map_get_fd     (node_t *map);
 int     node_stmt_reg_get   (node_t *stmt);
 ssize_t node_probe_stack_get(node_t *probe, size_t size);
