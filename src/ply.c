@@ -12,15 +12,13 @@ FILE *scriptfp;
 
 int debug = 0;
 int dump = 0;
-char *license = "proprietary";
 int timeout = 0;
 
-static const char *sopts = "cdDGt:";
+static const char *sopts = "cdDt:";
 static struct option lopts[] = {
 	{ "command", no_argument,       0, 'c' },
 	{ "debug",   no_argument,       0, 'd' },
 	{ "dump",    no_argument,       0, 'D' },
-	{ "gpl",     required_argument, 0, 'G' },
 	{ "timeout", required_argument, 0, 't' },
 
 	{ NULL }
@@ -41,9 +39,6 @@ int parse_opts(int argc, char **argv, FILE **sfp)
 			break;
 		case 'D':
 			dump++;
-			break;
-		case 'G':
-			license = "GPL";
 			break;
 		case 't':
 			timeout = strtol(optarg, NULL, 0);
