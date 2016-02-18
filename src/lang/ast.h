@@ -57,6 +57,7 @@ typedef struct rec {
 } rec_t;
 
 typedef struct map {
+	int is_var;
 	node_t *rec;
 } map_t;
 
@@ -213,6 +214,7 @@ node_t *node_str_new     (char *val);
 node_t *node_int_new     (int64_t val);
 node_t *node_rec_new     (node_t *vargs);
 node_t *node_map_new     (char *name, node_t *rec);
+node_t *node_var_new     (char *name);
 node_t *node_not_new     (node_t *expr);
 node_t *node_return_new  (node_t *expr);
 node_t *node_binop_new   (node_t *left, char *opstr, node_t *right);

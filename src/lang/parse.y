@@ -110,6 +110,8 @@ expr : INT
 
 variable : IDENT record
 		{ $$ = node_map_new($1, $2); }
+         | IDENT
+        	{ $$ = node_var_new($1); }
 ;
 
 record : '[' vargs ']'

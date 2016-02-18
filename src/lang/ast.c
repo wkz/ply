@@ -249,15 +249,29 @@ node_t *node_rec_new(node_t *vargs)
 	return n;
 }
 
-node_t *node_map_new(char *name, node_t *rec)
+node_t *__node_map_new(char *name, node_t *rec, int is_var)
 {
 	node_t *n = node_new(TYPE_MAP);
 
 	n->string = name;
-	n->map.rec = rec;
+	n->map.is_var = is_var;
+	n->map.rec    = rec;
 
 	rec->parent = n;
 	return n;
+}
+
+node_t *node_map_new(char *name, node_t *rec)
+{
+	return __node_map_new(name, rec, 0);
+}
+
+node_t *node_var_new(char *name)
+{
+	node_t *key = node_int_new(0);
+	node_t *rec = node_rec_new(key);
+
+	return __node_map_new(name, rec, 1);
 }
 
 node_t *node_not_new(node_t *expr)

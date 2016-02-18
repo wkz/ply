@@ -75,7 +75,7 @@ static void dump_str(FILE *fp, node_t *str, void *data)
 
 static void dump_node(FILE *fp, node_t *n, void *data)
 {
-	node_t *varg;
+	node_t *first, *varg;
 
 	if (n->dump) {
 		n->dump(fp, n, data);
@@ -90,17 +90,29 @@ static void dump_node(FILE *fp, node_t *n, void *data)
 		dump_str(fp, n, data);
 		break;
 	case TYPE_REC:
-		fputs("[ ", fp);
+		if (n->parent->type == TYPE_MAP && n->parent->map.is_var) {
+			first = n->rec.vargs->next;
+			data += n->rec.vargs->dyn.size;
+		} else {
+			first = n->rec.vargs;
+		}
 
-		node_foreach(varg, n->rec.vargs) {
-			if (varg != n->rec.vargs)
+		if (!first)
+			break;
+
+		if (first->next)
+			fputs("[ ", fp);
+
+		node_foreach(varg, first) {
+			if (varg != first)
 				fputs(", ", fp);
 
 			dump_node(fp, varg, data);
 			data += varg->dyn.size;
 		}
 
-		fputs(" ]", fp);
+		if (first->next)
+			fputs(" ]", fp);
 		break;
 	default:
 		_e("unknown node type  %d", n->dyn.type);
