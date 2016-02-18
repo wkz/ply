@@ -364,9 +364,34 @@ static int quantize_compile(node_t *call, prog_t *prog)
 	return count_compile(call, prog);
 }
 
+static int quantize_normalize(int l, char const **suffix)
+{
+	static const char *s[] = { NULL, "k", "M", "G", "T", "P", "Z" };
+	int i;
+
+	for (i = 0; l >= 10; i++, l -= 10);
+
+	*suffix = s[i];
+	return (1 << l);
+}
+
 static void quantize_dump(FILE *fp, node_t *log2, void *data)
 {
-	fprintf(fp, "%5ld - %5ld", 1L << (*((int64_t *)data) - 1), 1L << *((int64_t *)data));
+	int64_t l = *(int64_t *)data;
+	int lo, hi;
+	const char *ls, *hs;
+
+	if (!l) {
+		fputs("[   0,    1]", fp);
+		return;
+	}
+
+	lo = quantize_normalize(    l, &ls);
+	hi = quantize_normalize(1 + l, &hs);
+
+	fprintf(fp, "[%*d%s, %*d%s)",
+		ls ? 3 : 4, lo, ls ? : "",
+		hs ? 3 : 4, hi, hs ? : "");
 }
 
 static int quantize_annotate(node_t *call)
