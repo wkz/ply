@@ -294,7 +294,7 @@ node_t *node_return_new(node_t *expr)
 	return n;
 }
 
-static alu_op_t alu_op_from_str(const char *opstr)
+static alu_op_t alu_op_from_str(char *opstr)
 {
 	switch (opstr[0]) {
 	case '+':
@@ -321,18 +321,66 @@ static alu_op_t alu_op_from_str(const char *opstr)
 		return ALU_OP_MOV;
 	default:
 		assert(0);
-		return 0;
+		return -EINVAL;
 	}
+}
+static int binop_op_parse(node_t *n, char *opstr)
+{
+	node_t *swap;
+
+	n->binop.type = BINOP_JMP;
+	switch (opstr[0]) {
+	case '=':
+		n->binop.jmp = JMP_JEQ;
+		return 0;
+	case '!':
+		n->binop.jmp = JMP_JNE;
+		return 0;
+	case '<':
+		if (opstr[1] == '<')
+			break;
+		else if (opstr[1] && opstr[1] == '=')
+			n->binop.jmp = JMP_JGT;
+		else
+			n->binop.jmp = JMP_JGE;
+
+		swap = n->binop.left;
+		n->binop.left = n->binop.right;
+		n->binop.right = swap;
+		return 0;
+	case '>':
+		if (opstr[1] == '>')
+			break;
+		else if (opstr[1] && opstr[1] == '=')
+			n->binop.jmp = JMP_JGE;
+		else
+			n->binop.jmp = JMP_JGT;
+		break;
+	default:
+		break;
+	}
+
+	n->binop.type = BINOP_ALU;
+	n->binop.alu  = alu_op_from_str(opstr);
+	return 0;
 }
 
 node_t *node_binop_new(node_t *left, char *opstr, node_t *right)
 {
 	node_t *n = node_new(TYPE_BINOP);
+	int err;
 
 	n->string = opstr;
-	n->binop.op    = alu_op_from_str(opstr);
 	n->binop.left  = left;
 	n->binop.right = right;
+	err = binop_op_parse(n, opstr);
+	if (err) {
+		assert(0);
+		return NULL;
+	}
+
+	left->parent  = n;
+	right->parent = n;
 	return n;
 }
 

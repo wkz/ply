@@ -425,6 +425,47 @@ int emit_not(prog_t *prog, node_t *not)
 	return emit_xfer_dyns(prog, &not->dyn, &dyn_reg[src]);
 }
 
+int emit_binop_alu(prog_t *prog, node_t *binop)
+{
+	node_t *l = binop->binop.left, *r = binop->binop.right;
+
+	emit(prog, ALU(binop->binop.alu, l->dyn.reg, r->dyn.reg));
+	return 0;
+}
+
+int emit_binop_jmp(prog_t *prog, node_t *binop)
+{
+	node_t *l = binop->binop.left, *r = binop->binop.right;
+
+	emit(prog, JMP(binop->binop.jmp, l->dyn.reg, r->dyn.reg, 2));
+	emit(prog, MOV_IMM(l->dyn.reg, 0));
+	emit(prog, JMP_IMM(JMP_JA, 0, 0, 1));
+	emit(prog, MOV_IMM(l->dyn.reg, 1));
+	return 0;
+}
+
+int emit_binop(prog_t *prog, node_t *binop)
+{
+	node_t *l = binop->binop.left, *r = binop->binop.right;
+
+	if (l->type == TYPE_INT)
+		emit_xfer(prog, l, l);
+
+	if (r->type == TYPE_INT)
+		emit_xfer(prog, r, r);
+
+	switch (binop->binop.type) {
+	case BINOP_ALU:
+		emit_binop_alu(prog, binop);
+		break;
+	case BINOP_JMP:
+		emit_binop_jmp(prog, binop);
+		break;
+	}
+
+	return emit_xfer_dyns(prog, &binop->dyn, &binop->binop.left->dyn);
+}
+
 int emit_assign(prog_t *prog, node_t *assign)
 {
 	node_t *map = assign->assign.lval, *expr = assign->assign.expr;
@@ -514,9 +555,11 @@ static int compile_post(node_t *n, void *_prog)
 		err = emit_not(prog, n);
 		break;
 
-	case TYPE_BINOP:
 	case TYPE_RETURN:
 		/* TODO */
+		break;
+	case TYPE_BINOP:
+		err = emit_binop(prog, n);
 		break;
 
 	case TYPE_ASSIGN:

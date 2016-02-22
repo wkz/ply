@@ -10,9 +10,9 @@
 
 static int loc_assign_pre(node_t *n, void *_probe)
 {
-	node_t *c, *probe = _probe;
+	node_t *c, *probe = _probe, *stmt;
 	ssize_t addr;
-
+	
 	switch (n->type) {
 	case TYPE_NONE:
 	case TYPE_SCRIPT:
@@ -74,7 +74,33 @@ static int loc_assign_pre(node_t *n, void *_probe)
 		return 0;
 
 	case TYPE_BINOP:
-		/* TODO */
+		stmt = node_get_stmt(n);
+
+		c = n->binop.left;
+		c->dyn.loc = LOC_REG;
+		if (n->dyn.loc == LOC_REG)
+			c->dyn.reg = n->dyn.reg;
+		else
+			c->dyn.reg = node_stmt_reg_get(stmt);
+
+		if (c->dyn.reg < 0) {
+			c->dyn.loc  = LOC_STACK;
+			c->dyn.addr = node_probe_stack_get(probe, c->dyn.size);
+		}
+
+		c = n->binop.right;
+		c->dyn.loc = LOC_REG;
+		if (n->parent->type == TYPE_BINOP &&
+		    n->parent->binop.right != n &&
+		    n->parent->binop.right->dyn.loc == LOC_REG)
+			c->dyn.reg = n->parent->binop.right->dyn.reg;
+		else
+			c->dyn.reg = node_stmt_reg_get(stmt);
+			
+		if (c->dyn.reg < 0) {
+			c->dyn.loc  = LOC_STACK;
+			c->dyn.addr = node_probe_stack_get(probe, c->dyn.size);
+		}
 		return 0;
 
 	case TYPE_NOT:

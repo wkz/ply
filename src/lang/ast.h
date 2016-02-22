@@ -61,8 +61,16 @@ typedef struct map {
 	node_t *rec;
 } map_t;
 
+typedef enum binop_type {
+	BINOP_ALU,
+	BINOP_JMP,
+} binop_type_t;
+
 typedef struct binop {
-	alu_op_t op;
+	binop_type_t type;
+	alu_op_t     alu;
+	jmp_t        jmp;
+
 	node_t *left, *right;
 } binop_t;
 
