@@ -39,7 +39,7 @@ typedef struct node node_t;
 %parse-param { yyscan_t scanner }
 
 %token RETURN
-%token <string> PSPEC IDENT STRING OP AOP
+%token <string> PSPEC IDENT UIDENT STRING OP AOP
 %token <integer> INT
 
 %type <node> script probes probe stmts stmt
@@ -108,9 +108,9 @@ expr : INT
 		{ $$ = $1; }
 ;
 
-variable : IDENT record
+variable : UIDENT record
 		{ $$ = node_map_new($1, $2); }
-         | IDENT
+         | UIDENT
         	{ $$ = node_var_new($1); }
 ;
 
@@ -118,7 +118,9 @@ record : '[' vargs ']'
 		{ $$ = node_rec_new($2); }
 ;
 
-call: IDENT '(' ')'
+call: IDENT
+		{ $$ = node_call_new($1, NULL); }
+    | IDENT '(' ')'
 		{ $$ = node_call_new($1, NULL); }
     | IDENT '(' vargs ')'
 		{ $$ = node_call_new($1, $3); }

@@ -28,6 +28,7 @@ uaz		[_a-zA-Z]
 uazd		[_a-zA-Z0-9]
 
 identifier	{uaz}{uazd}*
+uidentifier     \${identifier}
 pspec		{identifier}:[:*_a-zA-Z0-9]*
 op		[+\-*|&%^]|<<|>>
 cmp		[!=<>]=|<|>
@@ -40,8 +41,9 @@ cmp		[!=<>]=|<|>
 \n			{ lineno++; }
 "return"		{ return RETURN; }
 
-{pspec}			{ yylval->string = strdup(yytext); return PSPEC; }
-{identifier}		{ yylval->string = strdup(yytext); return IDENT; }
+{pspec}			{ yylval->string = strdup(yytext); return PSPEC;  }
+{identifier}		{ yylval->string = strdup(yytext); return IDENT;  }
+{uidentifier}		{ yylval->string = strdup(yytext); return UIDENT; }
 
 {op}|{cmp}		{ yylval->string = strdup(yytext); return OP;  }
 {op}?=			{ yylval->string = strdup(yytext); return AOP; }
