@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <inttypes.h>
+#include <stdint.h>
 #include <string.h>
 
 #include "ply.h"
@@ -8,9 +9,61 @@
 
 #define b_xor(_a, _b) ((!!(_a)) ^ (!!(_b)))
 
+static int loc_assign_binop(node_t *n, node_t *probe)
+{
+	node_t *l, *r, *stmt;
+
+	stmt = node_get_stmt(n);
+	l = n->binop.left;
+	r = n->binop.right;
+
+	if (l->type == TYPE_MAP) {
+		l->dyn.loc  = LOC_STACK;
+		l->dyn.addr = node_probe_stack_get(probe, l->dyn.size);
+		goto ldone;
+	}
+
+	l->dyn.loc = LOC_REG;
+	if (n->dyn.loc == LOC_REG && ((1 << n->dyn.reg) & DYN_REGS))
+		l->dyn.reg = n->dyn.reg;
+	else
+		l->dyn.reg = node_stmt_reg_get(stmt);
+
+	if (l->dyn.reg >= 0)
+		goto ldone;
+
+	l->dyn.loc  = LOC_STACK;
+	if (n->dyn.loc == LOC_STACK)
+		l->dyn.addr = n->dyn.addr;
+	else
+		l->dyn.addr = node_probe_stack_get(probe, l->dyn.size);
+
+ldone:
+	if (r->type == TYPE_INT &&
+	    r->integer >= INT32_MIN &&
+	    r->integer <= INT32_MAX)
+		goto rdone;
+
+	if (r->type == TYPE_MAP) {
+		r->dyn.loc  = LOC_STACK;
+		r->dyn.addr = node_probe_stack_get(probe, r->dyn.size);
+		goto rdone;
+	}
+
+	r->dyn.loc = LOC_REG;
+	r->dyn.reg = node_stmt_reg_get(stmt);
+	if (r->dyn.reg < 0) {
+		r->dyn.loc  = LOC_STACK;
+		r->dyn.addr = node_probe_stack_get(probe, r->dyn.size);
+	}
+
+rdone:
+	return 0;
+}
+
 static int loc_assign_pre(node_t *n, void *_probe)
 {
-	node_t *c, *probe = _probe, *stmt;
+	node_t *c, *probe = _probe;
 	ssize_t addr;
 	
 	switch (n->type) {
@@ -23,17 +76,11 @@ static int loc_assign_pre(node_t *n, void *_probe)
 		if (c) {
 			c->dyn.loc = LOC_REG;
 			c->dyn.reg = BPF_REG_0;
-			c->dyn.free_regs =
-				(1 << BPF_REG_6) |
-				(1 << BPF_REG_7) |
-				(1 << BPF_REG_8);
+			c->dyn.free_regs = DYN_REGS;
 		}
 
 		node_foreach(c, n->probe.stmts) {
-			c->dyn.free_regs =
-				(1 << BPF_REG_6) |
-				(1 << BPF_REG_7) |
-				(1 << BPF_REG_8);
+			c->dyn.free_regs = DYN_REGS;
 		}
 		return 0;
 
@@ -74,34 +121,7 @@ static int loc_assign_pre(node_t *n, void *_probe)
 		return 0;
 
 	case TYPE_BINOP:
-		stmt = node_get_stmt(n);
-
-		c = n->binop.left;
-		c->dyn.loc = LOC_REG;
-		if (n->dyn.loc == LOC_REG)
-			c->dyn.reg = n->dyn.reg;
-		else
-			c->dyn.reg = node_stmt_reg_get(stmt);
-
-		if (c->dyn.reg < 0) {
-			c->dyn.loc  = LOC_STACK;
-			c->dyn.addr = node_probe_stack_get(probe, c->dyn.size);
-		}
-
-		c = n->binop.right;
-		c->dyn.loc = LOC_REG;
-		if (n->parent->type == TYPE_BINOP &&
-		    n->parent->binop.right != n &&
-		    n->parent->binop.right->dyn.loc == LOC_REG)
-			c->dyn.reg = n->parent->binop.right->dyn.reg;
-		else
-			c->dyn.reg = node_stmt_reg_get(stmt);
-			
-		if (c->dyn.reg < 0) {
-			c->dyn.loc  = LOC_STACK;
-			c->dyn.addr = node_probe_stack_get(probe, c->dyn.size);
-		}
-		return 0;
+		return loc_assign_binop(n, probe);
 
 	case TYPE_NOT:
 		c = n->not;

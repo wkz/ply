@@ -395,6 +395,12 @@ int emit_map_load(prog_t *prog, node_t *n)
 	    n->parent->assign.op == ALU_OP_MOV)
 		return 0;
 
+	/* this node might be destined for a register, so find out its
+	 * stack address from the mdyn */
+	if (n->dyn.loc == LOC_REG) {
+		n->dyn.addr = node_map_get_mdyn(n)->map->dyn.addr;
+		_i("WKZ -0x%zx", - n->dyn.addr);
+	}
 	emit_stack_zero(prog, n);
 
 	emit_map_lookup_raw(prog, node_map_get_fd(n), n->map.rec->dyn.addr);
@@ -425,19 +431,26 @@ int emit_not(prog_t *prog, node_t *not)
 	return emit_xfer_dyns(prog, &not->dyn, &dyn_reg[src]);
 }
 
-int emit_binop_alu(prog_t *prog, node_t *binop)
+int emit_binop_alu(prog_t *prog, node_t *binop, int imm)
 {
 	node_t *l = binop->binop.left, *r = binop->binop.right;
 
-	emit(prog, ALU(binop->binop.alu, l->dyn.reg, r->dyn.reg));
+	if (imm)
+		emit(prog, ALU_IMM(binop->binop.alu, l->dyn.reg, r->integer));
+	else
+		emit(prog, ALU(binop->binop.alu, l->dyn.reg, r->dyn.reg));
 	return 0;
 }
 
-int emit_binop_jmp(prog_t *prog, node_t *binop)
+int emit_binop_jmp(prog_t *prog, node_t *binop, int imm)
 {
 	node_t *l = binop->binop.left, *r = binop->binop.right;
 
-	emit(prog, JMP(binop->binop.jmp, l->dyn.reg, r->dyn.reg, 2));
+	if (imm)
+		emit(prog, JMP_IMM(binop->binop.jmp, l->dyn.reg, r->integer, 2));
+	else
+		emit(prog, JMP(binop->binop.jmp, l->dyn.reg, r->dyn.reg, 2));
+
 	emit(prog, MOV_IMM(l->dyn.reg, 0));
 	emit(prog, JMP_IMM(JMP_JA, 0, 0, 1));
 	emit(prog, MOV_IMM(l->dyn.reg, 1));
@@ -447,19 +460,24 @@ int emit_binop_jmp(prog_t *prog, node_t *binop)
 int emit_binop(prog_t *prog, node_t *binop)
 {
 	node_t *l = binop->binop.left, *r = binop->binop.right;
+	int imm = 0;
 
 	if (l->type == TYPE_INT)
 		emit_xfer(prog, l, l);
 
-	if (r->type == TYPE_INT)
-		emit_xfer(prog, r, r);
+	if (r->type == TYPE_INT) {
+		if (r->integer < INT32_MIN || r->integer > INT32_MAX)
+			emit_xfer(prog, r, r);
+		else
+			imm = 1;
+	}
 
 	switch (binop->binop.type) {
 	case BINOP_ALU:
-		emit_binop_alu(prog, binop);
+		emit_binop_alu(prog, binop, imm);
 		break;
 	case BINOP_JMP:
-		emit_binop_jmp(prog, binop);
+		emit_binop_jmp(prog, binop, imm);
 		break;
 	}
 

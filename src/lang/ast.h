@@ -12,6 +12,8 @@
 #define _ALIGN sizeof(int64_t)
 #define _ALIGNED(_size) (((_size) + _ALIGN - 1) & ~(_ALIGN - 1))
 
+#define DYN_REGS ((1 << BPF_REG_6) | (1 << BPF_REG_7) | (1 << BPF_REG_8))
+
 static inline void insque_tail(void *elem, void *prev)
 {
 	struct { void *next, *prev; } *le = elem, *pe = prev;
