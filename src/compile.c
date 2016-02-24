@@ -395,12 +395,6 @@ int emit_map_load(prog_t *prog, node_t *n)
 	    n->parent->assign.op == ALU_OP_MOV)
 		return 0;
 
-	/* this node might be destined for a register, so find out its
-	 * stack address from the mdyn */
-	if (n->dyn.loc == LOC_REG) {
-		n->dyn.addr = node_map_get_mdyn(n)->map->dyn.addr;
-		_i("WKZ -0x%zx", - n->dyn.addr);
-	}
 	emit_stack_zero(prog, n);
 
 	emit_map_lookup_raw(prog, node_map_get_fd(n), n->map.rec->dyn.addr);
@@ -462,14 +456,22 @@ int emit_binop(prog_t *prog, node_t *binop)
 	node_t *l = binop->binop.left, *r = binop->binop.right;
 	int imm = 0;
 
-	if (l->type == TYPE_INT)
-		emit_xfer(prog, l, l);
+	if (l->dyn.loc == LOC_STACK)
+		l->dyn.reg = BPF_REG_0;
 
-	if (r->type == TYPE_INT) {
-		if (r->integer < INT32_MIN || r->integer > INT32_MAX)
-			emit_xfer(prog, r, r);
-		else
+	if (l->type == TYPE_INT || l->dyn.loc != LOC_REG)
+		emit_xfer_dyn(prog, &dyn_reg[l->dyn.reg], l);
+
+	if (r->dyn.loc == LOC_STACK)
+		r->dyn.reg = BPF_REG_1;
+
+	if (r->type == TYPE_INT || r->dyn.loc != LOC_REG) {
+		if (r->type == TYPE_INT &&
+		    r->integer >= INT32_MIN &&
+		    r->integer <= INT32_MAX)
 			imm = 1;
+		else
+			emit_xfer_dyn(prog, &dyn_reg[r->dyn.reg], r);
 	}
 
 	switch (binop->binop.type) {
@@ -481,7 +483,7 @@ int emit_binop(prog_t *prog, node_t *binop)
 		break;
 	}
 
-	return emit_xfer_dyns(prog, &binop->dyn, &binop->binop.left->dyn);
+	return emit_xfer_dyns(prog, &binop->dyn, &dyn_reg[l->dyn.reg]);
 }
 
 int emit_assign(prog_t *prog, node_t *assign)
