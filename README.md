@@ -143,7 +143,7 @@ LLVM which rules out many embedded platforms. `ply` has no run-time
 dependencies and only depends on flex and bison to build. By using the
 [Little Language][5] approach, scripts are easy to write and
 modify. C, while being an extremely powerful and elegant language does
-not offer the same explorative feeling as say `awk`, which `ply` more
+not offer the same exploratory feeling as say `awk`, which `ply` more
 closely resembles.
 
 
