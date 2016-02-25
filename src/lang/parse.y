@@ -38,7 +38,7 @@ typedef struct node node_t;
 %parse-param { node_t **script }
 %parse-param { yyscan_t scanner }
 
-%token RETURN
+%token NIL RETURN
 %token <string> PSPEC IDENT UIDENT STRING OP AOP
 %token <integer> INT
 
@@ -76,6 +76,8 @@ stmts : stmt
 
 stmt : variable AOP expr
 		{ $$ = node_assign_new($1, $2, $3); }
+     | variable AOP NIL
+		{ $$ = node_assign_new($1, $2, NULL); }
      | variable '.' call
      		{ $$ = node_method_new($1, $3); }
      | expr

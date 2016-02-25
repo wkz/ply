@@ -82,6 +82,12 @@ static int secs_compile(node_t *call, prog_t *prog)
 			       EXTRACT_OP_DIV_1G, call, prog);
 }
 
+static int cpu_compile(node_t *call, prog_t *prog)
+{
+	return int32_void_func(BPF_FUNC_get_smp_processor_id,
+			       EXTRACT_OP_NONE, call, prog);
+}
+
 static int int_noargs_annotate(node_t *call)
 {
 	if (call->call.vargs)
@@ -400,7 +406,8 @@ static int quantize_annotate(node_t *call)
 	node_t *rec;
 
 	if (!call->call.vargs ||
-	    call->call.vargs->dyn.type != TYPE_INT ||
+	    (call->call.vargs->dyn.type != TYPE_NONE &&
+	     call->call.vargs->dyn.type != TYPE_INT) ||
 	    call->call.vargs->next ||
 	    call->parent->type != TYPE_METHOD)
 		return -EINVAL;
@@ -468,6 +475,7 @@ static builtin_t builtins[] = {
 	BUILTIN_INT_VOID(  pid),
 	BUILTIN_INT_VOID(nsecs),
 	BUILTIN_INT_VOID( secs),
+	BUILTIN_INT_VOID(  cpu),
 
 	BUILTIN(comm),
 	BUILTIN_ALIAS(execname, comm),

@@ -406,7 +406,8 @@ node_t *node_assign_new(node_t *lval, char *opstr, node_t *expr)
 	n->assign.expr = expr;
 
 	lval->parent = n;
-	expr->parent = n;
+	if (expr)
+		expr->parent = n;
 	return n;
 }
 
@@ -541,7 +542,8 @@ int node_walk(node_t *n,
 
 	case TYPE_ASSIGN:
 		do_walk(n->assign.lval);
-		do_walk(n->assign.expr);
+		if (n->assign.expr)
+			do_walk(n->assign.expr);
 		break;
 
 	case TYPE_RETURN:

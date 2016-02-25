@@ -76,10 +76,8 @@ void dump_size(uint8_t size)
 	}
 }		
 
-void dump_insn(struct bpf_insn insn)
+void dump_insn(struct bpf_insn insn, size_t ip)
 {
-	static size_t ip = 0;
-
 	const char *name;
 	enum {
 		OFF_NONE,
@@ -89,7 +87,7 @@ void dump_insn(struct bpf_insn insn)
 	} off = OFF_NONE;
 	
 
-	fprintf(stderr, "%.3zu:\t", ip++);
+	fprintf(stderr, "%.3zu:\t", ip);
 
 	switch (BPF_CLASS(insn.code)) {
 	case BPF_LD:
@@ -190,7 +188,7 @@ unknown:
 void emit(prog_t *prog, struct bpf_insn insn)
 {
 	if (debug)
-		dump_insn(insn);
+		dump_insn(insn, prog->ip - prog->insns);
 
 	*(prog->ip)++ = insn;
 }
@@ -378,6 +376,15 @@ int emit_map_update_raw(prog_t *prog, int fd, ssize_t key, ssize_t val)
 	return 0;
 }
 
+int emit_map_delete_raw(prog_t *prog, int fd, ssize_t key)
+{
+	emit_ld_mapfd(prog, BPF_REG_1, fd);
+	emit(prog, MOV(BPF_REG_2, BPF_REG_10));
+	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_2, key));
+	emit(prog, CALL(BPF_FUNC_map_delete_elem));
+	return 0;
+}
+
 int emit_map_lookup_raw(prog_t *prog, int fd, ssize_t addr)
 {
 	emit_ld_mapfd(prog, BPF_REG_1, fd);
@@ -491,6 +498,12 @@ int emit_assign(prog_t *prog, node_t *assign)
 	node_t *map = assign->assign.lval, *expr = assign->assign.expr;
 	int err;
 
+	if (!expr) {
+		emit_map_delete_raw(prog, node_map_get_fd(map),
+				    map->map.rec->dyn.addr);
+		return 0;
+	}
+	
 	if (assign->assign.op == ALU_OP_MOV) {
 		if (expr->type == TYPE_INT) {
 			err = emit_xfer(prog, map, expr);

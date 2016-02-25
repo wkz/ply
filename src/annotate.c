@@ -100,6 +100,9 @@ static int loc_assign_pre(node_t *n, void *_probe)
 		c->dyn.loc  = LOC_STACK;
 		c->dyn.addr = node_probe_stack_get(probe, c->dyn.size);
 
+		if (!n->assign.expr)
+			return 0;
+
 		if (n->assign.op == ALU_OP_MOV) {
 			n->assign.expr->dyn.loc  = LOC_STACK;
 			n->assign.expr->dyn.addr = c->dyn.addr;
@@ -131,6 +134,11 @@ static int loc_assign_pre(node_t *n, void *_probe)
 		return 0;
 
 	case TYPE_MAP:
+		/* upper node wants result in a register, but we still
+		 * need stack space to bounce the data in */
+		if (n->dyn.loc == LOC_REG)
+			n->dyn.addr = node_probe_stack_get(probe, n->dyn.size);
+
 		c = n->map.rec;
 		c->dyn.loc  = LOC_STACK;
 		c->dyn.addr = node_probe_stack_get(probe, c->dyn.size);

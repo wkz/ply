@@ -65,7 +65,7 @@ static int kprobe_event_id(const char *func, FILE *ctrl)
 static int kprobe_attach_one(kprobe_t *kp, const char *func)
 {
 	struct perf_event_attr attr = {};
-	int efd, id;
+	int efd, i, id;
 
 	id = kprobe_event_id(func, kp->ctrl);
 	if (id < 0)
@@ -77,33 +77,35 @@ static int kprobe_attach_one(kprobe_t *kp, const char *func)
 	attr.wakeup_events = 1;
 	attr.config = id;
 
-	efd = perf_event_open(&attr, -1/*pid*/, 0/*cpu*/, -1/*group_fd*/, 0);
-	if (efd < 0) {
-		perror("perf_event_open");
-		return -errno;
+	for (i = 0; i < /* sysconf(_SC_NPROCESSORS_ONLN) */ 1; i++) {
+		efd = perf_event_open(&attr, -1/*pid*/, i/*cpu*/, -1/*group_fd*/, 0);
+		if (efd < 0) {
+			perror("perf_event_open");
+			return -errno;
+		}
+
+		if (ioctl(efd, PERF_EVENT_IOC_ENABLE, 0)) {
+			perror("perf enable");
+			close(efd);
+			return -errno;
+		}
+
+		if (!i && ioctl(efd, PERF_EVENT_IOC_SET_BPF, kp->bfd)) {
+			_pe("perf-set-bpf: %s", func);
+			close(efd);
+			return -errno;
+		}
+
+		if (kp->efds.len == kp->efds.cap) {
+			size_t sz = kp->efds.cap * sizeof(*kp->efds.fds);
+
+			kp->efds.fds = realloc(kp->efds.fds, sz << 1);
+			assert(kp->efds.fds);
+			kp->efds.cap <<= 1;
+		}
+
+		kp->efds.fds[kp->efds.len++] = efd;
 	}
-
-	if (ioctl(efd, PERF_EVENT_IOC_ENABLE, 0)) {
-		perror("perf enable");
-		close(efd);
-		return -errno;
-	}
-
-	if (ioctl(efd, PERF_EVENT_IOC_SET_BPF, kp->bfd)) {
-		_pe("perf-set-bpf: %s", func);
-		close(efd);
-		return -errno;
-	}
-
-	if (kp->efds.len == kp->efds.cap) {
-		size_t sz = kp->efds.cap * sizeof(*kp->efds.fds);
-
-		kp->efds.fds = realloc(kp->efds.fds, sz << 1);
-		assert(kp->efds.fds);
-		kp->efds.cap <<= 1;
-	}
-
-	kp->efds.fds[kp->efds.len++] = efd;
 	return 1;
 }
 
