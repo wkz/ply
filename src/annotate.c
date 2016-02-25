@@ -17,12 +17,6 @@ static int loc_assign_binop(node_t *n, node_t *probe)
 	l = n->binop.left;
 	r = n->binop.right;
 
-	if (l->type == TYPE_MAP) {
-		l->dyn.loc  = LOC_STACK;
-		l->dyn.addr = node_probe_stack_get(probe, l->dyn.size);
-		goto ldone;
-	}
-
 	l->dyn.loc = LOC_REG;
 	if (n->dyn.loc == LOC_REG && ((1 << n->dyn.reg) & DYN_REGS))
 		l->dyn.reg = n->dyn.reg;
@@ -43,12 +37,6 @@ ldone:
 	    r->integer >= INT32_MIN &&
 	    r->integer <= INT32_MAX)
 		goto rdone;
-
-	if (r->type == TYPE_MAP) {
-		r->dyn.loc  = LOC_STACK;
-		r->dyn.addr = node_probe_stack_get(probe, r->dyn.size);
-		goto rdone;
-	}
 
 	r->dyn.loc = LOC_REG;
 	r->dyn.reg = node_stmt_reg_get(stmt);

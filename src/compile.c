@@ -87,7 +87,7 @@ void dump_insn(struct bpf_insn insn, size_t ip)
 	} off = OFF_NONE;
 	
 
-	fprintf(stderr, "%.3zu:\t", ip);
+	fprintf(stderr, "%3zu:\t", ip);
 
 	switch (BPF_CLASS(insn.code)) {
 	case BPF_LD:
@@ -411,6 +411,10 @@ int emit_map_load(prog_t *prog, node_t *n)
 
 	/* if key existed, copy it to the value area */
 	emit_read_raw(prog, n->dyn.addr, BPF_REG_0, n->dyn.size);
+
+	if (n->dyn.loc == LOC_REG)
+		emit_xfer_stack(prog, &n->dyn, n->dyn.addr);
+
 	return 0;
 }
 
