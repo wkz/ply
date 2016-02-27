@@ -175,6 +175,7 @@ static int kprobe_setup(node_t *probe, prog_t *prog)
 	kp->efds.fds = calloc(1, sizeof(*kp->efds.fds));
 	assert(kp->efds.fds);
 	kp->efds.cap = 1;
+	kp->efds.len = 0;
 
 	probe->dyn.probe.pvdr_priv = kp;
 
