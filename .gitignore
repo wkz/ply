@@ -2,6 +2,24 @@
 .#*
 *.o
 .gdb_history
+
+# autoconf/automake generated files
+.deps
+.dirstamp
+Makefile
+Makefile.in
+/aclocal.m4
+/autom4te.cache
+/compile
+/config.*
+/configure
+/depcomp
+/install-sh
+/missing
+/ylwrap
+/src/config.h*
+/src/stamp-h1
+
 /src/lang/lex.[ch]
 /src/lang/parse.[ch]
 /src/ply
