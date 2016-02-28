@@ -1,0 +1,168 @@
+ply(1) -- dynamically instrument the kernel
+===========================================
+
+## SYNOPSIS
+
+`ply` <program-file> <br>
+`ply` -c <program-text>
+
+## DESCRIPTION
+
+ply dynamically instruments the running kernel to aggregate and
+extract user-defined data. It compiles the input program to bpf(8)
+byte-code and attaches them to arbitrary points in the kernel using
+kprobes.
+
+## OPTIONS
+
+  * `-c`, `--command`:
+    The program is supplied as an argument, rather than in a file.
+
+  * `-d`, `--debug`:
+    Enable debugging output.
+
+  * `-D`, `--dump`:
+    Do not execute the program, instead dump the generated eBPF
+    instructions.
+
+  * `-t`, `--timeout`=<seconds>:
+    Terminate the program after the specified time.
+
+## SYNTAX
+
+Much of the syntax is borrowed (read:stolen) from dtrace(1), which in
+turn takes a lot of inspiration from awk(1).
+
+### Probes
+
+A program consists of one or more _probes_, which are analogous to
+awk's pattern-action statements. The syntax for a probe is as follows:
+
+    provider:probe-definition [/ predicate /]
+    {
+         statement;
+        [statement; ... ]
+    }
+
+
+The _provider_ selects which probe interface to use. At the moment,
+`kprobe` is the only supported provider, but the intention is that
+this can be extended with `uprobe` for example. It is then up to the
+provider to parse the _probe-definition_ to determine the point(s) of
+instrumentation.
+
+Due to the limitations imposed by the kernel on eBPF programs, no loop
+constructs are allowed. Conditionals could be implemented but have
+thus far not been. However, it is possible to perform some filtering
+by specifying a _predicate_, i.e. an expression that must evaluate to
+_true_ in order for the probe to be executed.
+
+Then follows the _statments_ that perform the actual information
+gathering. All but the last statement of a probe must be terminated
+with a semi-colon. Specifically, a simple probe containing only one
+statement does not need one.
+
+
+### Maps and Variables
+
+The primary way to extract information is to store it in user-defined
+variables. Like in awk(1) they are dynamically created and their types
+are inferred. ply uses a very simple type system with 3 types:
+
+  * `Numbers`:
+    Represented as 64-bit signed integers, initialized to zero (0).
+
+  * `Strings`:
+    Of arbitrary length, initialized to the empty string.
+
+  * `Records`:
+    Compound type holding any number of `Numbers` and `Strings` with
+    each component initialized to its zero value.
+
+The syntax is as follows:
+
+    $varname
+    $mapname[expression <, expression ... >]
+
+Variable names follow the familiar rules of C identifiers, with the
+added constraints that they must begin with a dollar sign (`$`). A map
+is simply a variable concatenated with a record, i.e one or more
+expressions that are used as the index into the map.
+
+The simplest way to store data in variables is to assign a value to
+them:
+
+    $varname = expression
+
+If a variable is assigned the special value _nil_, the variable is
+deleted and will return its zero value if referenced again.
+
+A more common way to store data is to use _methods_, i.e. functions
+that operate on the data stored in a variable or map:
+
+    $varname.method([expression, expression ... ])
+
+  * `.count()`:
+    Bumps a counter.
+
+  * `.quantize(number-expression)`:
+    Evaluates the argument and aggregates on the most significant bit
+    of the result. In other words, it stores the distribution of the
+    expression.
+
+
+## BUILT-INS
+
+Each _provider_ may declare any number of built-in functions. Function
+calls use the same syntax as most languages that inherit from
+C. Additionally, functions which take no argument may be called
+without parenthesis, giving them a feel of being builtin variables.
+
+The following built-ins are defined by the _kprobe_ provider:
+
+
+  * `arg(number)` => number-expression:
+    Returns the value of the n:th _argument_ to the function in whose
+    context the probe is running.
+
+  * `func`, `probefunc` => number-expression:
+    Returns the kernel address of the _function_ on whose context the
+    probe is running.
+
+  * `gid` => number-expression:
+    Returns the _group ID_ of the running process.
+
+  * `pid` => number-expression:
+    Returns the _process ID_ of the running process.
+
+  * `printf(format [, expression, expression ... ])`:
+    Prints _formatted output_ to ply's standard out.
+
+    Beware that while there are times when it is useful to print data
+    from a probe, it is very often not the best way of obtaining the
+    insight that is sought.
+
+    Many of the kernel's functions may be called at rates well above
+    the 1k calls/s mark, at which point making sense of print output
+    becomes very hard. In such cases, consider using some type of
+    aggregation to limit the amount of data. Then, once you have
+    zeroed in on the problem, printing might become useful.
+
+  * `reg(number)`, `reg(string)` => number-expression:
+    If called with a number, it returns the value of the n:th CPU
+    _register_, according to the order in the architechure specific
+    _pt_regs_ struct. If called with a string, the string is looked up
+    against the register names as they are defined in the _pt_regs_
+    struct.
+
+  * `uid` => number-expression:
+    Returns the _user ID_ of the running process.
+
+## RETURN VALUES
+## STANDARDS
+## SECURITY CONSIDERATIONS
+## BUGS
+## HISTORY
+## AUTHOR
+## COPYRIGHT
+## SEE ALSO
