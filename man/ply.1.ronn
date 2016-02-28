@@ -30,7 +30,7 @@ kprobes.
 
 ## SYNTAX
 
-Much of the syntax is borrowed (read:stolen) from dtrace(1), which in
+Much of the syntax is borrowed (i.e. stolen) from dtrace(1), which in
 turn takes a lot of inspiration from awk(1).
 
 ### Probes
@@ -57,7 +57,7 @@ thus far not been. However, it is possible to perform some filtering
 by specifying a _predicate_, i.e. an expression that must evaluate to
 _true_ in order for the probe to be executed.
 
-Then follows the _statments_ that perform the actual information
+Then follows the _statements_ that perform the actual information
 gathering. All but the last statement of a probe must be terminated
 with a semi-colon. Specifically, a simple probe containing only one
 statement does not need one.
@@ -116,21 +116,33 @@ that operate on the data stored in a variable or map:
 Each _provider_ may declare any number of built-in functions. Function
 calls use the same syntax as most languages that inherit from
 C. Additionally, functions which take no argument may be called
-without parenthesis, giving them a feel of being builtin variables.
+without parenthesis, giving them a feel of being built-in variables.
 
 The following built-ins are defined by the _kprobe_ provider:
 
 
   * `arg(number)` => number-expression:
-    Returns the value of the n:th _argument_ to the function in whose
-    context the probe is running.
+    Returns the value of the n:th _argument_ of the function to which
+    the probe was attached.
+
+  * `comm`, `execname` => string-expression:
+    Returns the _name_ of the running process's executable.
+
+  * `cpu` => number-expression:
+    Returns the _CPU ID_ of the processor on which the probe fired.
 
   * `func`, `probefunc` => number-expression:
-    Returns the kernel address of the _function_ on whose context the
-    probe is running.
+    Returns the kernel address of the _function_ to which the probe
+    was attached.
 
   * `gid` => number-expression:
     Returns the _group ID_ of the running process.
+
+  * `log2(number-expression)` => number-expression:
+    Returns the logarithm, base 2, of the argument.
+
+  * `nsecs` => number-expression:
+    Returns the time since the system started, in nanoseconds.
 
   * `pid` => number-expression:
     Returns the _process ID_ of the running process.
@@ -150,19 +162,90 @@ The following built-ins are defined by the _kprobe_ provider:
 
   * `reg(number)`, `reg(string)` => number-expression:
     If called with a number, it returns the value of the n:th CPU
-    _register_, according to the order in the architechure specific
+    _register_, according to the order in the architecture specific
     _pt_regs_ struct. If called with a string, the string is looked up
     against the register names as they are defined in the _pt_regs_
     struct.
 
+  * `secs` => number-expression:
+    Returns the time since the system started, in seconds.
+
+  * `strcmp(string-expression, string-expression)` => number-expression:
+    Returns -1, 0 or 1 if the first argument is less than, equal to or
+    greater than the second argument respectively. Strings are
+    compared by their lexicographical order.
+
+  * `tgid` => number-expression:
+    Returns the _thread group ID_ of the running process.
+
   * `uid` => number-expression:
     Returns the _user ID_ of the running process.
 
+
+## EXAMPLES
+
+### Count
+
+    kprobe:SyS_open { $opens.count() }
+
+Counts the number of times any process in the system calls open(2).
+
+    kprobe:SyS_open { $opens[execname].count() }
+
+Counts the number of calls to open(2), grouped by executable name.
+
+
+### Quantize
+
+    kprobe:SyS_read { $dist.quantize(arg(2)) }
+
+Record the distribution of the _size_ argument to read(2).
+
+
+### Wildcards
+
+    kprobe:SyS_* { $syscalls[func].count() }
+
+Count all syscalls made on the system, grouped by function.
+
+### Object Tracking
+
+    kprobe:__netif_receive_skb_core
+    {
+        $rx[arg(0)] = nsecs
+    }
+
+    kprobe:ip_rcv / $rx[arg(0)] /
+    {
+        $rx2ip.quantize(nsecs - $rx[arg(0)]);
+        $rx[arg(0)] = nil;
+    }
+
+Record the distribution of the time it takes an _skb_ to go from
+_netid_receive_ to _ip_rcv_.
+
+
 ## RETURN VALUES
-## STANDARDS
-## SECURITY CONSIDERATIONS
-## BUGS
-## HISTORY
+
+  * `0`:
+    Program was successfully compiled and loaded into the kernel.
+
+  * `Non-Zero`:
+    An error occurred during compilation or during kernel setup.
+
+
 ## AUTHOR
+
+Tobias Waldekranz, tobias@waldekranz.com
+
+
 ## COPYRIGHT
+
+Copyright 2015-2016 Tobias Waldekranz
+
+License: GPLv2
+
+
 ## SEE ALSO
+
+awk(1), dtrace(1)
