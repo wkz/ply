@@ -9,9 +9,9 @@ ply(1) -- dynamically instrument the kernel
 ## DESCRIPTION
 
 ply dynamically instruments the running kernel to aggregate and
-extract user-defined data. It compiles the input program to bpf(8)
-byte-code and attaches them to arbitrary points in the kernel using
-kprobes.
+extract user-defined data. It compiles an input program to one or more
+eBPF binaries and attaches them to arbitrary points in the kernel
+using kprobes.
 
 ## OPTIONS
 
@@ -43,7 +43,6 @@ awk's pattern-action statements. The syntax for a probe is as follows:
          statement;
         [statement; ... ]
     }
-
 
 The _provider_ selects which probe interface to use. At the moment,
 `kprobe` is the only supported provider, but the intention is that
@@ -121,30 +120,30 @@ without parenthesis, giving them a feel of being built-in variables.
 The following built-ins are defined by the _kprobe_ provider:
 
 
-  * `arg(number)` => number-expression:
+  * `arg(number)` => number:
     Returns the value of the n:th _argument_ of the function to which
     the probe was attached.
 
-  * `comm`, `execname` => string-expression:
+  * `comm`, `execname` => string:
     Returns the _name_ of the running process's executable.
 
-  * `cpu` => number-expression:
+  * `cpu` => number:
     Returns the _CPU ID_ of the processor on which the probe fired.
 
-  * `func`, `probefunc` => number-expression:
+  * `func`, `probefunc` => number:
     Returns the kernel address of the _function_ to which the probe
     was attached.
 
-  * `gid` => number-expression:
+  * `gid` => number:
     Returns the _group ID_ of the running process.
 
-  * `log2(number-expression)` => number-expression:
+  * `log2(number-expression)` => number:
     Returns the logarithm, base 2, of the argument.
 
-  * `nsecs` => number-expression:
+  * `nsecs` => number:
     Returns the time since the system started, in nanoseconds.
 
-  * `pid` => number-expression:
+  * `pid` => number:
     Returns the _process ID_ of the running process.
 
   * `printf(format [, expression, expression ... ])`:
@@ -160,55 +159,80 @@ The following built-ins are defined by the _kprobe_ provider:
     aggregation to limit the amount of data. Then, once you have
     zeroed in on the problem, printing might become useful.
 
-  * `reg(number)`, `reg(string)` => number-expression:
+  * `reg(number)`, `reg(string)` => number:
     If called with a number, it returns the value of the n:th CPU
     _register_, according to the order in the architecture specific
     _pt_regs_ struct. If called with a string, the string is looked up
     against the register names as they are defined in the _pt_regs_
     struct.
 
-  * `secs` => number-expression:
+  * `secs` => number:
     Returns the time since the system started, in seconds.
 
-  * `strcmp(string-expression, string-expression)` => number-expression:
+  * `strcmp(string-expression, string-expression)` => number:
     Returns -1, 0 or 1 if the first argument is less than, equal to or
     greater than the second argument respectively. Strings are
     compared by their lexicographical order.
 
-  * `tgid` => number-expression:
+  * `tgid` => number:
     Returns the _thread group ID_ of the running process.
 
-  * `uid` => number-expression:
+  * `uid` => number:
     Returns the _user ID_ of the running process.
 
 
-## EXAMPLES
+## EXAMPLE
 
 ### Count
 
-    kprobe:SyS_open { $opens.count() }
+Count the number of times any process in the system calls open(2):
 
-Counts the number of times any process in the system calls open(2).
+    kprobe:SyS_open
+    {
+        $opens.count()
+    }
 
-    kprobe:SyS_open { $opens[execname].count() }
 
-Counts the number of calls to open(2), grouped by executable name.
+Count the number of calls to open(2), grouped by executable name:
+
+    kprobe:SyS_open
+    {
+        $opens[execname].count()
+    }
 
 
 ### Quantize
 
-    kprobe:SyS_read { $dist.quantize(arg(2)) }
+Record the distribution of the _size_ argument to read(2):
 
-Record the distribution of the _size_ argument to read(2).
+    kprobe:SyS_read
+    {
+        $dist.quantize(arg(2))
+    }
 
 
 ### Wildcards
 
-    kprobe:SyS_* { $syscalls[func].count() }
+Count all syscalls made on the system, grouped by function:
 
-Count all syscalls made on the system, grouped by function.
+    kprobe:SyS_*
+    {
+        $syscalls[func].count()
+    }
+
+
+Count all syscalls made by every dd(1) process, grouped by function:
+
+    kprobe:SyS_* / !strcmp(execname, "dd") /
+    {
+        $syscalls[func].count()
+    }
+
 
 ### Object Tracking
+
+Record the distribution of the time it takes an _skb_ to go from
+_netif_receive_ to _ip_rcv_:
 
     kprobe:__netif_receive_skb_core
     {
@@ -221,11 +245,8 @@ Count all syscalls made on the system, grouped by function.
         $rx[arg(0)] = nil;
     }
 
-Record the distribution of the time it takes an _skb_ to go from
-_netid_receive_ to _ip_rcv_.
 
-
-## RETURN VALUES
+## RETURN VALUE
 
   * `0`:
     Program was successfully compiled and loaded into the kernel.
@@ -234,10 +255,9 @@ _netid_receive_ to _ip_rcv_.
     An error occurred during compilation or during kernel setup.
 
 
-## AUTHOR
+## AUTHORS
 
-Tobias Waldekranz, tobias@waldekranz.com
-
+Tobias Waldekranz <tobias@waldekranz.com>
 
 ## COPYRIGHT
 
