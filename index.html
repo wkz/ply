@@ -9,7 +9,7 @@
     <meta name="description" content="">
     <meta name="author" content="">
 
-    <title>ply - Light-Weight Dynamic Tracing for Linux</title>
+    <title>ply</title>
 
     <!-- Bootstrap Core CSS - Uses Bootswatch Flatly Theme: http://bootswatch.com/flatly/ -->
     <link href="css/bootstrap.min.css" rel="stylesheet">
@@ -34,45 +34,47 @@
 <body id="page-top" class="index">
 
     <!-- Navigation -->
-    <nav class="navbar navbar-default navbar-fixed-top">
-        <div class="container">
-            <!-- Brand and toggle get grouped for better mobile display -->
-            <div class="navbar-header page-scroll">
-                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
-                    <span class="sr-only">Toggle navigation</span>
-                    <span class="icon-bar"></span>
-                    <span class="icon-bar"></span>
-                    <span class="icon-bar"></span>
-                </button>
-                <a class="navbar-brand" href="#page-top">ply</a>
-            </div>
+    <!-- <nav class="navbar navbar-default navbar-fixed-top"> -->
+    <!--     <div class="container"> -->
+    <!--         <\!-- Brand and toggle get grouped for better mobile display -\-> -->
+    <!--         <div class="navbar-header page-scroll"> -->
+    <!--             <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1"> -->
+    <!--                 <span class="sr-only">Toggle navigation</span> -->
+    <!--                 <span class="icon-bar"></span> -->
+    <!--                 <span class="icon-bar"></span> -->
+    <!--                 <span class="icon-bar"></span> -->
+    <!--             </button> -->
+    <!--             <a class="navbar-brand" href="#page-top">ply</a> -->
+    <!--         </div> -->
 
-            <!-- Collect the nav links, forms, and other content for toggling -->
-            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
-                <ul class="nav navbar-nav navbar-right">
-                    <li class="hidden">
-                        <a href="#page-top"></a>
-                    </li>
-                    <li class="page-scroll">
-                        <a href="#highlights">Highlights</a>
-                    </li>
-                    <li class="page-scroll">
-                        <a href="#try-it">Try It</a>
-                    </li>
-                    <li>
-                        <a href="https://github.com/wkz/ply">Github</a>
-                    </li>
-                    <li>
-                        <a href="ply.1.html">Manual</a>
-                    </li>
-                </ul>
-            </div>
-            <!-- /.navbar-collapse -->
-        </div>
-        <!-- /.container-fluid -->
-    </nav>
+    <!--         <\!-- Collect the nav links, forms, and other content for toggling -\-> -->
+    <!--         <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1"> -->
+    <!--             <\!-- <ul class="nav navbar-nav navbar-right"> -\-> -->
+    <!--             <\!--     <li class="hidden"> -\-> -->
+    <!--             <\!--         <a href="#page-top"></a> -\-> -->
+    <!--             <\!--     </li> -\-> -->
+    <!--             <\!--     <li class="page-scroll"> -\-> -->
+    <!--             <\!--         <a href="#highlights">Highlights</a> -\-> -->
+    <!--             <\!--     </li> -\-> -->
+    <!--             <\!--     <li class="page-scroll"> -\-> -->
+    <!--             <\!--         <a href="#examples">Examples</a> -\-> -->
+    <!--             <\!--     </li> -\-> -->
+    <!--             <\!--     <li class="page-scroll"> -\-> -->
+    <!--             <\!--         <a href="#try-it">Try It</a> -\-> -->
+    <!--             <\!--     </li> -\-> -->
+    <!--             <\!--     <li> -\-> -->
+    <!--             <\!--         <a href="https://github.com/wkz/ply">Github</a> -\-> -->
+    <!--             <\!--     </li> -\-> -->
+    <!--             <\!--     <li> -\-> -->
+    <!--             <\!--         <a href="ply.1.html">Manual</a> -\-> -->
+    <!--             <\!--     </li> -\-> -->
+    <!--             <\!-- </ul> -\-> -->
+    <!--         </div> -->
+    <!--         <\!-- /.navbar-collapse -\-> -->
+    <!--     </div> -->
+    <!--     <\!-- /.container-fluid -\-> -->
+    <!-- </nav> -->
 
-    <!-- Header -->
     <header>
         <div class="container">
             <div class="row">
@@ -85,22 +87,27 @@
                     </div>
                 </div>
             </div>
+	    <div class="row">
+                <div class="col-lg-3 col-lg-offset-3 text-center">
+                    <a href="https://github.com/wkz/ply" class="btn btn-lg btn-outline">
+                        <i class="fa fa-github"></i> Fork on Github
+                    </a>
+                </div>
+                <div class="col-lg-3 text-center">
+                    <a href="ply.1.html" class="btn btn-lg btn-outline">
+                        <i class="fa fa-book"></i> Read the Manual
+                    </a>
+                </div>
+            </div>
         </div>
     </header>
 
-    <!-- Portfolio Grid Section -->
     <section id="Highlights">
         <div class="container">
             <div class="row">
-                <div class="col-lg-12 text-center">
-                    <h2>Highlights</h2>
-                    <hr class="star-primary">
-                </div>
-            </div>
-            <div class="row">
-                <div class="col-sm-6 text-center">
+                <div class="col-sm-4 text-center">
 		  <i class="fa fa-heart fa-3x"></i>
-		  <h3>Syntax</h3>
+		  <h3>Approachable</h3>
 		  <p class="text-justify">
 		    The syntax is <s>modeled on</s> stolen from
 		    Dtrace, which in turn takes its inspiration from
@@ -110,27 +117,21 @@
 		    inferred automatically, making iterating on
 		    scripts fast and easy.
 		  </p>
-		  <p class="text-justify">
-		    Here is a very simple example that counts
-		    the number of calls to <code>open(2)</code>:
-		  </p>
-		  <pre class="text-left">
-kprobe:SyS_open
-{
-    $opens.count()
-}</pre>
                 </div>
-                <div class="col-sm-6 text-center">
+                <div class="col-sm-4 text-center">
 		  <i class="fa fa-terminal fa-3x"></i>
 		  <h3>Light-Weight</h3>
 		  <p class="text-justify">
 		    Designed with embedded systems in mind. Written in
 		    C, all ply needs to run is libc and a modern Linux
-		    kernel with eBPF support. No LLVM, no python.
+		    kernel with eBPF support. No external kernel
+		    modules, no LLVM compiler, no python
+		    inerpreter. It is also very easy to add support
+		    for new architectures.
 		  </p>
                 </div>
-                <div class="col-sm-6 text-center">
-		  <i class="fa fa-tachometer fa-3x"></i>
+                <div class="col-sm-4 text-center">
+		  <i class="fa fa-rocket fa-3x"></i>
 		  <h3>Efficient</h3>
 		  <p class="text-justify">
 		    All data gathering and aggregation is done in the
@@ -145,69 +146,196 @@ kprobe:SyS_open
         </div>
     </section>
 
-    <!-- About Section -->
-    <section class="success" id="try-it">
-        <div class="container">
-            <div class="row">
-                <div class="col-lg-12 text-center">
-                    <h2>Try It</h2>
-                    <hr class="star-light">
-                </div>
-            </div>
-            <div class="row text-justify">
-                <div class="col-lg-4 col-lg-offset-2">
-                  <p>
-		    Download the source from Github. ply is known to
-		    work with Ubuntu 15.10, but should build and run
-		    equally well on any linux system with a kernel of
-		    version 4.2 or later.
-		  </p>
-                </div>
-                <div class="col-lg-4">
-                  <p>
-		    Be sure to read the manual for a more complete
-		    documentation of the syntax, built-in variables
-		    and functions and example scripts.
-		  </p>
-                </div>
-	    </div>
-	    <div class="row">
-                <div class="col-lg-4 col-lg-offset-2 text-center">
-                    <a href="https://github.com/wkz/ply" class="btn btn-lg btn-outline">
-                        <i class="fa fa-github"></i> Github
-                    </a>
-                </div>
-                <div class="col-lg-4 text-center">
-                    <a href="ply.1.html" class="btn btn-lg btn-outline">
-                        <i class="fa fa-book"></i> Manual
-                    </a>
-                </div>
-            </div>
+    <section class="success" id="examples">
+      <div class="container">
+        <div class="row">
+          <div class="col-lg-12 text-center">
+            <h2>Examples</h2>
+            <hr class="star-light">
+          </div>
         </div>
+      </div>
     </section>
+
+    <section class="" id="examples">
+        <div class="container">
+	    <div class="row text-center">
+	      <h3>Counting Syscalls</h3>
+	    </div>
+            <div class="row text-justify">
+              <div class="col-lg-4 col-lg-offset-2">
+		<pre>#!/usr/bin/env ply
+
+kprobe:SyS_*
+{
+    $syscalls[func].count()
+}</pre>
+                <p>
+		  This probe will be attached to all functions whose
+		  name starts with <code>SYS_</code>, i.e. all
+		  syscalls. On each syscall, the probe will fire and
+		  index into the user-defined
+		  map <code>$syscalls</code> using the built-in
+		  variable <code>func</code> as the key and bump a
+		  counter.
+		</p>
+		<p>
+		  ply will compile the script, attach it to the
+		  matching probes and start collecting data. On exit,
+		  ply will dump the values of all user-defined
+		  variables and maps.
+		</p>
+              </div>
+              <div class="col-lg-4">
+		<pre>wkz@wkz-box:~$ sudo ./syscall-count.ply
+331 probes active
+^Cde-activating probes
+
+$syscalls:
+sys_mprotect                   1
+sys_readv                      1
+sys_newlstat                   1
+sys_access                     2
+sys_bind                       3
+sys_getsockname                3
+sys_rt_sigaction               4
+sys_ftruncate                  4
+sys_unlink                     4
+sys_pselect6                   4
+sys_timerfd_settime            4
+sys_dup                        5
+sys_fdatasync                  5
+sys_lseek                     17
+sys_inotify_add_watch         21
+
+[ ... output redacted for clarity ... ]
+
+sys_select                 14624
+sys_munmap                 14778
+sys_mmap_pgoff             14887
+sys_epoll_wait             14898
+sys_writev                 19516
+sys_write                  22644
+sys_read                   28700
+sys_poll                   53401
+sys_futex                  78401
+sys_ioctl                 146141
+sys_recvmsg               181933</pre>
+              </div>
+	    </div>
+	    <div class="row text-center">
+	      <h3>Read Size Distribution</h3>
+	    </div>
+            <div class="row text-justify">
+              <div class="col-lg-4 col-lg-offset-2">
+		<pre>#!/usr/bin/env ply
+
+kprobe:SyS_read
+{
+    $sizes.quantize(arg(2))
+}</pre>
+                <p>
+		  This example shows a very simple script that
+		  instruments the <code>read(2)</code> syscall and
+		  records the distribution of the <code>size</code>
+		  argument, i.e. argument 2 (zero indexed), into the
+		  user-defined variable <code>$sizes</code>.
+		</p>
+              </div>
+              <div class="col-lg-4">
+		<pre>wkz@wkz-box:~$ sudo ./read-dist.ply
+1 probe active
+^Cde-activating probes
+
+$sizes:
+[   0,    1]        2089
+[   2,    4)         434
+[   4,    8)        6334
+[   8,   16)        9738
+[  16,   32)        1645
+[  32,   64)          16
+[  64,  128)          24
+[ 128,  256)          63
+[ 256,  512)         102
+[ 512,   1k)         200
+[  1k,   2k)         433
+[  2k,   4k)         750
+[  4k,   8k)        1492
+[  8k,  16k)        1157
+[ 16k,  32k)        5703
+[ 32k,  64k)          26
+[ 64k, 128k)          48</pre>
+              </div>
+	    </div>
+	    <div class="row text-center">
+	      <h3>Socket Buffer tracking</h3>
+	    </div>
+            <div class="row text-justify">
+              <div class="col-lg-4 col-lg-offset-2">
+		<pre>#!/usr/bin/env ply
+
+kprobe:__netif_receive_skb_core
+{
+	$rx[arg(0)] = nsecs;
+}
+
+kprobe:ip_rcv / $rx[arg(0)] /
+{
+	$t.quantize(nsecs - $rx[arg(0)]);
+	$rx[arg(0)] = nil;
+}
+</pre>
+                <p>
+		  Record the distribution of the time it takes
+		  an <code>skb</code> to move
+		  from <code>__netif_receive_skb_core</code>
+		  to <code>ip_rcv</code>.
+		</p>
+		<p>
+		  In the first probe, a
+		  timestamp is stored in <code>$rx</code> using
+		  the <code>skb</code> pointer as the key. The second
+		  probe is then allowed to run if
+		  that <code>skb</code> is a valid key
+		  in <code>$rx</code>.
+		</p>
+		<p>
+		  Then the difference with the current timestamp is
+		  calculated and its distribution stored
+		  in <code>$t</code>. As a final step, the original
+		  timestamp is removed so that the map will not fill
+		  up with useless entries.
+		</p>
+		<p>
+		  Notice that the unit here is nanoseconds. For
+		  example, the median time in this case lays somewhere
+		  between 1 and 2 microseconds (1-2k nanoseconds).
+		</p>
+              </div>
+              <div class="col-lg-4">
+		<pre>wkz@wkz-box:~$ sudo ./skb-track.ply
+2 probes active
+^Cde-activating probes
+
+$rx:
+
+$t:
+[ 512,   1k)	    1041
+[  1k,   2k)	    5972
+[  2k,   4k)	    3439
+[  4k,   8k)	     655
+[  8k,  16k)	      39
+[ 16k,  32k)	       2
+[ 32k,  64k)	      10
+[ 64k, 128k)	       1
+[  1M,   2M)	       1
+</pre>
+              </div>
+	    </div>
+     </section>
 
     <!-- Footer -->
     <footer class="text-center">
-        <div class="footer-above">
-            <div class="container">
-                <div class="row">
-                    <div class="footer-col col-md-4 col-md-offset-4">
-                      <ul class="list-inline">
-                            <li>
-                              <a href="https://github.com/wkz" class="btn-social btn-outline">
-				<i class="fa fa-fw fa-github"></i>
-			      </a>
-                            </li>
-                            <li>
-                              <a href="mailto:tobias@waldekranz.com" class="btn-social btn-outline">
-				<i class="fa fa-fw fa-envelope"></i>
-			      </a>
-                            </li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </div>
         <div class="footer-below">
             <div class="container">
                 <div class="row">
