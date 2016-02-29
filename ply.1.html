@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv='content-type' value='text/html;charset=utf8'>
+  <meta name='generator' value='Ronn/v0.7.3 (http://github.com/rtomayko/ronn/tree/0.7.3)'>
+  <title>ply(1) - dynamically instrument the kernel</title>
+  <style type='text/css' media='all'>
+  /* style: man */
+  body#manpage {margin:0}
+  .mp {max-width:100ex;padding:0 9ex 1ex 4ex}
+  .mp p,.mp pre,.mp ul,.mp ol,.mp dl {margin:0 0 20px 0}
+  .mp h2 {margin:10px 0 0 0}
+  .mp > p,.mp > pre,.mp > ul,.mp > ol,.mp > dl {margin-left:8ex}
+  .mp h3 {margin:0 0 0 4ex}
+  .mp dt {margin:0;clear:left}
+  .mp dt.flush {float:left;width:8ex}
+  .mp dd {margin:0 0 0 9ex}
+  .mp h1,.mp h2,.mp h3,.mp h4 {clear:left}
+  .mp pre {margin-bottom:20px}
+  .mp pre+h2,.mp pre+h3 {margin-top:22px}
+  .mp h2+pre,.mp h3+pre {margin-top:5px}
+  .mp img {display:block;margin:auto}
+  .mp h1.man-title {display:none}
+  .mp,.mp code,.mp pre,.mp tt,.mp kbd,.mp samp,.mp h3,.mp h4 {font-family:monospace;font-size:14px;line-height:1.42857142857143}
+  .mp h2 {font-size:16px;line-height:1.25}
+  .mp h1 {font-size:20px;line-height:2}
+  .mp {text-align:justify;background:#fff}
+  .mp,.mp code,.mp pre,.mp pre code,.mp tt,.mp kbd,.mp samp {color:#131211}
+  .mp h1,.mp h2,.mp h3,.mp h4 {color:#030201}
+  .mp u {text-decoration:underline}
+  .mp code,.mp strong,.mp b {font-weight:bold;color:#131211}
+  .mp em,.mp var {font-style:italic;color:#232221;text-decoration:none}
+  .mp a,.mp a:link,.mp a:hover,.mp a code,.mp a pre,.mp a tt,.mp a kbd,.mp a samp {color:#0000ff}
+  .mp b.man-ref {font-weight:normal;color:#434241}
+  .mp pre {padding:0 4ex}
+  .mp pre code {font-weight:normal;color:#434241}
+  .mp h2+pre,h3+pre {padding-left:0}
+  ol.man-decor,ol.man-decor li {margin:3px 0 10px 0;padding:0;float:left;width:33%;list-style-type:none;text-transform:uppercase;color:#999;letter-spacing:1px}
+  ol.man-decor {width:100%}
+  ol.man-decor li.tl {text-align:left}
+  ol.man-decor li.tc {text-align:center;letter-spacing:4px}
+  ol.man-decor li.tr {text-align:right;float:right}
+  </style>
+  <style type='text/css' media='all'>
+  /* style: toc */
+  .man-navigation {display:block !important;position:fixed;top:0;left:113ex;height:100%;width:100%;padding:48px 0 0 0;border-left:1px solid #dbdbdb;background:#eee}
+  .man-navigation a,.man-navigation a:hover,.man-navigation a:link,.man-navigation a:visited {display:block;margin:0;padding:5px 2px 5px 30px;color:#999;text-decoration:none}
+  .man-navigation a:hover {color:#111;text-decoration:underline}
+  </style>
+</head>
+<!--
+  The following styles are deprecated and will be removed at some point:
+  div#man, div#man ol.man, div#man ol.head, div#man ol.man.
+
+  The .man-page, .man-decor, .man-head, .man-foot, .man-title, and
+  .man-navigation should be used instead.
+-->
+<body id='manpage'>
+  <div class='mp' id='man'>
+
+  <div class='man-navigation' style='display:none'>
+    <a href="#NAME">NAME</a>
+    <a href="#SYNOPSIS">SYNOPSIS</a>
+    <a href="#DESCRIPTION">DESCRIPTION</a>
+    <a href="#OPTIONS">OPTIONS</a>
+    <a href="#SYNTAX">SYNTAX</a>
+    <a href="#BUILT-INS">BUILT-INS</a>
+    <a href="#EXAMPLE">EXAMPLE</a>
+    <a href="#RETURN-VALUE">RETURN VALUE</a>
+    <a href="#AUTHORS">AUTHORS</a>
+    <a href="#COPYRIGHT">COPYRIGHT</a>
+    <a href="#SEE-ALSO">SEE ALSO</a>
+  </div>
+
+  <ol class='man-decor man-head man head'>
+    <li class='tl'>ply(1)</li>
+    <li class='tc'>ply Manual</li>
+    <li class='tr'>ply(1)</li>
+  </ol>
+
+  <h2 id="NAME">NAME</h2>
+<p class="man-name">
+  <code>ply</code> - <span class="man-whatis">dynamically instrument the kernel</span>
+</p>
+
+<h2 id="SYNOPSIS">SYNOPSIS</h2>
+
+<p><code>ply</code> <var>program-file</var> <br />
+<code>ply</code> -c <var>program-text</var></p>
+
+<h2 id="DESCRIPTION">DESCRIPTION</h2>
+
+<p>ply dynamically instruments the running kernel to aggregate and
+extract user-defined data. It compiles an input program to one or more
+eBPF binaries and attaches them to arbitrary points in the kernel
+using kprobes.</p>
+
+<h2 id="OPTIONS">OPTIONS</h2>
+
+<dl>
+<dt><code>-c</code>, <code>--command</code></dt><dd><p>The program is supplied as an argument, rather than in a file.</p></dd>
+<dt><code>-d</code>, <code>--debug</code></dt><dd><p>Enable debugging output.</p></dd>
+<dt><code>-D</code>, <code>--dump</code></dt><dd><p>Do not execute the program, instead dump the generated eBPF
+instructions.</p></dd>
+<dt><code>-t</code>, <code>--timeout</code>=<var>seconds</var></dt><dd><p>Terminate the program after the specified time.</p></dd>
+</dl>
+
+
+<h2 id="SYNTAX">SYNTAX</h2>
+
+<p>Much of the syntax is borrowed (i.e. stolen) from <a class="man-ref" href="https://docs.oracle.com/cd/E23823_01/html/816-5166/dtrace-1m.html">dtrace<span class="s">(1)</span></a>, which in
+turn takes a lot of inspiration from <a class="man-ref" href="http://man7.org/linux/man-pages/man1/gawk.1.html">awk<span class="s">(1)</span></a>.</p>
+
+<h3 id="Probes">Probes</h3>
+
+<p>A program consists of one or more <em>probes</em>, which are analogous to
+awk's pattern-action statements. The syntax for a probe is as follows:</p>
+
+<pre><code>provider:probe-definition [/ predicate /]
+{
+     statement;
+    [statement; ... ]
+}
+</code></pre>
+
+<p>The <em>provider</em> selects which probe interface to use. At the moment,
+<code>kprobe</code> is the only supported provider, but the intention is that
+this can be extended with <code>uprobe</code> for example. It is then up to the
+provider to parse the <em>probe-definition</em> to determine the point(s) of
+instrumentation.</p>
+
+<p>Due to the limitations imposed by the kernel on eBPF programs, no loop
+constructs are allowed. Conditionals could be implemented but have
+thus far not been. However, it is possible to perform some filtering
+by specifying a <em>predicate</em>, i.e. an expression that must evaluate to
+<em>true</em> in order for the probe to be executed.</p>
+
+<p>Then follows the <em>statements</em> that perform the actual information
+gathering. All but the last statement of a probe must be terminated
+with a semi-colon. Specifically, a simple probe containing only one
+statement does not need one.</p>
+
+<h3 id="Maps-and-Variables">Maps and Variables</h3>
+
+<p>The primary way to extract information is to store it in user-defined
+variables. Like in <a class="man-ref" href="http://man7.org/linux/man-pages/man1/gawk.1.html">awk<span class="s">(1)</span></a> they are dynamically created and their types
+are inferred. ply uses a very simple type system with 3 types:</p>
+
+<dl>
+<dt class="flush"><code>Numbers</code></dt><dd><p>Represented as 64-bit signed integers, initialized to zero (0).</p></dd>
+<dt class="flush"><code>Strings</code></dt><dd><p>Of arbitrary length, initialized to the empty string.</p></dd>
+<dt class="flush"><code>Records</code></dt><dd><p>Compound type holding any number of <code>Numbers</code> and <code>Strings</code> with
+each component initialized to its zero value.</p></dd>
+</dl>
+
+
+<p>The syntax is as follows:</p>
+
+<pre><code>$varname
+$mapname[expression &lt;, expression ... &gt;]
+</code></pre>
+
+<p>Variable names follow the familiar rules of C identifiers, with the
+added constraints that they must begin with a dollar sign (<code>$</code>). A map
+is simply a variable concatenated with a record, i.e one or more
+expressions that are used as the index into the map.</p>
+
+<p>The simplest way to store data in variables is to assign a value to
+them:</p>
+
+<pre><code>$varname = expression
+</code></pre>
+
+<p>If a variable is assigned the special value <em>nil</em>, the variable is
+deleted and will return its zero value if referenced again.</p>
+
+<p>A more common way to store data is to use <em>methods</em>, i.e. functions
+that operate on the data stored in a variable or map:</p>
+
+<pre><code>$varname.method([expression, expression ... ])
+</code></pre>
+
+<dl>
+<dt><code>.count()</code></dt><dd><p>Bumps a counter.</p></dd>
+<dt><code>.quantize(number-expression)</code></dt><dd><p>Evaluates the argument and aggregates on the most significant bit
+of the result. In other words, it stores the distribution of the
+expression.</p></dd>
+</dl>
+
+
+<h2 id="BUILT-INS">BUILT-INS</h2>
+
+<p>Each <em>provider</em> may declare any number of built-in functions. Function
+calls use the same syntax as most languages that inherit from
+C. Additionally, functions which take no argument may be called
+without parenthesis, giving them a feel of being built-in variables.</p>
+
+<p>The following built-ins are defined by the <em>kprobe</em> provider:</p>
+
+<dl>
+<dt><code>arg(number)</code> => number</dt><dd><p>Returns the value of the n:th <em>argument</em> of the function to which
+the probe was attached.</p></dd>
+<dt><code>comm</code>, <code>execname</code> => string</dt><dd><p>Returns the <em>name</em> of the running process's executable.</p></dd>
+<dt><code>cpu</code> => number</dt><dd><p>Returns the <em>CPU ID</em> of the processor on which the probe fired.</p></dd>
+<dt><code>func</code>, <code>probefunc</code> => number</dt><dd><p>Returns the kernel address of the <em>function</em> to which the probe
+was attached.</p></dd>
+<dt><code>gid</code> => number</dt><dd><p>Returns the <em>group ID</em> of the running process.</p></dd>
+<dt><code>log2(number-expression)</code> => number</dt><dd><p>Returns the logarithm, base 2, of the argument.</p></dd>
+<dt><code>nsecs</code> => number</dt><dd><p>Returns the time since the system started, in nanoseconds.</p></dd>
+<dt><code>pid</code> => number</dt><dd><p>Returns the <em>process ID</em> of the running process.</p></dd>
+<dt><code>printf(format [, expression, expression ... ])</code></dt><dd><p>Prints <em>formatted output</em> to ply's standard out.</p>
+
+<p>Beware that while there are times when it is useful to print data
+from a probe, it is very often not the best way of obtaining the
+insight that is sought.</p>
+
+<p>Many of the kernel's functions may be called at rates well above
+the 1k calls/s mark, at which point making sense of print output
+becomes very hard. In such cases, consider using some type of
+aggregation to limit the amount of data. Then, once you have
+zeroed in on the problem, printing might become useful.</p></dd>
+<dt><code>reg(number)</code>, <code>reg(string)</code> => number</dt><dd><p>If called with a number, it returns the value of the n:th CPU
+<em>register</em>, according to the order in the architecture specific
+<em>pt_regs</em> struct. If called with a string, the string is looked up
+against the register names as they are defined in the <em>pt_regs</em>
+struct.</p></dd>
+<dt><code>secs</code> => number</dt><dd><p>Returns the time since the system started, in seconds.</p></dd>
+<dt><code>strcmp(string-expression, string-expression)</code> => number</dt><dd><p>Returns -1, 0 or 1 if the first argument is less than, equal to or
+greater than the second argument respectively. Strings are
+compared by their lexicographical order.</p></dd>
+<dt><code>tgid</code> => number</dt><dd><p>Returns the <em>thread group ID</em> of the running process.</p></dd>
+<dt><code>uid</code> => number</dt><dd><p>Returns the <em>user ID</em> of the running process.</p></dd>
+</dl>
+
+
+<h2 id="EXAMPLE">EXAMPLE</h2>
+
+<h3 id="Count">Count</h3>
+
+<p>Count the number of times any process in the system calls <span class="man-ref">open<span class="s">(2)</span></span>:</p>
+
+<pre><code>kprobe:SyS_open
+{
+    $opens.count()
+}
+</code></pre>
+
+<p>Count the number of calls to <span class="man-ref">open<span class="s">(2)</span></span>, grouped by executable name:</p>
+
+<pre><code>kprobe:SyS_open
+{
+    $opens[execname].count()
+}
+</code></pre>
+
+<h3 id="Quantize">Quantize</h3>
+
+<p>Record the distribution of the <em>size</em> argument to <span class="man-ref">read<span class="s">(2)</span></span>:</p>
+
+<pre><code>kprobe:SyS_read
+{
+    $dist.quantize(arg(2))
+}
+</code></pre>
+
+<h3 id="Wildcards">Wildcards</h3>
+
+<p>Count all syscalls made on the system, grouped by function:</p>
+
+<pre><code>kprobe:SyS_*
+{
+    $syscalls[func].count()
+}
+</code></pre>
+
+<p>Count all syscalls made by every <span class="man-ref">dd<span class="s">(1)</span></span> process, grouped by function:</p>
+
+<pre><code>kprobe:SyS_* / !strcmp(execname, "dd") /
+{
+    $syscalls[func].count()
+}
+</code></pre>
+
+<h3 id="Object-Tracking">Object Tracking</h3>
+
+<p>Record the distribution of the time it takes an <em>skb</em> to go from
+<em>netif_receive</em> to <em>ip_rcv</em>:</p>
+
+<pre><code>kprobe:__netif_receive_skb_core
+{
+    $rx[arg(0)] = nsecs
+}
+
+kprobe:ip_rcv / $rx[arg(0)] /
+{
+    $rx2ip.quantize(nsecs - $rx[arg(0)]);
+    $rx[arg(0)] = nil;
+}
+</code></pre>
+
+<h2 id="RETURN-VALUE">RETURN VALUE</h2>
+
+<dl>
+<dt class="flush"><code>0</code></dt><dd><p>Program was successfully compiled and loaded into the kernel.</p></dd>
+<dt><code>Non-Zero</code></dt><dd><p>An error occurred during compilation or during kernel setup.</p></dd>
+</dl>
+
+
+<h2 id="AUTHORS">AUTHORS</h2>
+
+<p>Tobias Waldekranz <a href="&#109;&#97;&#x69;&#x6c;&#x74;&#x6f;&#58;&#116;&#x6f;&#98;&#x69;&#97;&#115;&#x40;&#x77;&#97;&#108;&#x64;&#x65;&#107;&#114;&#97;&#x6e;&#122;&#x2e;&#99;&#x6f;&#109;" data-bare-link="true">&#116;&#111;&#98;&#105;&#97;&#x73;&#64;&#x77;&#97;&#108;&#x64;&#101;&#107;&#114;&#97;&#x6e;&#x7a;&#x2e;&#x63;&#x6f;&#109;</a></p>
+
+<h2 id="COPYRIGHT">COPYRIGHT</h2>
+
+<p>Copyright 2015-2016 Tobias Waldekranz</p>
+
+<p>License: GPLv2</p>
+
+<h2 id="SEE-ALSO">SEE ALSO</h2>
+
+<p><a class="man-ref" href="http://man7.org/linux/man-pages/man1/gawk.1.html">awk<span class="s">(1)</span></a>, <a class="man-ref" href="https://docs.oracle.com/cd/E23823_01/html/816-5166/dtrace-1m.html">dtrace<span class="s">(1)</span></a></p>
+
+
+  <ol class='man-decor man-foot man foot'>
+    <li class='tl'>ply</li>
+    <li class='tc'>February 2016</li>
+    <li class='tr'>ply(1)</li>
+  </ol>
+
+  </div>
+</body>
+</html>
