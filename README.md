@@ -10,6 +10,26 @@ heavily from [Dtrace][2], but is more limited in scope.
 For a more complete documentation of the ply-script language, see
 [wkz.github.io/ply][3].
 
+Build and Installation
+----------------------
+
+`ply` uses GNU's autotools as its build system. When building from
+a Git clone, use the following steps:
+
+```
+./autogen.sh   # to generate the configure script
+./configure
+make
+make install   # you probably need to be root for this
+```
+
+If you are *not* building against the kernel that your distro has
+installed, you need to tell `configure` where to find it:
+
+```
+./configure --with-kerneldir=/path/to/shiny/linux
+```
+
 Examples
 -------
 
