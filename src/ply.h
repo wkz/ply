@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <errno.h>
 #include <stdio.h>
 
 #include "lang/ast.h"
