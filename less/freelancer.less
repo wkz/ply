@@ -261,6 +261,23 @@ section.success {
 	}
 }
 
+.btn-outline-success {
+	color: @brand-success;
+	font-size: 20px;
+	border: solid 2px @brand-success;
+	background: transparent;
+	transition: all 0.3s ease-in-out;
+	margin-top: 15px;
+	&:hover,
+	&:focus,
+	&:active,
+	&.active {
+		color: white;
+		background: @brand-success;
+		border: solid 2px white;
+	}
+}
+
 .floating-label-form-group {
     position: relative;
     margin-bottom: 0;

@@ -617,6 +617,22 @@ section.success a.active {
   background: white;
   border: solid 2px white;
 }
+.btn-outline-success {
+  color: #2c3e50;
+  font-size: 20px;
+  border: solid 2px #2c3e50;
+  background: transparent;
+  transition: all 0.3s ease-in-out;
+  margin-top: 15px;
+}
+.btn-outline-success:hover,
+.btn-outline-success:focus,
+.btn-outline-success:active,
+.btn-outline-success.active {
+  color: white;
+  background: #2c3e50;
+  border: solid 2px white;
+}
 .floating-label-form-group {
   position: relative;
   margin-bottom: 0;
