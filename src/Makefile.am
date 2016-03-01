@@ -23,5 +23,17 @@ if ARCH_X86_64
 ply_SOURCES  += pvdr/arch-x86_64.c
 endif
 
+if KERNEL_DIR
+BUILT_SOURCES += .kernel/include/linux/version.h
+ply_CFLAGS    += -I .kernel/include
+
+.kernel/include/linux/version.h:
+	@echo "  HEADERS  @kerneldir@"
+	@make -C @kerneldir@ INSTALL_HDR_PATH=$(shell pwd)/.kernel headers_install
+
+distclean-local:
+	rm -rf .kernel
+endif
+
 clean-local:
 	rm lang/lex.[ch] lang/parse.[ch]

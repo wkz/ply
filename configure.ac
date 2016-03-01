@@ -22,6 +22,13 @@ AC_ARG_ENABLE(debug,
    [AS_HELP_STRING([--enable-debug], [Enable debug mode, also set CFLAGS="-g -O0".])],
    AC_DEFINE(DEBUG, 1, [Define to enable debug mode.]))
 
+AC_ARG_WITH([kerneldir],
+  [AS_HELP_STRING([--with-kerneldir=DIR], [Custom kernel to build against])],
+  [kerneldir=$withval],
+  [kerneldir=no])
+AC_SUBST([kerneldir], [$kerneldir])
+AM_CONDITIONAL([KERNEL_DIR], [test x$kerneldir != xno])
+
 AC_CANONICAL_HOST
 AM_CONDITIONAL([ARCH_X86_64], [test x$host_cpu = xx86_64])
 AM_CONDITIONAL([ARCH_ARM],    [test x$host_cpu = xarm])

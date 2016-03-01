@@ -17,6 +17,7 @@ Makefile.in
 /install-sh
 /missing
 /ylwrap
+/src/.kernel
 /src/config.h*
 /src/stamp-h1
 
