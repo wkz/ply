@@ -33,15 +33,26 @@ int debug = 0;
 int dump = 0;
 int timeout = 0;
 
-static const char *sopts = "cdDt:";
+static const char *sopts = "cdDht:";
 static struct option lopts[] = {
 	{ "command", no_argument,       0, 'c' },
 	{ "debug",   no_argument,       0, 'd' },
 	{ "dump",    no_argument,       0, 'D' },
+	{ "help",    no_argument,       0, 'h' },
 	{ "timeout", required_argument, 0, 't' },
 
 	{ NULL }
 };
+
+void usage()
+{
+	printf("USAGE: ply [options] { scriptfile | -c 'program text' }\n\n");
+	printf("       -c 'program'	# execute specified program\n");
+	printf("       -d		# include compilation debug info\n");
+	printf("       -D		# dump BPF, and do not run\n");
+	printf("       -h		# usage message (this)\n");
+	printf("       -t timeout	# run duration (seconds)\n");
+}
 
 int parse_opts(int argc, char **argv, FILE **sfp)
 {
@@ -59,6 +70,9 @@ int parse_opts(int argc, char **argv, FILE **sfp)
 		case 'D':
 			dump++;
 			break;
+		case 'h':
+			usage();
+			exit(0);
 		case 't':
 			timeout = strtol(optarg, NULL, 0);
 			if (timeout <= 0) {
@@ -67,7 +81,7 @@ int parse_opts(int argc, char **argv, FILE **sfp)
 			}
 			break;
 		default:
-			_e("unknown option '%c'", opt);
+			_e("unknown option '%c'. Try -h for usage.", opt);
 			return -EINVAL;
 		}
 	}
