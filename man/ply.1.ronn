@@ -120,8 +120,9 @@ The following built-ins are defined by the _kprobe_ provider:
 
 
   * `arg(number)` => number:
-    Returns the value of the n:th _argument_ of the function to which
-    the probe was attached.
+    Returns the value of the specified _argument_ of the function to which
+    the probe was attached. arg(0) is the 1st argument, arg(1) is the 2nd,
+    and so on.
 
   * `comm`, `execname` => string:
     Returns the _name_ of the running process's executable.
