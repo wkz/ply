@@ -3,12 +3,16 @@ ply
 
 A dynamic tracer for Linux.
 
-`ply` compiles ply-scripts into [EBPF][1] programs that can be
-attached to kprobes in the kernel. The scripting language borrows
-heavily from [Dtrace][2], but is more limited in scope.
+`ply` compiles ply-scripts into Linux [BPF][1] programs that can be
+attached to kprobes in the kernel. The script has a C-like syntax,
+taking inspiration from `awk(1)`. The compiler is very rudimentary and
+only supports a handful of built-in functions and access to CPU
+registers in probes at present. On the other hand, the only run-time
+dependency is libc, which means you can run it on just about any Linux
+based system with a modern kernel.
 
 For a more complete documentation of the ply-script language, see
-[wkz.github.io/ply][3].
+[wkz.github.io/ply][2].
 
 Build and Installation
 ----------------------
@@ -158,17 +162,16 @@ Motivation
 ----------
 
 The intention of `ply` is to be a lightweight alternative to
-[bcc][4]. Both in terms of dependencies and in usage. `bcc` requires
+[bcc][3]. Both in terms of dependencies and in usage. `bcc` requires
 LLVM which rules out many embedded platforms. `ply` has no run-time
 dependencies and only depends on flex and bison to build. By using the
-[Little Language][5] approach, scripts are easy to write and
+[Little Language][4] approach, scripts are easy to write and
 modify. C, while being an extremely powerful and elegant language does
 not offer the same exploratory feeling as say `awk`, which `ply` more
 closely resembles.
 
 
 [1]: https://www.kernel.org/doc/Documentation/networking/filter.txt
-[2]: http://dtrace.org/blogs/about/
-[3]: https://wkz.github.io/ply
-[4]: https://github.com/iovisor/bcc
-[5]: http://c2.com/cgi/wiki?LittleLanguage
+[2]: https://wkz.github.io/ply
+[3]: https://github.com/iovisor/bcc
+[4]: http://c2.com/cgi/wiki?LittleLanguage
