@@ -92,7 +92,7 @@
 
 <p>ply dynamically instruments the running kernel to aggregate and
 extract user-defined data. It compiles an input program to one or more
-eBPF binaries and attaches them to arbitrary points in the kernel
+Linux BPF binaries and attaches them to arbitrary points in the kernel
 using kprobes.</p>
 
 <h2 id="OPTIONS">OPTIONS</h2>
@@ -100,7 +100,7 @@ using kprobes.</p>
 <dl>
 <dt><code>-c</code>, <code>--command</code></dt><dd><p>The program is supplied as an argument, rather than in a file.</p></dd>
 <dt><code>-d</code>, <code>--debug</code></dt><dd><p>Enable debugging output.</p></dd>
-<dt><code>-D</code>, <code>--dump</code></dt><dd><p>Do not execute the program, instead dump the generated eBPF
+<dt><code>-D</code>, <code>--dump</code></dt><dd><p>Do not execute the program, instead dump the generated Linux BPF
 instructions.</p></dd>
 <dt><code>-t</code>, <code>--timeout</code>=<var>seconds</var></dt><dd><p>Terminate the program after the specified time.</p></dd>
 </dl>
@@ -108,8 +108,7 @@ instructions.</p></dd>
 
 <h2 id="SYNTAX">SYNTAX</h2>
 
-<p>Much of the syntax is borrowed (i.e. stolen) from <a class="man-ref" href="https://docs.oracle.com/cd/E23823_01/html/816-5166/dtrace-1m.html">dtrace<span class="s">(1)</span></a>, which in
-turn takes a lot of inspiration from <a class="man-ref" href="http://man7.org/linux/man-pages/man1/gawk.1.html">awk<span class="s">(1)</span></a>.</p>
+<p>The syntax is C-like in general, taking its inspiration from <a class="man-ref" href="http://man7.org/linux/man-pages/man1/gawk.1.html">awk<span class="s">(1)</span></a>.</p>
 
 <h3 id="Probes">Probes</h3>
 
@@ -129,11 +128,11 @@ this can be extended with <code>uprobe</code> for example. It is then up to the
 provider to parse the <em>probe-definition</em> to determine the point(s) of
 instrumentation.</p>
 
-<p>Due to the limitations imposed by the kernel on eBPF programs, no loop
-constructs are allowed. Conditionals could be implemented but have
-thus far not been. However, it is possible to perform some filtering
-by specifying a <em>predicate</em>, i.e. an expression that must evaluate to
-<em>true</em> in order for the probe to be executed.</p>
+<p>Due to the limitations imposed by the kernel on Linux BPF programs, no
+loop constructs are allowed. Conditionals could be implemented but
+have thus far not been. However, it is possible to perform some
+filtering by specifying a <em>predicate</em>, i.e. an expression that must
+evaluate to <em>true</em> in order for the probe to be executed.</p>
 
 <p>Then follows the <em>statements</em> that perform the actual information
 gathering. All but the last statement of a probe must be terminated
@@ -308,7 +307,7 @@ kprobe:ip_rcv / $rx[arg(0)] /
 
 <h2 id="AUTHORS">AUTHORS</h2>
 
-<p>Tobias Waldekranz <a href="&#109;&#97;&#x69;&#x6c;&#x74;&#x6f;&#58;&#116;&#x6f;&#98;&#x69;&#97;&#115;&#x40;&#x77;&#97;&#108;&#x64;&#x65;&#107;&#114;&#97;&#x6e;&#122;&#x2e;&#99;&#x6f;&#109;" data-bare-link="true">&#116;&#111;&#98;&#105;&#97;&#x73;&#64;&#x77;&#97;&#108;&#x64;&#101;&#107;&#114;&#97;&#x6e;&#x7a;&#x2e;&#x63;&#x6f;&#109;</a></p>
+<p>Tobias Waldekranz <a href="&#x6d;&#97;&#105;&#108;&#x74;&#111;&#x3a;&#x74;&#x6f;&#98;&#x69;&#x61;&#x73;&#64;&#119;&#x61;&#x6c;&#x64;&#101;&#107;&#x72;&#97;&#110;&#122;&#x2e;&#x63;&#111;&#109;" data-bare-link="true">&#x74;&#x6f;&#x62;&#105;&#97;&#115;&#64;&#x77;&#97;&#x6c;&#100;&#x65;&#107;&#114;&#97;&#x6e;&#122;&#46;&#99;&#x6f;&#x6d;</a></p>
 
 <h2 id="COPYRIGHT">COPYRIGHT</h2>
 
@@ -318,12 +317,12 @@ kprobe:ip_rcv / $rx[arg(0)] /
 
 <h2 id="SEE-ALSO">SEE ALSO</h2>
 
-<p><a class="man-ref" href="http://man7.org/linux/man-pages/man1/gawk.1.html">awk<span class="s">(1)</span></a>, <a class="man-ref" href="https://docs.oracle.com/cd/E23823_01/html/816-5166/dtrace-1m.html">dtrace<span class="s">(1)</span></a></p>
+<p><a class="man-ref" href="http://man7.org/linux/man-pages/man1/gawk.1.html">awk<span class="s">(1)</span></a></p>
 
 
   <ol class='man-decor man-foot man foot'>
     <li class='tl'>ply</li>
-    <li class='tc'>February 2016</li>
+    <li class='tc'>March 2016</li>
     <li class='tr'>ply(1)</li>
   </ol>
 
