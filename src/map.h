@@ -22,6 +22,7 @@
 #include "lang/ast.h"
 
 void dump_sym(FILE *fp, node_t *integer, void *data);
+void dump_rec(FILE *fp, node_t *rec, void *data, int len);
 int  cmp_node(node_t *n, const void *a, const void *b);
 
 int map_setup   (node_t *script);

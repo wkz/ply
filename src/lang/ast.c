@@ -263,8 +263,10 @@ node_t *node_rec_new(node_t *vargs)
 
 	n->rec.vargs = vargs;
 
-	node_foreach(c, vargs)
+	node_foreach(c, vargs) {
 		c->parent = n;
+		n->rec.n_vargs++;
+	}
 	return n;
 }
 
@@ -437,8 +439,10 @@ node_t *node_call_new(char *func, node_t *vargs)
 	n->string = func;
 	n->call.vargs = vargs;
 
-	node_foreach(c, vargs)
+	node_foreach(c, vargs) {
 		c->parent = n;
+		n->call.n_vargs++;
+	}
 	return n;
 }
 

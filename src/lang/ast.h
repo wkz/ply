@@ -74,6 +74,7 @@ typedef struct mdyn mdyn_t;
 typedef struct pvdr pvdr_t;
 
 typedef struct rec {
+	int     n_vargs;
 	node_t *vargs;
 } rec_t;
 
@@ -105,6 +106,7 @@ typedef struct method {
 } method_t;
 
 typedef struct call {
+	int     n_vargs;
 	node_t *vargs;
 } call_t;
 
@@ -140,8 +142,9 @@ typedef enum type {
 
 const char *type_str(type_t type);
 
-typedef void (*dumper_t)(FILE *fp, node_t *n, void *data);
-typedef int   (*cmper_t)(node_t *n, const void *a, const void *b);
+typedef void  (*dumper_t)(FILE *fp, node_t *n, void *data);
+typedef void (*mdumper_t)(FILE *fp, node_t *n, void *data, int len);
+typedef int    (*cmper_t)(node_t *n, const void *a, const void *b);
 
 struct mdyn {
 	mdyn_t *next, *prev;
@@ -149,8 +152,8 @@ struct mdyn {
 	node_t *map;
 	int     mapfd;
 
-	dumper_t dump;
-	cmper_t  cmp;
+	mdumper_t dump;
+	cmper_t   cmp;
 };
 
 typedef enum loc {

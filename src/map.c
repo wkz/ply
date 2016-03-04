@@ -29,6 +29,8 @@
 #include "bpf-syscall.h"
 #include "map.h"
 
+static void dump_node(FILE *fp, node_t *n, void *data);
+
 void dump_sym(FILE *fp, node_t *integer, void *data)
 {
 	uint64_t *target = data;
@@ -92,10 +94,44 @@ static void dump_str(FILE *fp, node_t *str, void *data)
 	fprintf(fp, "%-*.*s", size, size, (const char *)data);
 }
 
-static void dump_node(FILE *fp, node_t *n, void *data)
+void dump_rec(FILE *fp, node_t *rec, void *data, int len)
 {
 	node_t *first, *varg;
+	int brackets = 0;
 
+	if (rec->parent->type == TYPE_MAP && rec->parent->map.is_var) {
+		len--;
+		first = rec->rec.vargs->next;
+		data += rec->rec.vargs->dyn.size;
+	} else {
+		first = rec->rec.vargs;
+	}
+
+	if (!first || !len)
+		return;
+
+	if (first->next && (len > 1)) {
+		fputs("[ ", fp);
+		brackets = 1;
+	}
+
+	node_foreach(varg, first) {
+		if (varg != first)
+			fputs(", ", fp);
+
+		dump_node(fp, varg, data);
+		data += varg->dyn.size;
+
+		if (!(--len))
+			break;
+	}
+
+	if (brackets)
+		fputs(" ]", fp);
+}
+
+static void dump_node(FILE *fp, node_t *n, void *data)
+{
 	if (n->dump) {
 		n->dump(fp, n, data);
 		return;
@@ -109,29 +145,7 @@ static void dump_node(FILE *fp, node_t *n, void *data)
 		dump_str(fp, n, data);
 		break;
 	case TYPE_REC:
-		if (n->parent->type == TYPE_MAP && n->parent->map.is_var) {
-			first = n->rec.vargs->next;
-			data += n->rec.vargs->dyn.size;
-		} else {
-			first = n->rec.vargs;
-		}
-
-		if (!first)
-			break;
-
-		if (first->next)
-			fputs("[ ", fp);
-
-		node_foreach(varg, first) {
-			if (varg != first)
-				fputs(", ", fp);
-
-			dump_node(fp, varg, data);
-			data += varg->dyn.size;
-		}
-
-		if (first->next)
-			fputs(" ]", fp);
+		dump_rec(fp, n, data, n->rec.n_vargs);
 		break;
 	default:
 		_e("unknown node type  %d", n->dyn.type);
@@ -214,7 +228,6 @@ void dump_mdyn(mdyn_t *mdyn)
 	node_t *map = mdyn->map, *rec = map->map.rec;
 	size_t entry_size = rec->dyn.size + map->dyn.size;
 	char *data = malloc(entry_size*MAP_LEN);
-	/* char *key = calloc(1, rec->dyn.size), *val = malloc(map->dyn.size); */
 	char *key = data, *val = data + rec->dyn.size;
 	int err, n = 0;
 
@@ -224,7 +237,7 @@ void dump_mdyn(mdyn_t *mdyn)
 	     err = bpf_map_next(mdyn->mapfd, key - entry_size, key)) {
 		err = bpf_map_lookup(mdyn->mapfd, key, val);
 		if (err)
-			return;
+			goto out_free;
 
 		n++;
 		key += entry_size;
@@ -235,8 +248,10 @@ void dump_mdyn(mdyn_t *mdyn)
 
 	printf("\n%s:\n", map->string);
 
-	if (mdyn->dump)
-		return mdyn->dump(stdout, map, data);
+	if (mdyn->dump) {
+		mdyn->dump(stdout, map, data, n);
+		goto out_free;
+	}
 
 	for (key = data, val = data + rec->dyn.size; n > 0; n--) {
 		dump_node(stdout, rec, key);
@@ -247,6 +262,8 @@ void dump_mdyn(mdyn_t *mdyn)
 		key += entry_size;
 		val += entry_size;
 	}
+out_free:
+	free(data);
 }
 
 int map_setup(node_t *script)

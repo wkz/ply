@@ -18,6 +18,7 @@
  */
 
 #include <errno.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -389,34 +390,124 @@ static int quantize_compile(node_t *call, prog_t *prog)
 	return count_compile(call, prog);
 }
 
-static int quantize_normalize(int l, char const **suffix)
+static int quantize_normalize(int log2, char const **suffix)
 {
 	static const char *s[] = { NULL, "k", "M", "G", "T", "P", "Z" };
 	int i;
 
-	for (i = 0; l >= 10; i++, l -= 10);
+	for (i = 0; log2 >= 10; i++, log2 -= 10);
 
 	*suffix = s[i];
-	return (1 << l);
+	return (1 << log2);
 }
 
-static void quantize_dump(FILE *fp, node_t *log2, void *data)
+static void quantize_dump_bar(FILE *fp, int64_t count, int64_t tot)
 {
-	int64_t l = *(int64_t *)data;
+	static const char bar_open[] = { 0xe2, 0x94, 0xa4 };
+	static const char bar_close[] = { 0xe2, 0x94, 0x82 };
+
+	int w = (((float)count / (float)tot) * 128.0) + 0.5;
+	int space = 16 - ((w +  7) >> 3);
+	char block[] = { 0xe2, 0x96, 0x88 };
+
+	fwrite(bar_open, sizeof(bar_open), 1, fp);
+
+	for (; w > 8; w -= 8)
+		fwrite(block, sizeof(block), 1, fp);
+
+	if (w) {
+		block[2] += 8 - w;
+		fwrite(block, sizeof(block), 1, fp);
+	}
+
+	fprintf(fp, "%*s", space, "");
+	fwrite(bar_close, sizeof(bar_close), 1, fp);
+}
+
+static void quantize_dump_one(FILE *fp, int log2, int64_t count, int64_t tot)
+{
 	int lo, hi;
 	const char *ls, *hs;
 
-	if (!l) {
-		fputs("[   0,    1]", fp);
-		return;
+	if (!log2) {
+		fputs("\t[   0,    1]", fp);
+	} else {
+		lo = quantize_normalize(    log2, &ls);
+		hi = quantize_normalize(1 + log2, &hs);
+
+		fprintf(fp, "\t[%*d%s, %*d%s)",
+			ls ? 3 : 4, lo, ls ? : "",
+			hs ? 3 : 4, hi, hs ? : "");
 	}
 
-	lo = quantize_normalize(    l, &ls);
-	hi = quantize_normalize(1 + l, &hs);
+	fprintf(fp, "\t%8" PRId64" ", count);
+	quantize_dump_bar(fp, count, tot);
+	fputc('\n', fp);
+}
 
-	fprintf(fp, "[%*d%s, %*d%s)",
-		ls ? 3 : 4, lo, ls ? : "",
-		hs ? 3 : 4, hi, hs ? : "");
+static int64_t quantize_dump_seg(FILE *fp, node_t *map,
+				 void *data, int len, int64_t tot)
+{
+	node_t *rec = map->map.rec;
+	size_t entry_size = rec->dyn.size + map->dyn.size;
+	size_t rec_size = rec->dyn.size - sizeof(int64_t);
+	char *key = data;
+	int64_t *log2 = data + rec_size, *count = data + rec->dyn.size;
+
+	dump_rec(fp, rec, data, rec->rec.n_vargs - 1);
+	fputc('\n', fp);
+
+	for (; len > 1; len--) {
+		int last_log2 = *log2 + 1;
+
+		quantize_dump_one(fp, *log2, *count, tot);
+
+		key += entry_size;
+		log2 = (void *)log2 + entry_size;
+		count = (void *)count + entry_size;
+
+		for (; last_log2 < *log2; last_log2++)
+			quantize_dump_one(fp, last_log2, 0, tot);
+	}
+
+	quantize_dump_one(fp, *log2, *count, tot);
+}
+
+static void quantize_dump(FILE *fp, node_t *map, void *data, int len)
+{
+	node_t *rec = map->map.rec;
+	size_t entry_size = rec->dyn.size + map->dyn.size;
+	size_t rec_size = rec->dyn.size - sizeof(int64_t);
+	char *key = data, *seg_start = data;
+	int64_t *count = data + rec->dyn.size;
+	int64_t seg_tot = *count;
+	int seg_len = 1;
+
+	for (; len > 1; len--) {
+		key += entry_size;
+		count = (void *)count + entry_size;
+
+		if (!memcmp(key, seg_start, rec_size)) {
+			seg_tot += *count;
+			seg_len++;
+		} else {
+			quantize_dump_seg(fp, map, seg_start, seg_len, seg_tot);
+			seg_tot = *count;
+			seg_len = 1;
+			seg_start = key;
+		}
+	}
+
+	quantize_dump_seg(fp, map, seg_start, seg_len, seg_tot);
+}
+
+static int quantize_loc_assign(node_t *call)
+{
+	mdyn_t *mdyn;
+
+	mdyn = node_map_get_mdyn(call->parent->method.map);
+	mdyn->dump = quantize_dump;
+	return default_loc_assign(call);
 }
 
 static int quantize_annotate(node_t *call)
@@ -437,10 +528,10 @@ static int quantize_annotate(node_t *call)
 	 * into    map[c1, c2, log2(some_int)].quantize()
 	 */
 	rec->next = node_call_new(strdup("log2"), call->call.vargs);
-	rec->next->dump = quantize_dump;
 	rec->next->dyn.type = TYPE_INT;
 	rec->next->dyn.size = sizeof(int64_t);
 	rec->next->parent = map->map.rec;
+	map->map.rec->rec.n_vargs++;
 	call->call.vargs = NULL;
 
 	call->dyn.type = TYPE_INT;
@@ -499,7 +590,7 @@ static builtin_t builtins[] = {
 	BUILTIN(comm),
 	BUILTIN_ALIAS(execname, comm),
 	BUILTIN_LOC(count),
-	BUILTIN(quantize),
+	BUILTIN_LOC(quantize),
 	BUILTIN(log2),
 
 	BUILTIN(strcmp),
