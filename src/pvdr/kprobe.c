@@ -40,6 +40,7 @@
 #include "pvdr.h"
 
 typedef struct kprobe {
+	const char *type;
 	FILE *ctrl;
 	int bfd;
 
@@ -60,15 +61,16 @@ perf_event_open(struct perf_event_attr *hw_event, pid_t pid,
 	return ret;
 }
 
-static int kprobe_event_id(const char *func, FILE *ctrl)
+static int kprobe_event_id(kprobe_t *kp, const char *func)
 {
 	FILE *fp;
 	char *ev_id, ev_str[16];
 
-	fprintf(ctrl, "p %s\n", func);
-	fflush(ctrl);
+	fprintf(kp->ctrl, "%s %s\n", kp->type, func);
+	fflush(kp->ctrl);
 
-	asprintf(&ev_id, "/sys/kernel/debug/tracing/events/kprobes/p_%s_0/id", func);
+	asprintf(&ev_id, "/sys/kernel/debug/tracing/events/kprobes/%s_%s_0/id",
+		 kp->type, func);
 	fp = fopen(ev_id, "r");
 	free(ev_id);
 	if (!fp) {
@@ -86,7 +88,7 @@ static int kprobe_attach_one(kprobe_t *kp, const char *func)
 	struct perf_event_attr attr = {};
 	int efd, i, id;
 
-	id = kprobe_event_id(func, kp->ctrl);
+	id = kprobe_event_id(kp, func);
 	if (id < 0)
 		return id;
 
@@ -164,7 +166,7 @@ static int kprobe_attach_pattern(kprobe_t *kp, const char *pattern)
 	return (err < 0) ? err : kp->efds.len;
 }
 
-static int kprobe_setup(node_t *probe, prog_t *prog)
+static int __kprobe_setup(node_t *probe, prog_t *prog, const char *type)
 {
 	kprobe_t *kp;
 	char *func;
@@ -172,6 +174,7 @@ static int kprobe_setup(node_t *probe, prog_t *prog)
 	kp = malloc(sizeof(*kp));
 	assert(kp);
 
+	kp->type = type;
 	kp->efds.fds = calloc(1, sizeof(*kp->efds.fds));
 	assert(kp->efds.fds);
 	kp->efds.cap = 1;
@@ -198,6 +201,16 @@ static int kprobe_setup(node_t *probe, prog_t *prog)
 		return kprobe_attach_pattern(kp, func);
 	else
 		return kprobe_attach_one(kp, func);
+}
+
+static int kprobe_setup(node_t *probe, prog_t *prog)
+{
+	return __kprobe_setup(probe, prog, "p");
+}
+
+static int kretprobe_setup(node_t *probe, prog_t *prog)
+{
+	return __kprobe_setup(probe, prog, "r");
 }
 
 static int kprobe_teardown(node_t *probe)
@@ -237,8 +250,18 @@ pvdr_t kprobe_pvdr = {
 	.teardown   = kprobe_teardown,
 };
 
+pvdr_t kretprobe_pvdr = {
+	.name = "kretprobe",
+	.annotate   =    kprobe_annotate,
+	.loc_assign =    kprobe_loc_assign,
+	.compile    =    kprobe_compile,
+	.setup      = kretprobe_setup,
+	.teardown   =    kprobe_teardown,
+};
+
 __attribute__((constructor))
 static void kprobe_pvdr_register(void)
 {
-	pvdr_register(&kprobe_pvdr);
+	pvdr_register(   &kprobe_pvdr);
+	pvdr_register(&kretprobe_pvdr);
 }
