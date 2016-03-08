@@ -35,6 +35,7 @@
 #define _pe(_fmt, ...) _e("errno:%d " _fmt "\n", errno, ##__VA_ARGS__)
 
 struct globals {
+  int ascii:1;
   int debug:1;
   int dump:1;
   int timeout;

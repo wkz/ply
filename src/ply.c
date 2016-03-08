@@ -31,8 +31,9 @@ FILE *scriptfp;
 
 struct globals G;
 
-static const char *sopts = "cdDht:";
+static const char *sopts = "AcdDht:";
 static struct option lopts[] = {
+	{ "ascii",   no_argument,       0, 'A' },
 	{ "command", no_argument,       0, 'c' },
 	{ "debug",   no_argument,       0, 'd' },
 	{ "dump",    no_argument,       0, 'D' },
@@ -45,6 +46,7 @@ static struct option lopts[] = {
 void usage()
 {
 	printf("USAGE: ply [options] { scriptfile | -c 'program text' }\n\n");
+	printf("       -A		# limit output to ASCII, no Unicode\n");
 	printf("       -c 'program'	# execute specified program\n");
 	printf("       -d		# include compilation debug info\n");
 	printf("       -D		# dump BPF, and do not run\n");
@@ -59,6 +61,9 @@ int parse_opts(int argc, char **argv, FILE **sfp)
 
 	while ((opt = getopt_long(argc, argv, sopts, lopts, NULL)) > 0) {
 		switch (opt) {
+		case 'A':
+			G.ascii++;
+			break;
 		case 'c':
 			cmd = 1;
 			break;

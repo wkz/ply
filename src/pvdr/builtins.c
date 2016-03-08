@@ -406,8 +406,8 @@ static void quantize_dump_bar(FILE *fp, int64_t count, int64_t tot)
 	static const char bar_open[] = { 0xe2, 0x94, 0xa4 };
 	static const char bar_close[] = { 0xe2, 0x94, 0x82 };
 
-	int w = (((float)count / (float)tot) * 128.0) + 0.5;
-	int space = 16 - ((w +  7) >> 3);
+	int w = (((float)count / (float)tot) * 256.0) + 0.5;
+	int space = 32 - ((w +  7) >> 3);
 	char block[] = { 0xe2, 0x96, 0x88 };
 
 	fwrite(bar_open, sizeof(bar_open), 1, fp);
@@ -422,6 +422,19 @@ static void quantize_dump_bar(FILE *fp, int64_t count, int64_t tot)
 
 	fprintf(fp, "%*s", space, "");
 	fwrite(bar_close, sizeof(bar_close), 1, fp);
+}
+
+static void quantize_dump_bar_ascii(FILE *fp, int64_t count, int64_t tot)
+{
+	int w = (((float)count / (float)tot) * 32.0) + 0.5;
+	int i;
+
+	fputc('|', fp);
+
+	for (i = 0; i < 32; i++, w--)
+		fputc((w > 0) ? '#' : ' ', fp);
+
+	fputc('|', fp);
 }
 
 static void quantize_dump_one(FILE *fp, int log2, int64_t count, int64_t tot)
@@ -441,7 +454,10 @@ static void quantize_dump_one(FILE *fp, int log2, int64_t count, int64_t tot)
 	}
 
 	fprintf(fp, "\t%8" PRId64" ", count);
-	quantize_dump_bar(fp, count, tot);
+	if (G.ascii)
+		quantize_dump_bar_ascii(fp, count, tot);
+	else
+		quantize_dump_bar(fp, count, tot);
 	fputc('\n', fp);
 }
 
@@ -455,7 +471,8 @@ static int64_t quantize_dump_seg(FILE *fp, node_t *map,
 	int64_t *log2 = data + rec_size, *count = data + rec->dyn.size;
 
 	dump_rec(fp, rec, data, rec->rec.n_vargs - 1);
-	fputc('\n', fp);
+	if (!map->map.is_var)
+		fputc('\n', fp);
 
 	for (; len > 1; len--) {
 		int last_log2 = *log2 + 1;
