@@ -346,7 +346,7 @@ int emit_xfer(prog_t *prog, const node_t *to, const node_t *from)
 }
 
 #define LOG2_CMP(_bit)						\
-	emit(prog, JMP_IMM(JMP_JGE, src, (1 << (_bit)), 1));	\
+	emit(prog, JMP_IMM(JMP_JSGE, src, (1 << (_bit)), 1));	\
 	emit(prog, JMP_IMM(JMP_JA, 0, 0, 2));			\
 	emit(prog, ALU_IMM(ALU_OP_ADD, dst, _bit));		\
 	emit(prog, ALU_IMM(ALU_OP_RSH, src, _bit))
@@ -357,10 +357,20 @@ int emit_log2_raw(prog_t *prog, int dst, int src)
 
 	emit(prog, MOV_IMM(dst, 0));
 
+	/* negative? */
+	emit(prog, JMP_IMM(JMP_JSGE, src, 0, 2));
+	emit(prog, ALU_IMM(ALU_OP_SUB, dst, 1));
+	emit(prog, JMP_IMM(JMP_JA, 0, 0, 8 + 5 * 4));
+
+	/* zero? */
+	emit(prog, JMP_IMM(JMP_JEQ, src, 0, 7 + 5 * 4));
+
+	emit(prog, ALU_IMM(ALU_OP_ADD, dst, 1));
+
 	emit(prog, MOV_IMM(cmp, 1));
 	emit(prog, ALU_IMM(ALU_OP_LSH, cmp, 32));
 
-	emit(prog, JMP(JMP_JGE, src, cmp, 1));
+	emit(prog, JMP(JMP_JSGE, src, cmp, 1));
 	emit(prog, JMP_IMM(JMP_JA, 0, 0, 2));
 	emit(prog, ALU_IMM(ALU_OP_ADD, dst, 32));
 	emit(prog, ALU_IMM(ALU_OP_RSH, src, 32));

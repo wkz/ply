@@ -442,15 +442,27 @@ static void quantize_dump_one(FILE *fp, int log2, int64_t count, int64_t tot)
 	int lo, hi;
 	const char *ls, *hs;
 
-	if (!log2) {
-		fputs("\t[   0,    1]", fp);
-	} else {
-		lo = quantize_normalize(    log2, &ls);
-		hi = quantize_normalize(1 + log2, &hs);
+	switch (log2) {
+	case -1:
+		fputs("\t         < 0", fp);
+		break;
+	case 0:
+		fputs("\t           0", fp);
+		break;
+	case 1:
+		fputs("\t           1", fp);
+		break;
+	default:
+		lo = quantize_normalize(log2 - 1, &ls);
+		hi = quantize_normalize(log2    , &hs);
 
-		fprintf(fp, "\t[%*d%s, %*d%s)",
-			ls ? 3 : 4, lo, ls ? : "",
-			hs ? 3 : 4, hi, hs ? : "");
+		/* closed interval for values < 1k, else open ended */
+		if (!hs)
+			fprintf(fp, "\t[%4d, %4d]", lo, hi - 1);
+		else
+			fprintf(fp, "\t[%*d%s, %*d%s)",
+				ls ? 3 : 4, lo, ls ? : "",
+				hs ? 3 : 4, hi, hs ? : "");
 	}
 
 	fprintf(fp, "\t%8" PRId64" ", count);
