@@ -84,3 +84,8 @@ int arch_reg_func(void)
 {
 	return arch_reg_atoi("ip");
 }
+
+int arch_reg_retval(void)
+{
+	return arch_reg_atoi("ax");
+}

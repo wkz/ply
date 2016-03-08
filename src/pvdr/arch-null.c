@@ -41,3 +41,8 @@ int __attribute__ ((weak)) arch_reg_func(void)
 {
 	return -ENOSYS;
 }
+
+int __attribute__ ((weak)) arch_reg_retval(void)
+{
+	return -ENOSYS;
+}

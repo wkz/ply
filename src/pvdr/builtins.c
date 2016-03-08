@@ -312,6 +312,35 @@ static int func_annotate(node_t *call)
 	return 0;
 }
 
+static int retval_compile(node_t *call, prog_t *prog)
+{
+	return reg_compile(call, prog);
+}
+
+static int retval_loc_assign(node_t *call)
+{
+	return reg_loc_assign(call);
+}
+
+static int retval_annotate(node_t *call)
+{
+	node_t *arg = call->call.vargs;
+	intptr_t reg;
+
+	if (arg)
+		return -EINVAL;
+
+	reg = arch_reg_retval();
+	if (reg < 0)
+		return reg;
+
+	call->call.vargs = node_int_new(reg);
+	call->dyn.type = TYPE_INT;
+	call->dyn.size = sizeof(int64_t);
+	call->dump = dump_sym;
+	return 0;
+}
+
 static int log2_compile(node_t *call, prog_t *prog)
 {
 	node_t *num = call->call.vargs;
@@ -605,6 +634,7 @@ static builtin_t builtins[] = {
 	BUILTIN_LOC(reg),
 	BUILTIN_LOC(arg),
 	BUILTIN_LOC(func),
+	BUILTIN_LOC(retval),
 	BUILTIN_ALIAS_LOC(probefunc, func),
 
 	BUILTIN_LOC(printf),
