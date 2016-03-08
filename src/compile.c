@@ -206,7 +206,7 @@ unknown:
 
 void emit(prog_t *prog, struct bpf_insn insn)
 {
-	if (debug)
+	if (G.debug)
 		dump_insn(insn, prog->ip - prog->insns);
 
 	*(prog->ip)++ = insn;

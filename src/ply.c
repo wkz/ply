@@ -29,9 +29,7 @@
 
 FILE *scriptfp;
 
-int debug = 0;
-int dump = 0;
-int timeout = 0;
+struct globals G;
 
 static const char *sopts = "cdDht:";
 static struct option lopts[] = {
@@ -65,17 +63,17 @@ int parse_opts(int argc, char **argv, FILE **sfp)
 			cmd = 1;
 			break;
 		case 'd':
-			debug++;
+			G.debug++;
 			break;
 		case 'D':
-			dump++;
+			G.dump++;
 			break;
 		case 'h':
 			usage();
 			exit(0);
 		case 't':
-			timeout = strtol(optarg, NULL, 0);
-			if (timeout <= 0) {
+			G.timeout = strtol(optarg, NULL, 0);
+			if (G.timeout <= 0) {
 				_e("timeout must be a positive integer");
 				return -EINVAL;
 			}
@@ -138,7 +136,7 @@ int main(int argc, char **argv)
 	if (err)
 		goto err;
 		
-	if (dump)
+	if (G.dump)
 		node_ast_dump(script);
 
 	node_foreach(probe, script->script.probes) {
@@ -147,7 +145,7 @@ int main(int argc, char **argv)
 		if (!prog)
 			break;
 
-		if (dump)
+		if (G.dump)
 			continue;
 
 		pvdr = node_get_pvdr(probe);
@@ -157,7 +155,7 @@ int main(int argc, char **argv)
 	}
 
 	_d("compilation ok");
-	if (dump)
+	if (G.dump)
 		goto done;
 	
 	if (num < 0) {
@@ -165,10 +163,10 @@ int main(int argc, char **argv)
 		goto err;
 	}
 
-	if (timeout) {
+	if (G.timeout) {
 		siginterrupt(SIGALRM, 1);
 		signal(SIGALRM, sigint);
-		alarm(timeout);
+		alarm(G.timeout);
 	}
 
 	siginterrupt(SIGINT, 1);
