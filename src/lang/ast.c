@@ -361,9 +361,9 @@ static int binop_op_parse(node_t *n, char *opstr)
 		if (opstr[1] == '<')
 			break;
 		else if (opstr[1] && opstr[1] == '=')
-			n->binop.jmp = JMP_JGE;
+			n->binop.jmp = JMP_JSGE;
 		else
-			n->binop.jmp = JMP_JGT;
+			n->binop.jmp = JMP_JSGT;
 
 		swap = n->binop.left;
 		n->binop.left = n->binop.right;
@@ -373,9 +373,9 @@ static int binop_op_parse(node_t *n, char *opstr)
 		if (opstr[1] == '>')
 			break;
 		else if (opstr[1] && opstr[1] == '=')
-			n->binop.jmp = JMP_JGE;
+			n->binop.jmp = JMP_JSGE;
 		else
-			n->binop.jmp = JMP_JGT;
+			n->binop.jmp = JMP_JSGT;
 		return 0;
 	default:
 		break;
