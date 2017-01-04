@@ -30,6 +30,7 @@ AC_SUBST([kerneldir], [$kerneldir])
 AM_CONDITIONAL([KERNEL_DIR], [test x$kerneldir != xno])
 
 AC_CANONICAL_HOST
+AC_SUBST([host_cpu], [$host_cpu])
 AM_CONDITIONAL([ARCH_X86_64], [test x$host_cpu = xx86_64])
 AM_CONDITIONAL([ARCH_ARM],    [test x$host_cpu = xarm])
 

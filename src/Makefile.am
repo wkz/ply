@@ -27,9 +27,12 @@ if KERNEL_DIR
 BUILT_SOURCES += .kernel/include/linux/version.h
 ply_CFLAGS    += -I .kernel/include
 
+kernelenv := ARCH=@host_cpu@
+kernelenv += INSTALL_HDR_PATH=$(shell pwd)/.kernel
+
 .kernel/include/linux/version.h:
-	@echo "  HEADERS  @kerneldir@"
-	@make -C @kerneldir@ INSTALL_HDR_PATH=$(shell pwd)/.kernel headers_install
+	@echo "  HEADERS  @kerneldir@(@host_cpu@)"
+	make -C @kerneldir@ $(kernelenv) headers_install
 
 distclean-local:
 	rm -rf .kernel
