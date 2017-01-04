@@ -99,36 +99,38 @@ static int parse_opts(int argc, char **argv, FILE **sfp)
 			G.dump = 1;
 			break;
 		case 'h':
-			usage();
-			exit(0);
+			usage(); exit(0);
+			break;
 		case 't':
 			G.timeout = strtol(optarg, NULL, 0);
 			if (G.timeout <= 0) {
 				_e("timeout must be a positive integer");
-				return -EINVAL;
+				usage(); exit(1);
 			}
 			break;
 		case 'v':
-			version();
-			exit(0);
+			version(); exit(0);
+			break;
 
 		default:
-			_e("unknown option '%c'. Try -h for usage.", opt);
-			return -EINVAL;
+			_e("unknown option '%c'", opt);
+			usage(); exit(1);
+			break;
 		}
 	}
 
-	if (optind >= argc)
-		return -EINVAL;
-
 	if (cmd)
 		*sfp = fmemopen(argv[optind], strlen(argv[optind]), "r");
-	else
+	else if (optind < argc)
 		*sfp = fopen(argv[optind], "r");
+	else {
+		_e("no input");
+		usage(); exit(1);
+	}
 
 	if (!*sfp) {
 		_eno("unable to read script");
-		return -EIO;
+		usage(); exit(1);
 	}
 
 	return 0;
@@ -288,5 +290,5 @@ err:
 	if (script)
 		node_free(script);
 
-	return err;
+	return err ? 1 : 0;
 }
