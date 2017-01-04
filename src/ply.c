@@ -21,6 +21,7 @@
 #include <linux/version.h>
 #include <signal.h>
 #include <stdio.h>
+#include <sys/resource.h>
 #include <unistd.h>
 
 #include "config.h"
@@ -133,7 +134,48 @@ static int parse_opts(int argc, char **argv, FILE **sfp)
 	return 0;
 }
 
-void sigint(int sigint)
+static void memlock_uncap(void)
+{
+	struct rlimit limit;
+	rlim_t current;
+	int err;
+
+	err = getrlimit(RLIMIT_MEMLOCK, &limit);
+	if (err) {
+		_eno("unable to retrieve memlock limit, "
+		     "maps are likely limited in size");
+		return;
+	}
+
+	current = limit.rlim_cur;
+
+	/* The total size of all maps that ply is allowed to create is
+	 * limited by the amount of memory that can be locked into
+	 * RAM. By default, this limit can be quite low (64kB on the
+	 * author's system). So this simply tells the kernel to allow
+	 * ply to use as much as it needs. */
+	limit.rlim_cur = limit.rlim_max = RLIM_INFINITY;
+	err = setrlimit(RLIMIT_MEMLOCK, &limit);
+	if (err) {
+		const char *suffix = "B";
+
+		if (!(current & 0xfffff)) {
+			suffix = "MB";
+			current >>= 20;
+		} else if (!(current & 0x3ff)) {
+			suffix = "kB";
+			current >>= 10;
+		}
+
+		_eno("could not remove memlock size restriction");
+		_w("total map size is limited to %lu%s", current, suffix);
+		return;
+	}
+
+	_d("unlimited memlock");
+}
+
+static void sigint(int sigint)
 {
 	return;
 }
@@ -150,6 +192,8 @@ int main(int argc, char **argv)
 	err = parse_opts(argc, argv, &sfp);
 	if (err)
 		goto err;
+
+	memlock_uncap();
 
 	script = node_script_parse(sfp);
 	if (!script) {
