@@ -4,6 +4,7 @@ sbin_PROGRAMS    = ply
 ACLOCAL_AMFLAGS  = -I ../m4
 AM_YFLAGS        = -d -Wall
 ply_CFLAGS       = -Wno-unused-parameter
+ply_CFLAGS      += -DGIT_VERSION=\"$(shell git describe --always --dirty)\"
 
 lang/lex.h: lang/lex.c
 lang/lex.c: lang/lex.l

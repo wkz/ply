@@ -18,10 +18,12 @@
  */
 
 #include <getopt.h>
+#include <linux/version.h>
 #include <signal.h>
 #include <stdio.h>
 #include <unistd.h>
 
+#include "config.h"
 #include "ply.h"
 #include "map.h"
 #include "lang/ast.h"
@@ -31,7 +33,7 @@ FILE *scriptfp;
 
 struct globals G;
 
-static const char *sopts = "AcdDht:";
+static const char *sopts = "AcdDht:v";
 static struct option lopts[] = {
 	{ "ascii",   no_argument,       0, 'A' },
 	{ "command", no_argument,       0, 'c' },
@@ -39,6 +41,7 @@ static struct option lopts[] = {
 	{ "dump",    no_argument,       0, 'D' },
 	{ "help",    no_argument,       0, 'h' },
 	{ "timeout", required_argument, 0, 't' },
+	{ "version", no_argument,       0, 'v' },
 
 	{ NULL }
 };
@@ -62,7 +65,20 @@ static void usage()
 		);
 }
 
-int parse_opts(int argc, char **argv, FILE **sfp)
+static void version()
+{
+	fputs(PACKAGE "-" VERSION, stdout);
+	if (strcmp(VERSION, GIT_VERSION))
+		fputs("(" GIT_VERSION ")", stdout);
+
+	printf(" (linux-version:%u~%u.%u.%u)\n",
+	       LINUX_VERSION_CODE,
+	       (LINUX_VERSION_CODE >> 16) & 0xff,
+	       (LINUX_VERSION_CODE >>  8) & 0xff,
+	       (LINUX_VERSION_CODE >>  0) & 0xff);
+}
+
+static int parse_opts(int argc, char **argv, FILE **sfp)
 {
 	int cmd = 0;
 	int opt;
@@ -91,6 +107,10 @@ int parse_opts(int argc, char **argv, FILE **sfp)
 				return -EINVAL;
 			}
 			break;
+		case 'v':
+			version();
+			exit(0);
+
 		default:
 			_e("unknown option '%c'. Try -h for usage.", opt);
 			return -EINVAL;
