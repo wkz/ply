@@ -42,15 +42,15 @@ int bpf_prog_load(const struct bpf_insn *insns, int insn_cnt)
 	 * bytes are zeroed */
 	memset(&attr, 0, sizeof(attr));
 
-	attr.prog_type = BPF_PROG_TYPE_KPROBE;
-	attr.insns     = ptr_to_u64(insns);
-	attr.insn_cnt  = insn_cnt;
-	attr.license   = ptr_to_u64("GPL");
-	attr.log_buf   = ptr_to_u64(bpf_log_buf);
-	attr.log_size  = LOG_BUF_SIZE;
-	attr.log_level = 1;
 	attr.kern_version = LINUX_VERSION_CODE;
-	
+	attr.prog_type    = BPF_PROG_TYPE_KPROBE;
+	attr.insns        = ptr_to_u64(insns);
+	attr.insn_cnt     = insn_cnt;
+	attr.license      = ptr_to_u64("GPL");
+	attr.log_buf      = ptr_to_u64(bpf_log_buf);
+	attr.log_size     = LOG_BUF_SIZE;
+	attr.log_level    = 1;
+
 	return syscall(__NR_bpf, BPF_PROG_LOAD, &attr, sizeof(attr));
 }
 

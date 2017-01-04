@@ -43,15 +43,23 @@ static struct option lopts[] = {
 	{ NULL }
 };
 
-void usage()
+static void usage()
 {
-	printf("USAGE: ply [options] { scriptfile | -c 'program text' }\n\n");
-	printf("       -A		# limit output to ASCII, no Unicode\n");
-	printf("       -c 'program'	# execute specified program\n");
-	printf("       -d		# include compilation debug info\n");
-	printf("       -D		# dump BPF, and do not run\n");
-	printf("       -h		# usage message (this)\n");
-	printf("       -t timeout	# run duration (seconds)\n");
+	puts("ply - Dynamic tracing utility\n"
+	     "\n"
+	     "Usage:\n"
+	     "  ply [options] <script_file>\n"
+	     "  ply [options] -c <script_string>\n"
+	     "\n"
+	     "Options:\n"
+	     "  -A                  ASCII output only, no Unicode.\n"
+	     "  -c <script_string>  Execute script literate.\n"
+	     "  -d                  Enable debug output.\n"
+	     "  -D                  Dump generated BPF and exit.\n"
+	     "  -h                  Print usage message and exit.\n"
+	     "  -t <timeout>        Terminate trace after <timeout> seconds.\n"
+	     "  -v                  Print version information.\n"
+		);
 }
 
 int parse_opts(int argc, char **argv, FILE **sfp)
@@ -62,16 +70,16 @@ int parse_opts(int argc, char **argv, FILE **sfp)
 	while ((opt = getopt_long(argc, argv, sopts, lopts, NULL)) > 0) {
 		switch (opt) {
 		case 'A':
-			G.ascii++;
+			G.ascii = 1;
 			break;
 		case 'c':
 			cmd = 1;
 			break;
 		case 'd':
-			G.debug++;
+			G.debug = 1;
 			break;
 		case 'D':
-			G.dump++;
+			G.dump = 1;
 			break;
 		case 'h':
 			usage();
@@ -98,7 +106,7 @@ int parse_opts(int argc, char **argv, FILE **sfp)
 		*sfp = fopen(argv[optind], "r");
 
 	if (!*sfp) {
-		_pe("unable to read script");
+		_eno("unable to read script");
 		return -EIO;
 	}
 
@@ -155,11 +163,14 @@ int main(int argc, char **argv)
 
 		pvdr = node_get_pvdr(probe);
 		num = pvdr->setup(probe, prog);
-		if (num < 0)
+		if (num < 0) {
+			if (num == -EINVAL)
+				_e("probe rejected, ensure that ply was built "
+				   "against the running kernel");
 			break;
+		}
 	}
 
-	_d("compilation ok");
 	if (G.dump)
 		goto done;
 	

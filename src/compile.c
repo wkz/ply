@@ -206,7 +206,7 @@ unknown:
 
 void emit(prog_t *prog, struct bpf_insn insn)
 {
-	if (G.debug)
+	if (G.dump)
 		dump_insn(insn, prog->ip - prog->insns);
 
 	*(prog->ip)++ = insn;
@@ -596,7 +596,7 @@ static int compile_post(node_t *n, void *_prog)
 	if (n->dyn.loc == LOC_VIRTUAL)
 		return 0;
 
-	_d("> %s%s%s (%s/%s/%#zx)", n->string ? "" : "<",
+	_D("> %s%s%s (%s/%s/%#zx)", n->string ? "" : "<",
 	   n->string ? : type_str(n->type), n->string ? "" : ">",
 	   type_str(n->type), type_str(n->dyn.type), n->dyn.size);
 
@@ -648,7 +648,7 @@ static int compile_post(node_t *n, void *_prog)
 		break;
 	}
 
-	_d("< %s%s%s (%s/%s/%#zx)", n->string ? "" : "<",
+	_D("< %s%s%s (%s/%s/%#zx)", n->string ? "" : "<",
 	   n->string ? : type_str(n->type), n->string ? "" : ">",
 	   type_str(n->type), type_str(n->dyn.type), n->dyn.size);
 
@@ -667,7 +667,7 @@ static int compile_pred(node_t *pred, prog_t *prog)
 	if (!pred)
 		return 0;
 
-	_d(">");
+	_D(">");
 
 	err = compile_walk(pred, prog);
 	if (err)
@@ -685,7 +685,7 @@ static int compile_pred(node_t *pred, prog_t *prog)
 
 	emit(prog, MOV_IMM(BPF_REG_0, 0));
 	emit(prog, EXIT);
-	_d("<");
+	_D("<");
 	return 0;
 }
 

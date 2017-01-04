@@ -74,7 +74,7 @@ static int kprobe_event_id(kprobe_t *kp, const char *func)
 	fp = fopen(ev_id, "r");
 	free(ev_id);
 	if (!fp) {
-		_pe("unable to create kprobe for \"%s\"", func);
+		_eno("unable to create kprobe for \"%s\"", func);
 		return -EIO;
 	}
 
@@ -112,7 +112,7 @@ static int kprobe_attach_one(kprobe_t *kp, const char *func)
 		}
 
 		if (!i && ioctl(efd, PERF_EVENT_IOC_SET_BPF, kp->bfd)) {
-			_pe("perf-set-bpf: %s", func);
+			_eno("perf-set-bpf: %s", func);
 			close(efd);
 			return -errno;
 		}
@@ -166,7 +166,7 @@ static int kprobe_attach_pattern(kprobe_t *kp, const char *pattern)
 	return (err < 0) ? err : kp->efds.len;
 }
 
-static int __kprobe_setup(node_t *probe, prog_t *prog, const char *type)
+static int kprobe_load(node_t *probe, prog_t *prog, const char *type)
 {
 	kprobe_t *kp;
 	char *func;
@@ -185,15 +185,17 @@ static int __kprobe_setup(node_t *probe, prog_t *prog, const char *type)
 	_d("");
 	kp->ctrl = fopen("/sys/kernel/debug/tracing/kprobe_events", "a+");
 	if (!kp->ctrl) {
-		perror("unable to open kprobe_events");
-		return -EIO;
+		_eno("unable to open kprobe_events");
+		return -errno;
 	}
 
 	kp->bfd = bpf_prog_load(prog->insns, prog->ip - prog->insns);
 	if (kp->bfd < 0) {
-		perror("bpf");
-		fprintf(stderr, "bpf verifier:\n%s\n", bpf_log_buf);
-		return -EINVAL;
+		_eno("%s", probe->string);
+		_d("output from kernel bpf verifier:\n%s",
+		   bpf_log_buf[0] ? bpf_log_buf : "<NO OUTPUT>");
+
+		return -errno;
 	}
 	
 	func = strchr(probe->string, ':') + 1;
@@ -205,12 +207,12 @@ static int __kprobe_setup(node_t *probe, prog_t *prog, const char *type)
 
 static int kprobe_setup(node_t *probe, prog_t *prog)
 {
-	return __kprobe_setup(probe, prog, "p");
+	return kprobe_load(probe, prog, "p");
 }
 
 static int kretprobe_setup(node_t *probe, prog_t *prog)
 {
-	return __kprobe_setup(probe, prog, "r");
+	return kprobe_load(probe, prog, "r");
 }
 
 static int kprobe_teardown(node_t *probe)

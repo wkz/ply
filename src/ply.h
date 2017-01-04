@@ -29,16 +29,32 @@
 #define PRINTF_BUF_LEN MAP_LEN
 #define PRINTF_META_OF (1 << 30)
 
-#define _d(_fmt, ...) if (G.debug) { fprintf(stderr, "DEBUG %s: " _fmt "\n", __func__, ##__VA_ARGS__); }
-#define _e(_fmt, ...) fprintf(stderr, "ERROR %s: " _fmt "\n", __func__, ##__VA_ARGS__)
-#define _i(_fmt, ...) fprintf(stderr, "INFO %s: " _fmt "\n", __func__, ##__VA_ARGS__)
-#define _pe(_fmt, ...) _e("errno:%d " _fmt "\n", errno, ##__VA_ARGS__)
+#define _d(_fmt, ...)							\
+	if (G.debug) {							\
+		fprintf(stderr, "dbg %-20s: " _fmt "\n", __func__,	\
+			##__VA_ARGS__);					\
+	}
+
+#define _D(_fmt, ...)							\
+	if (G.dump) {							\
+		fprintf(stderr, "dmp %-20s: " _fmt "\n", __func__,	\
+			##__VA_ARGS__);					\
+	}
+
+#define _e(_fmt, ...) \
+	fprintf(stderr, "ERR %-20s: " _fmt "\n", __func__, ##__VA_ARGS__)
+#define _eno(_fmt, ...) \
+	fprintf(stderr, "ERR %-20s: " _fmt " : %m\n", __func__, ##__VA_ARGS__)
+#define _w(_fmt, ...) \
+	fprintf(stderr, "WRN %-20s: " _fmt "\n", __func__, ##__VA_ARGS__)
+#define _i(_fmt, ...) \
+	fprintf(stderr, "nfo %-20s: " _fmt "\n", __func__, ##__VA_ARGS__)
 
 struct globals {
-  int ascii:1;
-  int debug:1;
-  int dump:1;
-  int timeout;
+	int ascii:1;
+	int debug:1;
+	int dump:1;
+	int timeout;
 };
 extern struct globals G;
 
