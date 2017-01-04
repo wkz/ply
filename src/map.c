@@ -270,9 +270,11 @@ int map_setup(node_t *script)
 {
 	mdyn_t *mdyn;
 	int dumpfd = 0xfd00;
-	size_t ksize, vsize;
 
 	for (mdyn = script->dyn.script.mdyns; mdyn; mdyn = mdyn->next) {
+		size_t max_len = mdyn->map->map.max_len;
+		size_t ksize, vsize;
+
 		if (G.dump) {
 			mdyn->mapfd = dumpfd++;
 			continue;
@@ -286,7 +288,7 @@ int map_setup(node_t *script)
 			vsize = mdyn->map->dyn.size;
 		}
 
-		mdyn->mapfd = bpf_map_create(BPF_MAP_TYPE_HASH, ksize, vsize, MAP_LEN);
+		mdyn->mapfd = bpf_map_create(BPF_MAP_TYPE_HASH, ksize, vsize, max_len);
 		if (mdyn->mapfd <= 0) {
 			_eno("%s", mdyn->map->string);
 			return mdyn->mapfd;

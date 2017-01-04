@@ -80,6 +80,7 @@ typedef struct rec {
 
 typedef struct map {
 	int is_var;
+	int max_len;
 	node_t *rec;
 } map_t;
 

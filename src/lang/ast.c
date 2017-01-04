@@ -275,8 +275,9 @@ node_t *__node_map_new(char *name, node_t *rec, int is_var)
 	node_t *n = node_new(TYPE_MAP);
 
 	n->string = name;
-	n->map.is_var = is_var;
-	n->map.rec    = rec;
+	n->map.is_var  = is_var;
+	n->map.max_len = 0x400;
+	n->map.rec     = rec;
 
 	rec->parent = n;
 	return n;
