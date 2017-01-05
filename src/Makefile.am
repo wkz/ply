@@ -13,7 +13,7 @@ lang/lex.c: lang/lex.l
 
 BUILT_SOURCES = lang/lex.h lang/parse.h
 ply_SOURCES   = lang/lex.c lang/parse.y lang/ast.c
-ply_SOURCES  += pvdr/builtins.c pvdr/printf.c pvdr/pvdr.c pvdr/kprobe.c
+ply_SOURCES  += pvdr/builtins.c pvdr/printf.c pvdr/quantize.c pvdr/pvdr.c pvdr/kprobe.c
 ply_SOURCES  += annotate.c bpf-syscall.c compile.c map.c ply.c utils.c
 
 ply_SOURCES  += pvdr/arch-null.c
