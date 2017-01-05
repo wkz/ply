@@ -281,14 +281,15 @@ int map_setup(node_t *script)
 		}
 
 		if (!strcmp(mdyn->map->string, "printf")) {
-			ksize = mdyn->map->dyn.size;
-			vsize = mdyn->map->call.vargs->next->dyn.size;
+			ksize   = mdyn->map->dyn.size;
+			vsize   = mdyn->map->call.vargs->next->dyn.size;
+			max_len = PRINTF_BUF_LEN;
 		} else {
 			ksize = mdyn->map->map.rec->dyn.size;
 			vsize = mdyn->map->dyn.size;
 		}
 
-		mdyn->mapfd = bpf_map_create(BPF_MAP_TYPE_HASH, ksize, vsize, max_len);
+		mdyn->mapfd = bpf_map_create(mdyn->type, ksize, vsize, max_len);
 		if (mdyn->mapfd <= 0) {
 			_eno("%s", mdyn->map->string);
 			return mdyn->mapfd;

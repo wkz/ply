@@ -150,6 +150,8 @@ typedef int    (*cmper_t)(node_t *n, const void *a, const void *b);
 struct mdyn {
 	mdyn_t *next, *prev;
 
+	enum bpf_map_type type;
+
 	node_t *map;
 	int     mapfd;
 
@@ -242,6 +244,7 @@ mdyn_t *node_map_get_mdyn   (node_t *map);
 int     node_map_get_fd     (node_t *map);
 int     node_stmt_reg_get   (node_t *stmt);
 ssize_t node_probe_stack_get(node_t *probe, size_t size);
+int     node_script_mdyn_add(node_t *script, mdyn_t *mdyn);
 
 node_t *node_str_new     (char *val);
 node_t *node_int_new     (int64_t val);

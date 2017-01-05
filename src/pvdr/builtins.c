@@ -539,7 +539,7 @@ int builtin_loc_assign(node_t *call)
 	builtin_t *bi = builtin_find(call->string);
 
 	if (!bi) {
-		_e("unknown builin '%s'", call->string);
+		_e("unknown builtin '%s'", call->string);
 		return -ENOENT;
 	}
 
@@ -555,7 +555,7 @@ int builtin_annotate(node_t *call)
 	builtin_t *bi = builtin_find(call->string);
 
 	if (!bi) {
-		_e("unknown builin '%s'", call->string);
+		_e("unknown builtin '%s'", call->string);
 		return -ENOENT;
 	}
 

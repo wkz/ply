@@ -229,41 +229,29 @@ static int printf_walk(node_t *n, void *_mdyn)
 	return 0;
 }
 
-static size_t printf_store_mdyn(node_t *script)
+static mdyn_t *printf_store_mdyn(node_t *script)
 {
 	mdyn_t *mdyn;
 
 	mdyn = calloc(1, sizeof(*mdyn));
 	assert(mdyn);
 
+	mdyn->type = BPF_MAP_TYPE_HASH;
 	node_walk(script, NULL, printf_walk, mdyn);
 
-	if (!script->dyn.script.mdyns)
-		script->dyn.script.mdyns = mdyn;
-	else
-		insque_tail(mdyn, script->dyn.script.mdyns);
-
-	return mdyn->map->call.vargs->next->dyn.size;
+	node_script_mdyn_add(script, mdyn);
+	return mdyn;
 }
 
 static size_t printf_rec_size(node_t *script)
 {
 	mdyn_t *mdyn;
 
-	for (mdyn = script->dyn.script.mdyns; mdyn; mdyn = mdyn->next) {
-		if (!strcmp(mdyn->map->string, "printf"))
-			return mdyn->map->call.vargs->next->dyn.size;
-	}
+	mdyn = node_map_get_mdyn(script->dyn.script.printf[0]);
+	if (!mdyn)
+		mdyn = printf_store_mdyn(script);
 
-	printf_store_mdyn(script);
-
-	for (mdyn = script->dyn.script.mdyns; mdyn; mdyn = mdyn->next) {
-		if (!strcmp(mdyn->map->string, "printf"))
-			return mdyn->map->call.vargs->next->dyn.size;
-	}
-
-	assert(mdyn);
-	return 0;
+	return mdyn->map->call.vargs->next->dyn.size;
 }
 
 int printf_loc_assign(node_t *call)

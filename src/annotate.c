@@ -272,7 +272,8 @@ static int type_infer_map(node_t *script, node_t *n)
 	mdyn = calloc(1, sizeof(*mdyn));
 	assert(mdyn);
 
-	mdyn->map = n;
+	mdyn->type = BPF_MAP_TYPE_HASH;
+	mdyn->map  = n;
 
 	if (!script->dyn.script.mdyns)
 		script->dyn.script.mdyns = mdyn;

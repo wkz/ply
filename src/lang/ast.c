@@ -233,6 +233,16 @@ ssize_t node_probe_stack_get(node_t *probe, size_t size)
 	return probe->dyn.probe.sp;
 }
 
+int node_script_mdyn_add(node_t *script, mdyn_t *mdyn)
+{
+	if (!script->dyn.script.mdyns)
+		script->dyn.script.mdyns = mdyn;
+	else
+		insque_tail(mdyn, script->dyn.script.mdyns);
+
+	return 0;
+}
+
 static inline node_t *node_new(type_t type) {
 	node_t *n = calloc(1, sizeof(*n));
 
