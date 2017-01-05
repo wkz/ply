@@ -94,6 +94,28 @@ static void dump_str(FILE *fp, node_t *str, void *data)
 	fprintf(fp, "%-*.*s", size, size, (const char *)data);
 }
 
+static void dump_stack(FILE *fp, node_t *stack, void *data)
+{
+	int i, fd = node_map_get_fd(stack);
+	int64_t *_stack_id = data;
+	uint32_t stack_id = *_stack_id;
+	uint64_t ips[0x10];
+
+	if (bpf_map_lookup(fd, &stack_id, ips)) {
+		_eno("failed to lookup stack-id:%#" PRIx32, stack_id);
+		fprintf(fp, "<ERR stack-id:%#" PRIx32 ">", stack_id);
+		return;
+	}
+
+	for (i = 0; i < 0x10; i++) {
+		if (!ips[i])
+			break;
+
+		fprintf(fp, "\n\t<%*.*" PRIx64 ">",
+			sizeof(uintptr_t) * 2, sizeof(uintptr_t) * 2, ips[i]);
+	}
+}
+
 void dump_rec(FILE *fp, node_t *rec, void *data, int len)
 {
 	node_t *first, *varg;
@@ -144,6 +166,9 @@ static void dump_node(FILE *fp, node_t *n, void *data)
 	case TYPE_STR:
 		dump_str(fp, n, data);
 		break;
+	case TYPE_STACK:
+		dump_stack(fp, n, data);
+		break;
 	case TYPE_REC:
 		dump_rec(fp, n, data, n->rec.n_vargs);
 		break;
@@ -163,6 +188,7 @@ int cmp_node(node_t *n, const void *a, const void *b)
 
 	switch (n->dyn.type) {
 	case TYPE_INT:
+	case TYPE_STACK:
 		return *((int64_t *)a) - *((int64_t *)b);
 	case TYPE_STR:
 		return strncmp(a, b, n->dyn.size);
@@ -284,6 +310,10 @@ int map_setup(node_t *script)
 			ksize   = mdyn->map->dyn.size;
 			vsize   = mdyn->map->call.vargs->next->dyn.size;
 			max_len = PRINTF_BUF_LEN;
+		} else if (!strcmp(mdyn->map->string, "stack")) {
+			ksize   = 4;
+			vsize   = 0x80;
+			max_len = MAP_LEN;
 		} else {
 			ksize = mdyn->map->map.rec->dyn.size;
 			vsize = mdyn->map->dyn.size;
@@ -308,7 +338,7 @@ int map_teardown(node_t *script)
 
 	for (mdyn = script->dyn.script.mdyns; mdyn; mdyn = mdyn->next) {
 		if (mdyn->mapfd) {
-			if (strcmp(mdyn->map->string, "printf"))
+			if (mdyn->map->string[0] == '$')
 				dump_mdyn(mdyn);
 
 			close(mdyn->mapfd);

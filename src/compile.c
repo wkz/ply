@@ -61,6 +61,8 @@ static const char *bpf_func_name(enum bpf_func_id id)
 		return "get_current_uid_gid";
 	case BPF_FUNC_get_current_comm:
 		return "get_current_comm";
+	case BPF_FUNC_get_stackid:
+		return "get_stackid";
 
 	default:
 		return NULL;

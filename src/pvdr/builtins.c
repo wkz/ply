@@ -412,6 +412,45 @@ static int count_annotate(node_t *call)
 	return 0;
 }
 
+static int stack_compile(node_t *call, prog_t *prog)
+{
+	int stackmap_fd = node_map_get_fd(call);
+
+	emit(prog, MOV(BPF_REG_1, BPF_REG_9));
+	emit_ld_mapfd(prog, BPF_REG_2, stackmap_fd);
+	emit(prog, MOV_IMM(BPF_REG_3, 0));
+	emit(prog, CALL(BPF_FUNC_get_stackid));
+	return emit_xfer_dyns(prog, &call->dyn, &dyn_reg[BPF_REG_0]);
+}
+
+static int stack_loc_assign(node_t *call)
+{
+	mdyn_t *mdyn;
+
+	mdyn = node_map_get_mdyn(call);
+	if (!mdyn) {
+		mdyn = calloc(1, sizeof(*mdyn));
+		assert(mdyn);
+
+		mdyn->type = BPF_MAP_TYPE_STACK_TRACE;
+		mdyn->map  = call;
+
+		node_script_mdyn_add(node_get_script(call), mdyn);
+	}
+
+	return default_loc_assign(call);
+}
+
+static int stack_annotate(node_t *call)
+{
+	if (call->call.vargs)
+		return -EINVAL;
+
+	call->dyn.type = TYPE_STACK;
+	call->dyn.size = 8;
+	return 0;
+}
+
 
 #define BUILTIN_INT_VOID(_name) {			\
 		.name     = #_name,			\
@@ -468,6 +507,8 @@ static builtin_t builtins[] = {
 	BUILTIN(log2),
 
 	BUILTIN(strcmp),
+
+	BUILTIN_LOC(stack),
 
 	{ .name = NULL }
 };

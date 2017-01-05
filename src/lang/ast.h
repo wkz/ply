@@ -120,20 +120,21 @@ typedef struct script {
 	node_t *probes;
 } script_t;
 
-#define NODE_TYPE_TABLE \
-	TYPE(TYPE_NONE, "none")			\
-	TYPE(TYPE_SCRIPT, "script")		\
-	TYPE(TYPE_PROBE, "probe")		\
-	TYPE(TYPE_CALL, "call")			\
-	TYPE(TYPE_ASSIGN, "assign")		\
-	TYPE(TYPE_METHOD, "method")		\
-	TYPE(TYPE_RETURN, "return")		\
-	TYPE(TYPE_BINOP, "binop")		\
-	TYPE(TYPE_NOT, "not")			\
-	TYPE(TYPE_MAP, "map")			\
-	TYPE(TYPE_REC, "rec")			\
-	TYPE(TYPE_INT, "int")			\
-	TYPE(TYPE_STR, "str")
+#define NODE_TYPE_TABLE					\
+	TYPE(TYPE_NONE,   "none")			\
+	TYPE(TYPE_SCRIPT, "script")			\
+	TYPE(TYPE_PROBE,  "probe")			\
+	TYPE(TYPE_CALL,   "call")			\
+	TYPE(TYPE_ASSIGN, "assign")			\
+	TYPE(TYPE_METHOD, "method")			\
+	TYPE(TYPE_RETURN, "return")			\
+	TYPE(TYPE_BINOP,  "binop")			\
+	TYPE(TYPE_NOT,    "not")			\
+	TYPE(TYPE_MAP,    "map")			\
+	TYPE(TYPE_REC,    "rec")			\
+	TYPE(TYPE_STACK,  "stack")			\
+	TYPE(TYPE_INT,    "int")			\
+	TYPE(TYPE_STR,    "str")
 
 #define TYPE(_type, _typestr) _type,
 typedef enum type {

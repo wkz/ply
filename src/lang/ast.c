@@ -130,6 +130,10 @@ static int _node_ast_dump(node_t *n, void *indent)
 	case TYPE_STR:
 		_fputs_escape(stderr, n->string);
 		break;
+
+	case TYPE_STACK:
+		assert(0);
+		break;
 	}
 
 	fprintf(stderr, "(type:%s/%s size:0x%zx loc:%s",
