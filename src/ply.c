@@ -195,6 +195,7 @@ int main(int argc, char **argv)
 	if (err)
 		goto err;
 
+	G.ksyms = ksyms_new();
 	memlock_uncap();
 
 	script = node_script_parse(sfp);

@@ -108,11 +108,25 @@ static void dump_stack(FILE *fp, node_t *stack, void *data)
 	}
 
 	for (i = 0; i < 0x10; i++) {
+		const ksym_t *k;
+
 		if (!ips[i])
 			break;
 
 		fprintf(fp, "\n\t<%*.*" PRIx64 ">",
 			sizeof(uintptr_t) * 2, sizeof(uintptr_t) * 2, ips[i]);
+
+		k = G.ksyms ? ksym_get(G.ksyms, ips[i]) : NULL;
+		if (!k)
+			continue;
+
+		fprintf(fp, " %s", k->sym);
+
+		ips[i] -= k->start;
+		if (!ips[i])
+			continue;
+
+		fprintf(fp, "+%#x", ips[i]);
 	}
 }
 

@@ -22,6 +22,7 @@
 #include <errno.h>
 #include <stdio.h>
 
+#include "kallsyms.h"
 #include "lang/ast.h"
 
 #define MAP_LEN 512
@@ -55,6 +56,8 @@ struct globals {
 	int debug:1;
 	int dump:1;
 	int timeout;
+
+	ksyms_t *ksyms;
 };
 extern struct globals G;
 
