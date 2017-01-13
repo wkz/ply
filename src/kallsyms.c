@@ -14,21 +14,6 @@
 
 #define KSYMS_CACHE "/tmp/ply.ksyms"
 
-struct ksym_cache_hdr {
-	uint32_t version;
-	uint32_t n_syms;
-};
-
-struct ksym_cache {
-	struct ksym_cache_hdr hdr;
-	ksym_t sym[0];
-};
-
-struct ksyms {
-	int cache_fd;
-	struct ksym_cache *cache;
-};
-
 static int ksym_cmp(const void *_key, const void *_member)
 {
 	const ksym_t *key = _key, *member = _member;

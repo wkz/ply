@@ -33,53 +33,17 @@ static void dump_node(FILE *fp, node_t *n, void *data);
 
 void dump_sym(FILE *fp, node_t *integer, void *data)
 {
-	uint64_t *target = data;
-	FILE *ksyms;
-	char *pos, *line[2];
-	uint64_t addr[2] = { ULLONG_MAX, ULLONG_MAX };
-	int i = 0;
+	uintptr_t pc = *((uint64_t *)data);
+	const ksym_t *k;
 
-	line[0] = malloc(256);
-	line[1] = malloc(256);
-	assert(line[0] && line[1]);
-
-	ksyms = fopen("/proc/kallsyms", "r");
-	if (!ksyms) {
-		_e("unable to read out kernel symbols");
-		goto fallback;
+	k = G.ksyms ? ksym_get(G.ksyms, pc) : NULL;
+	if (k) {
+		fprintf(fp, "%s", k->sym);
+		return;
 	}
 
-	for (i = 0; fgets(line[i], 256, ksyms); i = !i) {
-		addr[i] = strtoull(line[i], NULL, 16);
-		if (addr[i] == ULLONG_MAX)
-			goto fallback;
-
-		if (addr[i] == *target)
-			break;
-
-		if (addr[i] > *target) {
-			i = !i;
-			break;
-		}
-	}
-
-	pos = strchr(line[i], '\n');
-	if (pos)
-		*pos = '\0';
-
-	pos = strrchr(line[i], ' ');
-	if (!pos)
-		goto fallback;
-
-	fprintf(fp, "%-20s", pos + 1);
-	fclose(ksyms);
-	return;
-
-fallback:
-	if (ksyms)
-		fclose(ksyms);
-
-	fprintf(fp, "<%8" PRIx64 ">", *((int64_t *)data));
+	fprintf(fp, "\n\t<%*.*" PRIxPTR ">",
+		sizeof(uintptr_t) * 2, sizeof(uintptr_t) * 2, pc);
 }
 
 static void dump_int(FILE *fp, node_t *integer, void *data)
@@ -113,20 +77,20 @@ static void dump_stack(FILE *fp, node_t *stack, void *data)
 		if (!ips[i])
 			break;
 
-		fprintf(fp, "\n\t<%*.*" PRIx64 ">",
-			sizeof(uintptr_t) * 2, sizeof(uintptr_t) * 2, ips[i]);
-
 		k = G.ksyms ? ksym_get(G.ksyms, ips[i]) : NULL;
-		if (!k)
+		if (k) {
+			fprintf(fp, "\n\t%s", k->sym);
+
+			ips[i] -= k->start;
+			if (!ips[i])
+				continue;
+
+			fprintf(fp, "+%#x", ips[i]);
 			continue;
+		}
 
-		fprintf(fp, " %s", k->sym);
-
-		ips[i] -= k->start;
-		if (!ips[i])
-			continue;
-
-		fprintf(fp, "+%#x", ips[i]);
+		fprintf(fp, "\n\t<%*.*" PRIxPTR ">",
+			sizeof(uintptr_t) * 2, sizeof(uintptr_t) * 2, ips[i]);
 	}
 }
 
