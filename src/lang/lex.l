@@ -48,7 +48,7 @@ uazd		[_a-zA-Z0-9]
 
 identifier	{uaz}{uazd}*
 uidentifier     \${identifier}
-pspec		{identifier}:[:*_a-zA-Z0-9]*
+pspec		{identifier}:[*?:_.,/a-zA-Z0-9]*
 op		[+\-*|&%^]|<<|>>
 cmp		[!=<>]=|<|>
 
