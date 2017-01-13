@@ -16,12 +16,12 @@ ply_SOURCES   = lang/lex.c lang/parse.y lang/ast.c
 ply_SOURCES  += pvdr/builtins.c pvdr/printf.c pvdr/quantize.c pvdr/pvdr.c pvdr/kprobe.c
 ply_SOURCES  += annotate.c bpf-syscall.c compile.c map.c ply.c utils.c kallsyms.c
 
-ply_SOURCES  += pvdr/arch-null.c
+ply_SOURCES  += arch/arch-null.c
 if ARCH_ARM
-ply_SOURCES  += pvdr/arch-arm.c
+ply_SOURCES  += arch/arch-arm.c
 endif
 if ARCH_X86_64
-ply_SOURCES  += pvdr/arch-x86_64.c
+ply_SOURCES  += arch/arch-x86_64.c
 endif
 
 if KERNEL_DIR
