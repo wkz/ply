@@ -101,10 +101,8 @@ static void _fputs_escape(FILE *fp, const char *s)
 	fputc('\"', fp);
 }
 
-static int _node_ast_dump(node_t *n, void *indent)
+int node_fdump(node_t *n, FILE *fp)
 {
-	_indent((int *)indent);
-
 	switch (n->type) {
 	case TYPE_NONE:
 	case TYPE_SCRIPT:
@@ -112,19 +110,22 @@ static int _node_ast_dump(node_t *n, void *indent)
 	case TYPE_RETURN:
 	case TYPE_NOT:
 	case TYPE_REC:
-		fprintf(stderr, "<%s> ", type_str(n->type));
+		fprintf(fp, "<%s> ", type_str(n->type));
 		break;
 		
 	case TYPE_PROBE:		
-	case TYPE_CALL:
 	case TYPE_ASSIGN:
 	case TYPE_BINOP:
 	case TYPE_MAP:
-		fprintf(stderr, "%s ", n->string);
+		fprintf(fp, "%s ", n->string);
+		break;
+
+	case TYPE_CALL:
+		fprintf(fp, "%s.%s ", n->call.module? : "<auto>", n->string);
 		break;
 
 	case TYPE_INT:
-		fprintf(stderr, "%" PRIx64 " ", n->integer);
+		fprintf(fp, "%" PRIx64 " ", n->integer);
 		break;
 		
 	case TYPE_STR:
@@ -136,7 +137,7 @@ static int _node_ast_dump(node_t *n, void *indent)
 		break;
 	}
 
-	fprintf(stderr, "(type:%s/%s size:0x%zx loc:%s",
+	fprintf(fp, "(type:%s/%s size:0x%zx loc:%s",
 		type_str(n->type), type_str(n->dyn.type),
 		n->dyn.size, loc_str(n->dyn.loc));
 
@@ -145,14 +146,33 @@ static int _node_ast_dump(node_t *n, void *indent)
 	case LOC_VIRTUAL:
 		break;
 	case LOC_REG:
-		fprintf(stderr, "/%d", n->dyn.reg);
+		fprintf(fp, "/%d", n->dyn.reg);
 		break;
 	case LOC_STACK:
-		fprintf(stderr, "/-0x%zx", -n->dyn.addr);
+		fprintf(fp, "/-0x%zx", -n->dyn.addr);
 		break;
 	}
 
-	fputs(")\n", stderr);
+	fputs(")", fp);
+	return 0;
+}
+
+int node_sdump(node_t *n, char *buf, size_t sz)
+{
+	FILE *fp = fmemopen(buf, sz, "w");
+	int err;
+
+	err = node_fdump(n, fp);
+	fclose(fp);
+	return err;
+}
+
+static int _node_ast_dump(node_t *n, void *indent)
+{
+	_indent((int *)indent);
+
+	node_fdump(n, stderr);
+	fputs("\n", stderr);
 	return 0;
 }
 

@@ -235,6 +235,9 @@ static inline const char *node_str(const node_t *node)
 
 #define node_foreach(_n, _in) for((_n) = (_in); (_n); (_n) = (_n)->next)
 
+int node_fdump(node_t *n, FILE *fp);
+int node_sdump(node_t *n, char *buf, size_t sz);
+
 void node_ast_dump(node_t *n);
 
 node_t *node_get_stmt  (node_t *n);
