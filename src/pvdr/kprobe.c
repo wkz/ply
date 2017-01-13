@@ -37,6 +37,7 @@
 
 #include "../ply.h"
 #include "../bpf-syscall.h"
+#include "../module/module.h"
 #include "pvdr.h"
 
 typedef struct kprobe {
@@ -61,36 +62,28 @@ perf_event_open(struct perf_event_attr *hw_event, pid_t pid,
 	return ret;
 }
 
-static int kprobe_event_id(kprobe_t *kp, const char *func)
+static int probe_event_id(kprobe_t *kp, const char *path)
 {
 	FILE *fp;
-	char *ev_id, ev_str[16];
+	char *ev_path, ev_id[16];
 
-	fprintf(kp->ctrl, "%s %s\n", kp->type, func);
-	fflush(kp->ctrl);
-
-	asprintf(&ev_id, "/sys/kernel/debug/tracing/events/kprobes/%s_%s_0/id",
-		 kp->type, func);
-	fp = fopen(ev_id, "r");
-	free(ev_id);
+	asprintf(&ev_path, "/sys/kernel/debug/tracing/events/%s/id", path);
+	fp = fopen(ev_path, "r");
+	free(ev_path);
 	if (!fp) {
-		_eno("unable to create kprobe for \"%s\"", func);
-		return -EIO;
+		_eno("\"%s\"", path);
+		return -errno;
 	}
 
-	fgets(ev_str, sizeof(ev_str), fp);
+	fgets(ev_id, sizeof(ev_id), fp);
 	fclose(fp);
-	return strtol(ev_str, NULL, 0);
+	return strtol(ev_id, NULL, 0);
 }
 
-static int kprobe_attach_one(kprobe_t *kp, const char *func)
+static int probe_attach(kprobe_t *kp, int id)
 {
 	struct perf_event_attr attr = {};
-	int efd, i, id;
-
-	id = kprobe_event_id(kp, func);
-	if (id < 0)
-		return id;
+	int efd, i;
 
 	attr.type = PERF_TYPE_TRACEPOINT;
 	attr.sample_type = PERF_SAMPLE_RAW;
@@ -101,18 +94,15 @@ static int kprobe_attach_one(kprobe_t *kp, const char *func)
 	for (i = 0; i < /* sysconf(_SC_NPROCESSORS_ONLN) */ 1; i++) {
 		efd = perf_event_open(&attr, -1/*pid*/, i/*cpu*/, -1/*group_fd*/, 0);
 		if (efd < 0) {
-			perror("perf_event_open");
 			return -errno;
 		}
 
 		if (ioctl(efd, PERF_EVENT_IOC_ENABLE, 0)) {
-			perror("perf enable");
 			close(efd);
 			return -errno;
 		}
 
 		if (!i && ioctl(efd, PERF_EVENT_IOC_SET_BPF, kp->bfd)) {
-			_eno("perf-set-bpf: %s", func);
 			close(efd);
 			return -errno;
 		}
@@ -130,43 +120,8 @@ static int kprobe_attach_one(kprobe_t *kp, const char *func)
 	return 1;
 }
 
-static int kprobe_attach_pattern(kprobe_t *kp, const char *pattern)
-{
-	FILE *ksyms;
-	char *line;
-	int err = 0;
-
-	ksyms = fopen("/sys/kernel/debug/tracing/available_filter_functions", "r");
-	if (!ksyms) {
-		perror("no kernel symbols available");
-		return -ENOENT;
-	}
-
-	line = malloc(256);
-	assert(line);
-	while (err >= 0 && fgets(line, 256, ksyms)) {
-		char *end;
-
-		if (strchr(line, '.'))
-			continue;
-
-		end = strchr(line, '\n');
-		if (end)
-			*end = '\0';
-
-		if (fnmatch(pattern, line, 0))
-			continue;
-
-		err = kprobe_attach_one(kp, line);
-		if (err == -EEXIST)
-			err = 0;
-	}
-	free(line);
-	fclose(ksyms);
-	return (err < 0) ? err : kp->efds.len;
-}
-
-static int kprobe_load(node_t *probe, prog_t *prog, const char *type)
+static kprobe_t *probe_load(enum bpf_prog_type type,
+			    node_t *probe, prog_t *prog)
 {
 	kprobe_t *kp;
 	char *func;
@@ -174,48 +129,26 @@ static int kprobe_load(node_t *probe, prog_t *prog, const char *type)
 	kp = malloc(sizeof(*kp));
 	assert(kp);
 
-	kp->type = type;
 	kp->efds.fds = calloc(1, sizeof(*kp->efds.fds));
 	assert(kp->efds.fds);
 	kp->efds.cap = 1;
 	kp->efds.len = 0;
 
-	probe->dyn.probe.pvdr_priv = kp;
-
-	_d("");
-	kp->ctrl = fopen("/sys/kernel/debug/tracing/kprobe_events", "a+");
-	if (!kp->ctrl) {
-		_eno("unable to open kprobe_events");
-		return -errno;
-	}
-
-	kp->bfd = bpf_prog_load(prog->insns, prog->ip - prog->insns);
+	kp->bfd = bpf_prog_load(type, prog->insns, prog->ip - prog->insns);
 	if (kp->bfd < 0) {
 		_eno("%s", probe->string);
 		_d("output from kernel bpf verifier:\n%s",
 		   bpf_log_buf[0] ? bpf_log_buf : "<NO OUTPUT>");
 
-		return -errno;
+		free(kp);
+		return NULL;
 	}
-	
-	func = strchr(probe->string, ':') + 1;
-	if (strchr(func, '?') || strchr(func, '*'))
-		return kprobe_attach_pattern(kp, func);
-	else
-		return kprobe_attach_one(kp, func);
+
+	probe->dyn.probe.pvdr_priv = kp;
+	return kp;
 }
 
-static int kprobe_setup(node_t *probe, prog_t *prog)
-{
-	return kprobe_load(probe, prog, "p");
-}
-
-static int kretprobe_setup(node_t *probe, prog_t *prog)
-{
-	return kprobe_load(probe, prog, "r");
-}
-
-static int kprobe_teardown(node_t *probe)
+static int probe_teardown(node_t *probe)
 {
 	kprobe_t *kp = probe->dyn.probe.pvdr_priv;
 	int i;
@@ -228,42 +161,199 @@ static int kprobe_teardown(node_t *probe)
 	return 0;
 }
 
-static int kprobe_compile(node_t *call, prog_t *prog)
+
+/* TRACEPOINT provider */
+
+static int trace_attach(kprobe_t *kp, const char *func)
 {
-	return builtin_compile(call, prog);
+	int id;
+
+	id = probe_event_id(kp, func);
+	if (id < 0)
+		return id;
+
+	return probe_attach(kp, id);
 }
 
-static int kprobe_loc_assign(node_t *call)
+static int trace_load(node_t *probe, prog_t *prog)
 {
-	return builtin_loc_assign(call);
+	kprobe_t *kp;
+	char *func;
+
+	kp = probe_load(BPF_PROG_TYPE_TRACEPOINT, probe, prog);
+	if (!kp)
+		return -EINVAL;
+	
+	func = strchr(probe->string, ':') + 1;
+	/* if (strchr(func, '?') || strchr(func, '*')) */
+	/* 	return kprobe_attach_pattern(kp, func); */
+	/* else */
+		return trace_attach(kp, func);
 }
 
-static int kprobe_annotate(node_t *call)
+const module_t *trace_modules[] = {
+	/* &trace_module, */
+
+	&method_module,
+	&common_module,
+
+	NULL
+};
+
+static int trace_resolve(node_t *call, const func_t **f)
 {
-	return builtin_annotate(call);
+	return modules_get_func(trace_modules, call, f);
+}
+
+pvdr_t trace_pvdr = {
+	.name = "trace",
+
+	.resolve = trace_resolve,
+
+	.setup      = trace_load,
+	.teardown   = probe_teardown,
+};
+
+
+/* KPROBE provider */
+
+static int kprobe_event_id(kprobe_t *kp, const char *func)
+{
+	char *ev_name;
+	int id;
+
+	fprintf(kp->ctrl, "%s %s\n", kp->type, func);
+	fflush(kp->ctrl);
+
+	asprintf(&ev_name, "kprobes/%s_%s_0", kp->type, func);
+	id = probe_event_id(kp, ev_name);
+	free(ev_name);
+	return id;
+}
+
+static int kprobe_attach(kprobe_t *kp, const char *func)
+{
+	int id;
+
+	id = kprobe_event_id(kp, func);
+	if (id < 0)
+		return id;
+
+	return probe_attach(kp, id);
+}
+
+static int kprobe_attach_pattern(kprobe_t *kp, const char *pattern)
+{
+	int i, err;
+
+	if (!G.ksyms) {
+		_e("probe wildcards not supported without KALLSYMS support");
+		return -ENOSYS;
+	}
+
+	for (i = 0; i < G.ksyms->cache->hdr.n_syms; i++) {
+		const ksym_t *k = &G.ksyms->cache->sym[i];
+
+		if (fnmatch(pattern, k->sym, 0))
+			continue;
+
+		err = kprobe_attach(kp, k->sym);
+		if (err == -EEXIST)
+			err = 0;
+	}
+
+	return (err < 0) ? err : kp->efds.len;
+}
+
+static int kprobe_load(node_t *probe, prog_t *prog, const char *type)
+{
+	kprobe_t *kp;
+	char *func;
+
+	kp = probe_load(BPF_PROG_TYPE_KPROBE, probe, prog);
+	if (!kp)
+		return -EINVAL;
+
+	kp->type = type;
+
+	kp->ctrl = fopen("/sys/kernel/debug/tracing/kprobe_events", "a+");
+	if (!kp->ctrl) {
+		_eno("unable to open kprobe_events");
+		return -errno;
+	}
+	
+	func = strchr(probe->string, ':') + 1;
+	if (strchr(func, '?') || strchr(func, '*'))
+		return kprobe_attach_pattern(kp, func);
+	else
+		return kprobe_attach(kp, func);
+}
+
+
+const module_t *kprobe_modules[] = {
+	&kprobe_module,
+
+	&method_module,
+	&common_module,
+
+	NULL
+};
+
+static int kprobe_resolve(node_t *call, const func_t **f)
+{
+	return modules_get_func(kprobe_modules, call, f);
+}
+
+static int kprobe_setup(node_t *probe, prog_t *prog)
+{
+	return kprobe_load(probe, prog, "p");
 }
 
 pvdr_t kprobe_pvdr = {
 	.name = "kprobe",
-	.annotate   = kprobe_annotate,
-	.loc_assign = kprobe_loc_assign,
-	.compile    = kprobe_compile,
+
+	.resolve = kprobe_resolve,
+
 	.setup      = kprobe_setup,
-	.teardown   = kprobe_teardown,
+	.teardown   = probe_teardown,
 };
+
+
+const module_t *kretprobe_modules[] = {
+	&kretprobe_module,
+
+	&method_module,
+	&common_module,
+
+	NULL
+};
+
+static int kretprobe_resolve(node_t *call, const func_t **f)
+{
+	return modules_get_func(kretprobe_modules, call, f);
+}
+
+static int kretprobe_setup(node_t *probe, prog_t *prog)
+{
+	return kprobe_load(probe, prog, "r");
+}
 
 pvdr_t kretprobe_pvdr = {
 	.name = "kretprobe",
-	.annotate   =    kprobe_annotate,
-	.loc_assign =    kprobe_loc_assign,
-	.compile    =    kprobe_compile,
+
+	.resolve = kretprobe_resolve,
+
 	.setup      = kretprobe_setup,
-	.teardown   =    kprobe_teardown,
+	.teardown   = probe_teardown,
 };
+
+
+/* REGISTRATION */
 
 __attribute__((constructor))
 static void kprobe_pvdr_register(void)
 {
+	pvdr_register(    &trace_pvdr);
 	pvdr_register(   &kprobe_pvdr);
 	pvdr_register(&kretprobe_pvdr);
 }

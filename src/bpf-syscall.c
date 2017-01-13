@@ -34,7 +34,8 @@ static __u64 ptr_to_u64(const void *ptr)
         return (__u64) (unsigned long) ptr;
 }
 
-int bpf_prog_load(const struct bpf_insn *insns, int insn_cnt)
+int bpf_prog_load(enum bpf_prog_type type,
+		  const struct bpf_insn *insns, int insn_cnt)
 {
 	union bpf_attr attr;
 
@@ -43,7 +44,7 @@ int bpf_prog_load(const struct bpf_insn *insns, int insn_cnt)
 	memset(&attr, 0, sizeof(attr));
 
 	attr.kern_version = LINUX_VERSION_CODE;
-	attr.prog_type    = BPF_PROG_TYPE_KPROBE;
+	attr.prog_type    = type;
 	attr.insns        = ptr_to_u64(insns);
 	attr.insn_cnt     = insn_cnt;
 	attr.license      = ptr_to_u64("GPL");

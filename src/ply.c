@@ -255,7 +255,7 @@ int main(int argc, char **argv)
 	siginterrupt(SIGINT, 1);
 	signal(SIGINT, sigint);
 	
-	enable = fopen("/sys/kernel/debug/tracing/events/kprobes/enable", "w");
+	enable = fopen("/sys/kernel/debug/tracing/events/enable", "w");
 	if (!enable) {
 		perror("unable to enable probes");
 		err = -errno;

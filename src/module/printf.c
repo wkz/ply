@@ -23,10 +23,11 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "../ply.h"
-#include "../compile.h"
-#include "../bpf-syscall.h"
 #include "../lang/ast.h"
+#include "../bpf-syscall.h"
+#include "../compile.h"
+#include "../ply.h"
+#include "module.h"
 
 static void printf_spec(const char *spec, const char *term, void *data)
 {
@@ -310,3 +311,11 @@ int printf_annotate(node_t *call)
 	script->dyn.script.printf[meta->integer] = call;
 	return 0;
 }
+
+const func_t printf_func = {
+	.name = "printf",
+
+	.compile = printf_compile,
+	.loc_assign = printf_loc_assign,
+	.annotate = printf_annotate,
+};

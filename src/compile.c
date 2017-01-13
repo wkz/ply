@@ -639,7 +639,7 @@ static int compile_post(node_t *n, void *_prog)
 		break;
 
 	case TYPE_CALL:
-		err = node_get_pvdr(n)->compile(n, prog);
+		err = n->dyn.call.func->compile(n, prog);
 		break;
 
 	case TYPE_PROBE:

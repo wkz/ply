@@ -25,7 +25,8 @@
 
 extern char bpf_log_buf[LOG_BUF_SIZE];
 
-int bpf_prog_load(const struct bpf_insn *insns, int insn_cnt);
+int bpf_prog_load(enum bpf_prog_type type,
+		  const struct bpf_insn *insns, int insn_cnt);
 
 int bpf_map_create(enum bpf_map_type type, int key_sz, int val_sz, int entries);
 

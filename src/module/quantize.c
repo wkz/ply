@@ -20,9 +20,10 @@
 #include <inttypes.h>
 #include <stdio.h>
 
-#include "../ply.h"
+#include "../lang/ast.h"
 #include "../map.h"
-#include "pvdr.h"
+#include "../ply.h"
+#include "module.h"
 
 int quantize_compile(node_t *call, prog_t *prog)
 {
@@ -198,9 +199,10 @@ int quantize_annotate(node_t *call)
 	for (rec = map->map.rec->rec.vargs; rec->next; rec = rec->next);
 
 	/* rewrite map[c1, c2].quantize(some_int)
-	 * into    map[c1, c2, log2(some_int)].quantize()
+	 * into    map[c1, c2, common.log2(some_int)].quantize()
 	 */
-	rec->next = node_call_new(strdup("log2"), call->call.vargs);
+	rec->next = node_call_new(strdup("common"), strdup("log2"),
+				  call->call.vargs);
 	rec->next->dyn.type = TYPE_INT;
 	rec->next->dyn.size = sizeof(int64_t);
 	rec->next->parent = map->map.rec;
@@ -211,3 +213,11 @@ int quantize_annotate(node_t *call)
 	call->dyn.size = sizeof(int64_t);
 	return 0;
 }
+
+const func_t quantize_func = {
+	.name = "quantize",
+
+	.compile = quantize_compile,
+	.loc_assign = quantize_loc_assign,
+	.annotate = quantize_annotate,
+};

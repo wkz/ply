@@ -23,6 +23,7 @@
 #include <errno.h>
 #include <search.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -70,8 +71,9 @@ typedef struct node node_t;
 typedef struct dyn  dyn_t;
 typedef struct mdyn mdyn_t;
 
-/* forward from pvdr/pvdr.h */
 typedef struct pvdr pvdr_t;
+
+typedef struct func func_t;
 
 typedef struct rec {
 	int     n_vargs;
@@ -179,6 +181,10 @@ struct dyn {
 	int     free_regs;
 
 	union {
+		struct {
+			const func_t *func;
+		} call;
+
 		struct {
 			pvdr_t *pvdr;
 			void   *pvdr_priv;

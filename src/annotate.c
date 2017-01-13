@@ -72,7 +72,10 @@ static int loc_assign_pre(node_t *n, void *_probe)
 {
 	node_t *c, *probe = _probe;
 	ssize_t addr;
-	
+	_D("> %s%s%s (%s/%s/%#zx)", n->string ? "" : "<",
+	   n->string ? : type_str(n->type), n->string ? "" : ">",
+	   type_str(n->type), type_str(n->dyn.type), n->dyn.size);
+
 	switch (n->type) {
 	case TYPE_NONE:
 	case TYPE_SCRIPT:
@@ -97,7 +100,7 @@ static int loc_assign_pre(node_t *n, void *_probe)
 			n->dyn.reg = BPF_REG_0;
 		}
 
-		return probe->dyn.probe.pvdr->loc_assign(n);
+		return n->dyn.call.func->loc_assign(n);
 
 	case TYPE_ASSIGN:
 		n->dyn.loc = LOC_REG;
@@ -366,7 +369,7 @@ static int type_infer_post(node_t *n, void *_script)
 static int static_post(node_t *n, void *_null)
 {
 	char *escaped;
-	int err;
+	int err = 0;
 
 	switch (n->type) {
 	case TYPE_INT:
@@ -389,15 +392,19 @@ static int static_post(node_t *n, void *_null)
 		n->dyn.type = TYPE_REC;
 		break;
 	case TYPE_CALL:
-		err = node_get_pvdr(n)->annotate(n);
-		if (err)
-			return err;
+		err = n->dyn.call.func->annotate(n);
 		break;
 	default:
 		break;
 	}
 	
-	return 0;
+	if (err) {
+		char nstr[0x80];
+
+		node_sdump(n, nstr, sizeof(nstr));
+		_e("node:%s : %s", nstr, strerror(-err));
+	}
+	return err;
 }
 
 int annotate_script(node_t *script)
@@ -406,18 +413,29 @@ int annotate_script(node_t *script)
 
 	/* insert all statically known types */
 	err = node_walk(script, NULL, static_post, NULL);
-	_d("static inference done: %d", err);
+	if (err) {
+		_e("static type inference failed");
+		return err;
+	}
 
 	/* infer the rest. ...yes do three passes, this catches cases
 	 * where maps are used as rvalues before being used as
 	 * lvalues. TODO: this should be possible with two passes */
+	err =        node_walk(script, NULL, type_infer_post, script);
 	err = err? : node_walk(script, NULL, type_infer_post, script);
 	err = err? : node_walk(script, NULL, type_infer_post, script);
-	err = err? : node_walk(script, NULL, type_infer_post, script);
-	_d("dynamic inference done: %d", err);
+	if (err) {
+		_e("dynamic type inference failed: %s", strerror(-err));
+		return err;
+	}
 
 	/* calculate register or stack location of each node */
-	err = err? : loc_assign(script);
-	_d("location assigment done: %d", err);
-	return err;
+	err = loc_assign(script);
+	if (err) {
+		_e("location assignment failed: %s", strerror(-err));
+		return err;
+	}
+
+	_d("ok");
+	return 0;
 }
