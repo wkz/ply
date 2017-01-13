@@ -107,6 +107,7 @@ typedef struct method {
 } method_t;
 
 typedef struct call {
+	char   *module;
 	int     n_vargs;
 	node_t *vargs;
 } call_t;
@@ -257,7 +258,7 @@ node_t *node_return_new  (node_t *expr);
 node_t *node_binop_new   (node_t *left, char *opstr, node_t *right);
 node_t *node_assign_new  (node_t *lval, char *opstr, node_t *expr);
 node_t *node_method_new  (node_t *map, node_t *call);
-node_t *node_call_new    (char *func, node_t *vargs);
+node_t *node_call_new    (char *module, char *func, node_t *vargs);
 node_t *node_probe_new   (char *pspec, node_t *pred, node_t *stmts);
 node_t *node_script_new  (node_t *probes);
 node_t *node_script_parse(FILE *fp);

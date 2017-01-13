@@ -62,7 +62,7 @@ typedef struct node node_t;
 %token <integer> INT
 
 %type <node> script probes probe stmts stmt
-%type <node> block expr variable record call vargs
+%type <node> block expr variable record call mcall vargs
 
 %left OP
 %precedence '!'
@@ -127,6 +127,8 @@ expr : INT
 		{ $$ = $1; }
      | call
 		{ $$ = $1; }
+     | mcall
+		{ $$ = $1; }
 ;
 
 variable : UIDENT record
@@ -139,13 +141,20 @@ record : '[' vargs ']'
 		{ $$ = node_rec_new($2); }
 ;
 
-call: IDENT
-		{ $$ = node_call_new($1, NULL); }
-    | IDENT '(' ')'
-		{ $$ = node_call_new($1, NULL); }
-    | IDENT '(' vargs ')'
-		{ $$ = node_call_new($1, $3); }
+call : IDENT
+		{ $$ = node_call_new(NULL, $1, NULL); }
+     | IDENT '(' ')'
+		{ $$ = node_call_new(NULL, $1, NULL); }
+     | IDENT '(' vargs ')'
+		{ $$ = node_call_new(NULL, $1, $3); }
 ;
+
+mcall : IDENT '.' IDENT
+		{ $$ = node_call_new($1, $3, NULL); }
+      | IDENT '.' IDENT '(' ')'
+		{ $$ = node_call_new($1, $3, NULL); }
+      | IDENT '.' IDENT '(' vargs ')'
+		{ $$ = node_call_new($1, $3, $5); }
 
 vargs : expr
 		{ $$ = $1; }

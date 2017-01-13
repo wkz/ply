@@ -424,6 +424,7 @@ node_t *node_method_new(node_t *map, node_t *call)
 {
 	node_t *n = node_new(TYPE_METHOD);
 
+	call->call.module = strdup("method");
 	n->method.map  = map;
 	n->method.call = call;
 
@@ -447,11 +448,12 @@ node_t *node_assign_new(node_t *lval, char *opstr, node_t *expr)
 	return n;
 }
 
-node_t *node_call_new(char *func, node_t *vargs)
+node_t *node_call_new(char *module, char *func, node_t *vargs)
 {
 	node_t *c, *n = node_new(TYPE_CALL);
 
 	n->string = func;
+	n->call.module = module;
 	n->call.vargs = vargs;
 
 	node_foreach(c, vargs) {
@@ -507,8 +509,11 @@ node_t *node_script_parse(FILE *fp)
 static int _node_free(node_t *n, void *ctx)
 {
 	switch (n->type) {
-	case TYPE_PROBE:
 	case TYPE_CALL:
+		if (n->call.module)
+			free(n->call.module);
+		/* fall-through */
+	case TYPE_PROBE:
 	case TYPE_ASSIGN:
 	case TYPE_BINOP:
 	case TYPE_MAP:
