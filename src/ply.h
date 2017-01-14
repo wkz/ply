@@ -20,6 +20,7 @@
 #pragma once
 
 #include <errno.h>
+#include <stdarg.h>
 #include <stdio.h>
 
 #include "kallsyms.h"
@@ -64,3 +65,21 @@ extern struct globals G;
 char *str_escape(char *str);
 
 int annotate_script(node_t *script);
+
+
+static inline FILE *fopenf(const char *mode, const char *fmt, ...)
+{
+	char path[0x100];
+	va_list ap;
+	FILE *fp;
+	int ret;
+
+	va_start(ap, fmt);
+	ret = vsnprintf(path, sizeof(path), fmt, ap);
+	va_end(ap);
+
+	if (ret < 0 || ret >= sizeof(path))
+		return NULL;
+
+	return fopen(path, mode);
+}

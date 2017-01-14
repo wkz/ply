@@ -65,11 +65,9 @@ perf_event_open(struct perf_event_attr *hw_event, pid_t pid,
 static int probe_event_id(kprobe_t *kp, const char *path)
 {
 	FILE *fp;
-	char *ev_path, ev_id[16];
+	char ev_id[16];
 
-	asprintf(&ev_path, "/sys/kernel/debug/tracing/events/%s/id", path);
-	fp = fopen(ev_path, "r");
-	free(ev_path);
+	fp = fopenf("r", "/sys/kernel/debug/tracing/events/%s/id", path);
 	if (!fp) {
 		_eno("\"%s\"", path);
 		return -errno;
@@ -192,7 +190,7 @@ static int trace_load(node_t *probe, prog_t *prog)
 }
 
 const module_t *trace_modules[] = {
-	/* &trace_module, */
+	&trace_module,
 
 	&method_module,
 	&common_module,
@@ -219,16 +217,13 @@ pvdr_t trace_pvdr = {
 
 static int kprobe_event_id(kprobe_t *kp, const char *func)
 {
-	char *ev_name;
-	int id;
+	char ev_name[0x100];
 
 	fprintf(kp->ctrl, "%s %s\n", kp->type, func);
 	fflush(kp->ctrl);
 
-	asprintf(&ev_name, "kprobes/%s_%s_0", kp->type, func);
-	id = probe_event_id(kp, ev_name);
-	free(ev_name);
-	return id;
+	snprintf(ev_name, sizeof(ev_name), "kprobes/%s_%s_0", kp->type, func);
+	return probe_event_id(kp, ev_name);
 }
 
 static int kprobe_attach(kprobe_t *kp, const char *func)

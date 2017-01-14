@@ -13,6 +13,8 @@ struct func {
 	int (*annotate)  (node_t *call);
 	int (*loc_assign)(node_t *call);
 	int (*compile)   (node_t *call,  prog_t *prog);
+
+	void *priv;
 };
 
 #define MODULE_FUNC_ALIAS(_mod, _name, _real)			\
@@ -56,5 +58,6 @@ extern module_t common_module;
 
 extern module_t kprobe_module;
 extern module_t kretprobe_module;
+extern module_t trace_module;
 
 #endif	/* _MODULE_H */
