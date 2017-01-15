@@ -189,7 +189,7 @@ int main(int argc, char **argv)
 	node_t *probe, *script;
 	prog_t *prog = NULL;
 	pvdr_t *pvdr;
-	int err = 0, num;
+	int err = 0, num, total;
 
 	scriptfp = stdin;
 	err = parse_opts(argc, argv, &sfp);
@@ -220,6 +220,7 @@ int main(int argc, char **argv)
 	if (G.dump)
 		node_ast_dump(script);
 
+	total = 0;
 	node_foreach(probe, script->script.probes) {
 		err = -EINVAL;
 		prog = compile_probe(probe);
@@ -237,6 +238,8 @@ int main(int argc, char **argv)
 				   "against the running kernel");
 			break;
 		}
+
+		total += num;
 	}
 
 	if (G.dump)
@@ -267,7 +270,7 @@ int main(int argc, char **argv)
 	fflush(enable);
 	rewind(enable);
 
-	fprintf(stderr, "%d probe%s active\n", num, (num == 1) ? "" : "s");
+	fprintf(stderr, "%d probe%s active\n", total, (total == 1) ? "" : "s");
 	printf_drain(script);
 
 	fprintf(stderr, "de-activating probes\n");
