@@ -21,7 +21,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "arch.h"
+#include <ply/arch.h>
 
 int arch_reg_width(void) 
 {

@@ -25,9 +25,9 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "ply.h"
-#include "bpf-syscall.h"
-#include "map.h"
+#include <ply/ply.h>
+#include <ply/bpf-syscall.h>
+#include <ply/map.h>
 
 static void dump_node(FILE *fp, node_t *n, void *data);
 

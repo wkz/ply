@@ -35,10 +35,10 @@
 #include <sys/syscall.h>
 #include <sys/types.h>
 
-#include "../ply.h"
-#include "../bpf-syscall.h"
-#include "../module/module.h"
-#include "pvdr.h"
+#include <ply/bpf-syscall.h>
+#include <ply/module.h>
+#include <ply/ply.h>
+#include <ply/pvdr.h>
 
 typedef struct kprobe {
 	const char *type;

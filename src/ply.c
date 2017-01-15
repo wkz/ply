@@ -24,11 +24,12 @@
 #include <sys/resource.h>
 #include <unistd.h>
 
+#include <ply/ast.h>
+#include <ply/map.h>
+#include <ply/ply.h>
+#include <ply/pvdr.h>
+
 #include "config.h"
-#include "ply.h"
-#include "map.h"
-#include "lang/ast.h"
-#include "pvdr/pvdr.h"
 
 FILE *scriptfp;
 

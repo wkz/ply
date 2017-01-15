@@ -20,8 +20,8 @@
 #include <errno.h>
 #include <string.h>
 
-#include "../ply.h"
-#include "pvdr.h"
+#include <ply/ply.h>
+#include <ply/pvdr.h>
 
 TAILQ_HEAD(pvdrs, pvdr);
 static struct pvdrs pvdr_list = TAILQ_HEAD_INITIALIZER(pvdr_list);

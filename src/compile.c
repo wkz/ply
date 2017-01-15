@@ -21,10 +21,10 @@
 #include <inttypes.h>
 #include <string.h>
 
-#include "ply.h"
-#include "compile.h"
-#include "lang/ast.h"
-#include "pvdr/pvdr.h"
+#include <ply/ast.h>
+#include <ply/compile.h>
+#include <ply/ply.h>
+#include <ply/pvdr.h>
 
 const dyn_t dyn_reg[] = {
 	[BPF_REG_0] =  { .type = TYPE_INT, .size = 8, .loc = LOC_REG, .reg = BPF_REG_0  },

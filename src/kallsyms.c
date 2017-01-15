@@ -9,8 +9,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "kallsyms.h"
-#include "ply.h"
+#include <ply/ply.h>
+#include <ply/kallsyms.h>
 
 #define KSYMS_CACHE "/tmp/ply.ksyms"
 

@@ -1,8 +1,8 @@
 #ifndef _MODULE_H
 #define _MODULE_H
 
-#include "../compile.h"
-#include "../lang/ast.h"
+#include <ply/ast.h>
+#include <ply/compile.h>
 
 typedef struct func func_t;
 

@@ -21,7 +21,7 @@
 
 #include <linux/bpf.h>
 
-#include "lang/ast.h"
+#include <ply/ast.h>
 
 #define INSN(_code, _dst, _src, _off, _imm)	\
 	((struct bpf_insn) {			\

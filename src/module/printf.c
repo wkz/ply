@@ -23,11 +23,11 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "../lang/ast.h"
-#include "../bpf-syscall.h"
-#include "../compile.h"
-#include "../ply.h"
-#include "module.h"
+#include <ply/ast.h>
+#include <ply/bpf-syscall.h>
+#include <ply/compile.h>
+#include <ply/module.h>
+#include <ply/ply.h>
 
 static void printf_spec(const char *spec, const char *term, void *data)
 {

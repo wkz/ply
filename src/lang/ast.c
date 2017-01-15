@@ -25,7 +25,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "ast.h"
+#include <ply/ast.h>
+
 #include "parse.h"
 #include "lex.h"
 

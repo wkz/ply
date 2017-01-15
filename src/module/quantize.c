@@ -20,10 +20,10 @@
 #include <inttypes.h>
 #include <stdio.h>
 
-#include "../lang/ast.h"
-#include "../map.h"
-#include "../ply.h"
-#include "module.h"
+#include <ply/ast.h>
+#include <ply/map.h>
+#include <ply/module.h>
+#include <ply/ply.h>
 
 int quantize_compile(node_t *call, prog_t *prog)
 {

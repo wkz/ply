@@ -4,10 +4,10 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../lang/ast.h"
-#include "../map.h"
-#include "../ply.h"
-#include "module.h"
+#include <ply/ast.h>
+#include <ply/map.h>
+#include <ply/module.h>
+#include <ply/ply.h>
 
 struct trace_field {
 	type_t type;

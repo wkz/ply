@@ -25,7 +25,7 @@
 #include <linux/version.h>
 #include <sys/syscall.h>
 
-#include "bpf-syscall.h"
+#include <ply/bpf-syscall.h>
 
 char bpf_log_buf[LOG_BUF_SIZE];
 

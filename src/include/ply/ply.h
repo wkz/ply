@@ -23,8 +23,8 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-#include "kallsyms.h"
-#include "lang/ast.h"
+#include <ply/kallsyms.h>
+#include <ply/ast.h>
 
 #define MAP_LEN 512
 

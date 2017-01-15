@@ -22,7 +22,8 @@
 %{
 #include <stdio.h>
 
-#include "ast.h"
+#include <ply/ast.h>
+
 #include "parse.h"
 #include "lex.h"
 

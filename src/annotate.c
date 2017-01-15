@@ -22,9 +22,9 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "ply.h"
-#include "lang/ast.h"
-#include "pvdr/pvdr.h"
+#include <ply/ast.h>
+#include <ply/ply.h>
+#include <ply/pvdr.h>
 
 #define b_xor(_a, _b) ((!!(_a)) ^ (!!(_b)))
 

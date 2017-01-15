@@ -17,33 +17,13 @@
  * along with ply.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _PROVIDER_H
-#define _PROVIDER_H
+#pragma once
 
-#include <sys/queue.h>
+#include <ply/ast.h>
 
-#include "../lang/ast.h"
-#include "../module/module.h"
-#include "../compile.h"
+void dump_sym(FILE *fp, node_t *integer, void *data);
+void dump_rec(FILE *fp, node_t *rec, void *data, int len);
+int  cmp_node(node_t *n, const void *a, const void *b);
 
-typedef struct pvdr {
-	TAILQ_ENTRY(pvdr) node;
-
-	const char *name;
-
-	int (*resolve)(node_t *call, const func_t **f);
-
-  	int    (*setup)(node_t *probe, prog_t *prog);
-	int (*teardown)(node_t *probe);
-} pvdr_t;
-
-pvdr_t *pvdr_find    (const char *name);
-int     pvdr_resolve (node_t *script);
-void    pvdr_register(pvdr_t *pvdr);
-
-void printf_drain     (node_t *script);
-int  printf_compile   (node_t *call, prog_t *prog);
-int  printf_loc_assign(node_t *call);
-int  printf_annotate  (node_t *call);
-
-#endif	/* _PROVIDER_H */
+int map_setup   (node_t *script);
+int map_teardown(node_t *script);

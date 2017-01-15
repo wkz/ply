@@ -17,7 +17,7 @@
  * along with ply.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "ply.h"
+#include <ply/ply.h>
 
 char *str_escape(char *str)
 {

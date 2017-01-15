@@ -3,9 +3,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../lang/ast.h"
-#include "../ply.h"
-#include "module.h"
+#include <ply/ast.h>
+#include <ply/module.h>
+#include <ply/ply.h>
 
 #define COMMON_SIMPLE_FUNC(_name)				\
 	static const func_t common_ ## _name ## _func = {	\

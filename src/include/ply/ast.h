@@ -203,7 +203,7 @@ struct dyn {
 
 struct node {
 	node_t *next, *prev;
-	
+
 	type_t  type;
 	dyn_t   dyn;
 

@@ -1,6 +1,6 @@
 
-#include "../ply.h"
-#include "module.h"
+#include <ply/module.h>
+#include <ply/ply.h>
 
 int default_loc_assign(node_t *call)
 {

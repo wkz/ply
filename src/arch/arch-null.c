@@ -20,7 +20,7 @@
 #include <errno.h>
 #include <stdint.h>
 
-#include "arch.h"
+#include <ply/arch.h>
 
 int __attribute__ ((weak)) arch_reg_width(void) 
 {

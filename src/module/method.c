@@ -3,9 +3,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../lang/ast.h"
-#include "../ply.h"
-#include "module.h"
+#include <ply/ast.h>
+#include <ply/module.h>
+#include <ply/ply.h>
 
 static int method_count_compile(node_t *call, prog_t *prog)
 {

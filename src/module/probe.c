@@ -3,11 +3,11 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../arch/arch.h"
-#include "../lang/ast.h"
-#include "../map.h"
-#include "../ply.h"
-#include "module.h"
+#include <ply/arch.h>
+#include <ply/ast.h>
+#include <ply/map.h>
+#include <ply/module.h>
+#include <ply/ply.h>
 
 static int probe_comm_compile(node_t *call, prog_t *prog)
 {
