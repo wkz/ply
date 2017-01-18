@@ -3,8 +3,11 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <linux/version.h>
+
 #include <ply/arch.h>
 #include <ply/ast.h>
+#include <ply/bpf-syscall.h>
 #include <ply/map.h>
 #include <ply/module.h>
 #include <ply/ply.h>
@@ -131,7 +134,7 @@ static int probe_func_annotate(node_t *call)
 MODULE_FUNC_LOC(probe, func);
 MODULE_FUNC_ALIAS(probe, probefunc, func);
 
-
+#ifdef LINUX_HAS_STACKMAP
 static int probe_stack_compile(node_t *call, prog_t *prog)
 {
 	int stackmap_fd = node_map_get_fd(call);
@@ -171,7 +174,7 @@ static int probe_stack_annotate(node_t *call)
 	return 0;
 }
 MODULE_FUNC_LOC(probe, stack);
-
+#endif
 
 static int kprobe_arg_compile(node_t *call, prog_t *prog)
 {
@@ -245,7 +248,9 @@ static const func_t *kprobe_funcs[] = {
 	&probe_execname_func,
 	&probe_reg_func,
 	&probe_func_func,
+#ifdef LINUX_HAS_STACKMAP
 	&probe_stack_func,
+#endif
 
 	&kprobe_arg_func,
 
@@ -267,7 +272,9 @@ static const func_t *kretprobe_funcs[] = {
 	&probe_execname_func,
 	&probe_reg_func,
 	&probe_func_func,
+#ifdef LINUX_HAS_STACKMAP
 	&probe_stack_func,
+#endif
 
 	&kretprobe_retval_func,
 

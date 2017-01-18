@@ -22,6 +22,7 @@
 #include <string.h>
 
 #include <ply/ast.h>
+#include <ply/bpf-syscall.h>
 #include <ply/compile.h>
 #include <ply/ply.h>
 #include <ply/pvdr.h>
@@ -61,9 +62,10 @@ static const char *bpf_func_name(enum bpf_func_id id)
 		return "get_current_uid_gid";
 	case BPF_FUNC_get_current_comm:
 		return "get_current_comm";
+#ifdef LINUX_HAS_STACKMAP
 	case BPF_FUNC_get_stackid:
 		return "get_stackid";
-
+#endif
 	default:
 		return NULL;
 	}

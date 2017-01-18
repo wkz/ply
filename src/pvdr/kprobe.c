@@ -73,7 +73,9 @@ static int probe_event_id(kprobe_t *kp, const char *path)
 		return -errno;
 	}
 
-	fgets(ev_id, sizeof(ev_id), fp);
+	if (!fgets(ev_id, sizeof(ev_id), fp))
+		return -EIO;
+
 	fclose(fp);
 	return strtol(ev_id, NULL, 0);
 }
@@ -161,7 +163,7 @@ static int probe_teardown(node_t *probe)
 
 
 /* TRACEPOINT provider */
-
+#ifdef LINUX_HAS_TRACEPOINT
 static int trace_attach(kprobe_t *kp, const char *func)
 {
 	int id;
@@ -211,6 +213,7 @@ pvdr_t trace_pvdr = {
 	.setup      = trace_load,
 	.teardown   = probe_teardown,
 };
+#endif
 
 
 /* KPROBE provider */
@@ -348,7 +351,9 @@ pvdr_t kretprobe_pvdr = {
 __attribute__((constructor))
 static void kprobe_pvdr_register(void)
 {
+#ifdef LINUX_HAS_TRACEPOINT
 	pvdr_register(    &trace_pvdr);
+#endif
 	pvdr_register(   &kprobe_pvdr);
 	pvdr_register(&kretprobe_pvdr);
 }
