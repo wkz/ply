@@ -58,12 +58,12 @@ typedef struct node node_t;
 %parse-param { node_t **script }
 %parse-param { yyscan_t scanner }
 
-%token NIL RETURN
+%token NIL UNROLL RETURN
 %token <string> PSPEC IDENT UIDENT STRING OP AOP
 %token <integer> INT
 
-%type <node> script probes probe stmts stmt
-%type <node> block expr variable record call mcall vargs
+%type <node> script probes probe stmts stmt block
+%type <node> unroll expr variable record call mcall vargs
 
 %left OP
 %precedence '!'
@@ -102,6 +102,8 @@ stmt : variable AOP expr
      		{ $$ = node_method_new($1, $3); }
      | expr
 		{ $$ = $1; }
+     | unroll
+		{ $$ = $1; }
      | RETURN expr
 		{ $$ = node_return_new($2); }
 ;
@@ -110,6 +112,10 @@ block : '{' stmts '}'
 		{ $$ = $2; }
       | '{' stmts ';' '}'
 		{ $$ = $2; }
+;
+
+unroll : UNROLL '(' INT ')' block
+		{ $$ = node_unroll_new($3, $5); }
 ;
 
 expr : INT

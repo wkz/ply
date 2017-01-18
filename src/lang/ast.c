@@ -121,6 +121,10 @@ int node_fdump(node_t *n, FILE *fp)
 		fprintf(fp, "%s ", n->string);
 		break;
 
+	case TYPE_UNROLL:
+		fprintf(fp, "unroll (%"PRId64") ", n->unroll.count);
+		break;
+
 	case TYPE_CALL:
 		fprintf(fp, "%s.%s ", n->call.module? : "<auto>", n->string);
 		break;
@@ -484,6 +488,18 @@ node_t *node_call_new(char *module, char *func, node_t *vargs)
 	return n;
 }
 
+node_t *node_unroll_new(int64_t count, node_t *stmts)
+{
+	node_t *c, *n = node_new(TYPE_UNROLL);
+
+	n->unroll.count = count;
+	n->unroll.stmts = stmts;
+
+	node_foreach(c, stmts)
+		c->parent = n;
+	return n;
+}
+
 node_t *node_probe_new(char *pspec, node_t *pred,
 			     node_t *stmts)
 {
@@ -578,7 +594,8 @@ int node_walk(node_t *n,
 {
 #define do_list(_head) err = _node_walk_list(_head, pre, post, ctx); if (err) return err
 #define do_walk(_node) err =       node_walk(_node, pre, post, ctx); if (err) return err
-	int err = 0;
+	int64_t i;
+	int err;
 
 	err = pre ? pre(n, ctx) : 0;
 	if (err)
@@ -593,6 +610,12 @@ int node_walk(node_t *n,
 		if (n->probe.pred)
 			do_walk(n->probe.pred);
 		do_list(n->probe.stmts);
+		break;
+
+	case TYPE_UNROLL:
+		for (i = 0; i < n->unroll.count; i++) {
+			do_list(n->unroll.stmts);
+		}
 		break;
 
 	case TYPE_CALL:

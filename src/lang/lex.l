@@ -59,6 +59,7 @@ cmp		[!=<>]=|<|>
 
 \n			{ lineno++; }
 "nil"			{ return NIL; }
+"unroll"		{ return UNROLL; }
 "return"		{ return RETURN; }
 
 {pspec}			{ yylval->string = strdup(yytext); return PSPEC;  }

@@ -644,6 +644,10 @@ static int compile_post(node_t *n, void *_prog)
 		err = n->dyn.call.func->compile(n, prog);
 		break;
 
+	case TYPE_UNROLL:
+		/* unroll is just code copy+paste, done in the ast */
+		break;
+
 	case TYPE_PROBE:
 	case TYPE_SCRIPT:
 	case TYPE_NONE:

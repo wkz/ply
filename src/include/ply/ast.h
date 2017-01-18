@@ -108,6 +108,11 @@ typedef struct method {
 	node_t *map, *call;
 } method_t;
 
+typedef struct unroll {
+	int64_t count;
+	node_t *stmts;
+} unroll_t;
+
 typedef struct call {
 	char   *module;
 	int     n_vargs;
@@ -127,6 +132,7 @@ typedef struct script {
 	TYPE(TYPE_NONE,   "none")			\
 	TYPE(TYPE_SCRIPT, "script")			\
 	TYPE(TYPE_PROBE,  "probe")			\
+	TYPE(TYPE_UNROLL, "unroll")			\
 	TYPE(TYPE_CALL,   "call")			\
 	TYPE(TYPE_ASSIGN, "assign")			\
 	TYPE(TYPE_METHOD, "method")			\
@@ -216,6 +222,7 @@ struct node {
 	union {
 		script_t script;
 		probe_t  probe;
+		unroll_t unroll;
 		call_t   call;
 		assign_t assign;
 		method_t method;
@@ -267,6 +274,7 @@ node_t *node_return_new  (node_t *expr);
 node_t *node_binop_new   (node_t *left, char *opstr, node_t *right);
 node_t *node_assign_new  (node_t *lval, char *opstr, node_t *expr);
 node_t *node_method_new  (node_t *map, node_t *call);
+node_t *node_unroll_new  (int64_t count, node_t *stmts);
 node_t *node_call_new    (char *module, char *func, node_t *vargs);
 node_t *node_probe_new   (char *pspec, node_t *pred, node_t *stmts);
 node_t *node_script_new  (node_t *probes);

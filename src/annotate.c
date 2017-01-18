@@ -163,6 +163,7 @@ static int loc_assign_pre(node_t *n, void *_probe)
 		}
 		return 0;
 
+	case TYPE_UNROLL:
 	case TYPE_STR:
 	case TYPE_INT:
 		return 0;
