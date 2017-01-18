@@ -29,6 +29,8 @@
 #include <ply/bpf-syscall.h>
 #include <ply/map.h>
 
+#define PTR_W ((int)(sizeof(uintptr_t) * 2))
+
 static void dump_node(FILE *fp, node_t *n, void *data);
 
 void dump_sym(FILE *fp, node_t *integer, void *data)
@@ -42,8 +44,7 @@ void dump_sym(FILE *fp, node_t *integer, void *data)
 		return;
 	}
 
-	fprintf(fp, "\n\t<%*.*" PRIxPTR ">",
-		sizeof(uintptr_t) * 2, sizeof(uintptr_t) * 2, pc);
+	fprintf(fp, "\n\t<%*.*" PRIxPTR ">", PTR_W, PTR_W, pc);
 }
 
 static void dump_int(FILE *fp, node_t *integer, void *data)
@@ -85,12 +86,11 @@ static void dump_stack(FILE *fp, node_t *stack, void *data)
 			if (!ips[i])
 				continue;
 
-			fprintf(fp, "+%#x", ips[i]);
+			fprintf(fp, "+%#x", (unsigned int)ips[i]);
 			continue;
 		}
 
-		fprintf(fp, "\n\t<%*.*" PRIxPTR ">",
-			sizeof(uintptr_t) * 2, sizeof(uintptr_t) * 2, ips[i]);
+		fprintf(fp, "\n\t<%*.*" PRIxPTR ">", PTR_W, PTR_W, ips[i]);
 	}
 }
 
@@ -221,7 +221,8 @@ static void __key_workaround(int fd, void *key, size_t key_sz, void *val)
 		if (err)
 			break;
 
-		fread(key, key_sz, 1, fp);
+		if (fread(key, key_sz, 1, fp) != 1)
+			break;
 	}
 
 	fclose(fp);

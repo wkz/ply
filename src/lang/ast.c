@@ -126,7 +126,7 @@ int node_fdump(node_t *n, FILE *fp)
 		break;
 
 	case TYPE_INT:
-		fprintf(fp, "%" PRIx64 " ", n->integer);
+		fprintf(fp, "%#" PRIx64 " ", n->integer);
 		break;
 		
 	case TYPE_STR:
