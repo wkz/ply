@@ -39,21 +39,25 @@ static int ksym_prepare(FILE *fp, struct ksym *ksym)
 	char line[0x80];
 	char *p;
 
-	if (!fgets(line, sizeof(line), fp))
-		return EOF;
+	while (fgets(line, sizeof(line), fp)) {
+		ksym->start = strtoul(line, &p, 16);
+		if (ksym->start == ULONG_MAX)
+			continue;
 
-	ksym->start = strtoul(line, &p, 16);
-	if (ksym->start == ULONG_MAX)
-		return -EINVAL;
+		p++;
+		if (*p != 't' && *p != 'T')
+			continue;
 
-	p += 3;
+		p += 2;
+		p = strtok(p, " \t\n");
+		if (!p)
+			continue;
 
-	strncpy(ksym->sym, p, sizeof(ksym->sym) - 1);
-	p = strchr(ksym->sym, '\n');
-	if (p)
-		*p = '\0';
+		strncpy(ksym->sym, p, sizeof(ksym->sym) - 1);
+		return 0;
+	}
 
-	return 0;
+	return EOF;
 }
 
 static int ksyms_cache_build(const char *in, const char *out)
@@ -115,8 +119,10 @@ static int ksyms_cache_build(const char *in, const char *out)
 
 close_cfp:
 	fclose(cfp);
-	if (err)
+	if (err) {
+		_e("failed: %s", strerror(-err));
 		unlink(out);
+	}
 close_kfp:
 	fclose(kfp);
 out:
