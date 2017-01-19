@@ -46,9 +46,9 @@ void comment(yyscan_t scanner)
 uaz		[_a-zA-Z]
 uazd		[_a-zA-Z0-9]
 
-identifier	{uaz}{uazd}*
-uidentifier     \${identifier}
-pspec		{identifier}:[*?:_.,/a-zA-Z0-9]*
+ident		{uaz}{uazd}*
+map		@{ident}*
+pspec		{ident}:[*?:_.,/a-zA-Z0-9]*
 op		[+\-*|&%^]|<<|>>
 cmp		[!=<>]=|<|>
 
@@ -62,9 +62,9 @@ cmp		[!=<>]=|<|>
 "unroll"		{ return UNROLL; }
 "return"		{ return RETURN; }
 
-{pspec}			{ yylval->string = strdup(yytext); return PSPEC;  }
-{identifier}		{ yylval->string = strdup(yytext); return IDENT;  }
-{uidentifier}		{ yylval->string = strdup(yytext); return UIDENT; }
+{pspec}			{ yylval->string = strdup(yytext); return PSPEC; }
+{ident}			{ yylval->string = strdup(yytext); return IDENT; }
+{map}			{ yylval->string = strdup(yytext); return MAP;   }
 
 {op}|{cmp}		{ yylval->string = strdup(yytext); return OP;  }
 {op}?=			{ yylval->string = strdup(yytext); return AOP; }

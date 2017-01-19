@@ -317,7 +317,7 @@ int map_teardown(node_t *script)
 
 	for (mdyn = script->dyn.script.mdyns; mdyn; mdyn = mdyn->next) {
 		if (mdyn->mapfd) {
-			if (mdyn->map->string[0] == '$')
+			if (mdyn->map->string[0] == '@')
 				dump_mdyn(mdyn);
 
 			close(mdyn->mapfd);

@@ -59,7 +59,7 @@ typedef struct node node_t;
 %parse-param { yyscan_t scanner }
 
 %token NIL UNROLL RETURN
-%token <string> PSPEC IDENT UIDENT STRING OP AOP
+%token <string> PSPEC IDENT MAP STRING OP AOP
 %token <integer> INT
 
 %type <node> script probes probe stmts stmt block
@@ -138,9 +138,9 @@ expr : INT
 		{ $$ = $1; }
 ;
 
-variable : UIDENT record
+variable : MAP record
 		{ $$ = node_map_new($1, $2); }
-         | UIDENT
+         | MAP
         	{ $$ = node_var_new($1); }
 ;
 
