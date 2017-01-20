@@ -113,13 +113,8 @@ static int loc_assign_pre(node_t *n, void *_probe)
 		if (!n->assign.expr)
 			return 0;
 
-		if (n->assign.op == ALU_OP_MOV) {
-			n->assign.expr->dyn.loc  = LOC_STACK;
-			n->assign.expr->dyn.addr = c->dyn.addr;
-		} else {
-			n->assign.expr->dyn.loc = LOC_REG;
-			n->assign.expr->dyn.reg = BPF_REG_1;
-		}
+		n->assign.expr->dyn.loc  = LOC_STACK;
+		n->assign.expr->dyn.addr = c->dyn.addr;
 		return 0;
 	case TYPE_METHOD:
 		c = n->method.map;

@@ -67,9 +67,8 @@ cmp		[!=<>]=|<|>
 {map}			{ yylval->string = strdup(yytext); return MAP;   }
 
 {op}|{cmp}		{ yylval->string = strdup(yytext); return OP;  }
-{op}?=			{ yylval->string = strdup(yytext); return AOP; }
 
-[$.,;+\-*/!()\[\]{}]	{ return *yytext; }
+[=$.,;+\-*/!()\[\]{}]	{ return *yytext; }
 \"(\\.|[^\\"])*\"	{ yylval->string = strndup(&yytext[1], strlen(yytext) - 2); return STRING; }
 [0-9]+			{ yylval->integer = strtoul(yytext, NULL, 0); return INT; }
 0[xX][0-9a-fA-F]+	{ yylval->integer = strtoul(yytext, NULL, 0); return INT; }

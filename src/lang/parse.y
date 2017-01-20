@@ -59,11 +59,11 @@ typedef struct node node_t;
 %parse-param { yyscan_t scanner }
 
 %token NIL UNROLL RETURN
-%token <string> PSPEC IDENT MAP STRING OP AOP
+%token <string> PSPEC IDENT MAP STRING OP
 %token <integer> INT
 
-%type <node> script probes probe stmts stmt block
-%type <node> unroll expr variable record call mcall vargs
+%type <node> script probes probe stmts stmt block unroll
+%type <node> expr variable map record call mcall vargs
 
 %left OP
 %precedence '!'
@@ -94,10 +94,10 @@ stmts : stmt
 		{ insque_tail($3, $1); }
 ;
 
-stmt : variable AOP expr
-		{ $$ = node_assign_new($1, $2, $3); }
-     | variable AOP NIL
-		{ $$ = node_assign_new($1, $2, NULL); }
+stmt : variable '=' expr
+		{ $$ = node_assign_new($1, $3); }
+     | variable '=' NIL
+		{ $$ = node_assign_new($1, NULL); }
      | variable '.' call
      		{ $$ = node_method_new($1, $3); }
      | expr

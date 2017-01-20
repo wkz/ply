@@ -445,6 +445,20 @@ node_t *node_binop_new(node_t *left, char *opstr, node_t *right)
 	return n;
 }
 
+node_t *node_assign_new(node_t *lval, node_t *expr)
+{
+	node_t *n = node_new(TYPE_ASSIGN);
+
+	n->string = strdup("=");
+	n->assign.lval = lval;
+	n->assign.expr = expr;
+
+	lval->parent = n;
+	if (expr)
+		expr->parent = n;
+	return n;
+}
+
 node_t *node_method_new(node_t *map, node_t *call)
 {
 	node_t *n = node_new(TYPE_METHOD);
@@ -456,21 +470,6 @@ node_t *node_method_new(node_t *map, node_t *call)
 	map->parent  = n;
 	call->parent = n;
 	return n;	
-}
-
-node_t *node_assign_new(node_t *lval, char *opstr, node_t *expr)
-{
-	node_t *n = node_new(TYPE_ASSIGN);
-
-	n->string = opstr;
-	n->assign.op   = alu_op_from_str(opstr);
-	n->assign.lval = lval;
-	n->assign.expr = expr;
-
-	lval->parent = n;
-	if (expr)
-		expr->parent = n;
-	return n;
 }
 
 node_t *node_call_new(char *module, char *func, node_t *vargs)

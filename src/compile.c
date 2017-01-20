@@ -431,8 +431,7 @@ int emit_map_load(prog_t *prog, node_t *n)
 {
 	/* when overriding the current value, there is no need to load
 	 * any previous value */
-	if (n->parent->type == TYPE_ASSIGN &&
-	    n->parent->assign.op == ALU_OP_MOV)
+	if (n->parent->type == TYPE_ASSIGN)
 		return 0;
 
 	emit_stack_zero(prog, n);
@@ -541,24 +540,8 @@ int emit_assign(prog_t *prog, node_t *assign)
 		return 0;
 	}
 	
-	if (assign->assign.op == ALU_OP_MOV) {
-		if (expr->type == TYPE_INT) {
-			err = emit_xfer(prog, map, expr);
-			if (err)
-				return err;
-		}
-
-	} else {
-		err = emit_xfer(prog, assign, map);
-		if (err)
-			return err;
-
-		if (expr->type == TYPE_INT)
-			emit(prog, ALU_IMM(assign->assign.op, assign->dyn.reg, expr->integer));
-		else
-			emit(prog, ALU(assign->assign.op, assign->dyn.reg, expr->dyn.reg));
-
-		err = emit_xfer(prog, map, assign);
+	if (expr->type == TYPE_INT) {
+		err = emit_xfer(prog, map, expr);
 		if (err)
 			return err;
 	}
