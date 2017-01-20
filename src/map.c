@@ -99,14 +99,7 @@ void dump_rec(FILE *fp, node_t *rec, void *data, int len)
 	node_t *first, *varg;
 	int brackets = 0;
 
-	if (rec->parent->type == TYPE_MAP && rec->parent->map.is_var) {
-		len--;
-		first = rec->rec.vargs->next;
-		data += rec->rec.vargs->dyn.size;
-	} else {
-		first = rec->rec.vargs;
-	}
-
+	first = rec->rec.vargs;
 	if (!first || !len)
 		return;
 

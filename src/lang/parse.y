@@ -96,9 +96,9 @@ stmts : stmt
 
 stmt : variable '=' expr
 		{ $$ = node_assign_new($1, $3); }
-     | variable '=' NIL
+     | map '=' NIL
 		{ $$ = node_assign_new($1, NULL); }
-     | variable '.' call
+     | map '.' call
      		{ $$ = node_method_new($1, $3); }
      | expr
 		{ $$ = $1; }
@@ -138,27 +138,27 @@ expr : INT
 		{ $$ = $1; }
 ;
 
-variable : MAP record
-		{ $$ = node_map_new($1, $2); }
-         | MAP
+variable : IDENT
         	{ $$ = node_var_new($1); }
+         | map
+		{ $$ = $1; }
+;
+
+map : MAP record
+		{ $$ = node_map_new($1, $2); }
 ;
 
 record : '[' vargs ']'
 		{ $$ = node_rec_new($2); }
 ;
 
-call : IDENT
-		{ $$ = node_call_new(NULL, $1, NULL); }
-     | IDENT '(' ')'
+call : IDENT '(' ')'
 		{ $$ = node_call_new(NULL, $1, NULL); }
      | IDENT '(' vargs ')'
 		{ $$ = node_call_new(NULL, $1, $3); }
 ;
 
-mcall : IDENT '.' IDENT
-		{ $$ = node_call_new($1, $3, NULL); }
-      | IDENT '.' IDENT '(' ')'
+mcall : IDENT '.' IDENT '(' ')'
 		{ $$ = node_call_new($1, $3, NULL); }
       | IDENT '.' IDENT '(' vargs ')'
 		{ $$ = node_call_new($1, $3, $5); }

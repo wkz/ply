@@ -128,8 +128,7 @@ static void quantize_dump_seg(FILE *fp, node_t *map,
 	int64_t *log2 = data + rec_size, *count = data + rec->dyn.size;
 
 	dump_rec(fp, rec, data, rec->rec.n_vargs - 1);
-	if (!map->map.is_var)
-		fputc('\n', fp);
+	fputc('\n', fp);
 
 	for (; len > 1; len--) {
 		int last_log2 = *log2 + 1;

@@ -81,7 +81,6 @@ typedef struct rec {
 } rec_t;
 
 typedef struct map {
-	int is_var;
 	int max_len;
 	node_t *rec;
 } map_t;
@@ -138,6 +137,7 @@ typedef struct script {
 	TYPE(TYPE_RETURN, "return")			\
 	TYPE(TYPE_BINOP,  "binop")			\
 	TYPE(TYPE_NOT,    "not")			\
+	TYPE(TYPE_VAR,    "var")			\
 	TYPE(TYPE_MAP,    "map")			\
 	TYPE(TYPE_REC,    "rec")			\
 	TYPE(TYPE_STACK,  "stack")			\
