@@ -144,13 +144,13 @@ static kprobe_t *probe_load(enum bpf_prog_type type,
 		return NULL;
 	}
 
-	probe->dyn.probe.pvdr_priv = kp;
+	probe->dyn->probe.pvdr_priv = kp;
 	return kp;
 }
 
 static int probe_teardown(node_t *probe)
 {
-	kprobe_t *kp = probe->dyn.probe.pvdr_priv;
+	kprobe_t *kp = probe->dyn->probe.pvdr_priv;
 	int i;
 
 	for (i = 0; i < kp->efds.len; i++)

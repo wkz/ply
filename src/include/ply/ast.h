@@ -69,7 +69,6 @@ typedef enum alu_op {
 
 typedef struct node node_t;
 typedef struct dyn  dyn_t;
-typedef struct mdyn mdyn_t;
 
 typedef struct pvdr pvdr_t;
 
@@ -156,24 +155,16 @@ typedef void  (*dumper_t)(FILE *fp, node_t *n, void *data);
 typedef void (*mdumper_t)(FILE *fp, node_t *n, void *data, int len);
 typedef int    (*cmper_t)(node_t *n, const void *a, const void *b);
 
-struct mdyn {
-	mdyn_t *next, *prev;
-
-	enum bpf_map_type type;
-
-	node_t *map;
-	int     mapfd;
-
-	mdumper_t dump;
-	cmper_t   cmp;
-};
-
 typedef enum loc {
 	LOC_NOWHERE,
 	LOC_VIRTUAL,
 	LOC_REG,
 	LOC_STACK,
 } loc_t;
+
+const char *loc_str(loc_t loc);
+
+typedef struct symtable symtable_t;
 
 struct dyn {
 	type_t type;
@@ -187,6 +178,14 @@ struct dyn {
 
 	union {
 		struct {
+			enum bpf_map_type type;
+			int fd;
+
+			mdumper_t dump;
+			cmper_t cmp;
+		} map;
+
+		struct {
 			const func_t *func;
 		} call;
 
@@ -198,7 +197,7 @@ struct dyn {
 		} probe;
 
 		struct {
-			mdyn_t *mdyns;
+			symtable_t *st;
 
 			int     fmt_id;
 			node_t *printf[64];
@@ -210,7 +209,7 @@ struct node {
 	node_t *next, *prev;
 
 	type_t  type;
-	dyn_t   dyn;
+	dyn_t  *dyn;
 
 	char   *string;
 	node_t *parent;
@@ -252,16 +251,15 @@ int node_sdump(node_t *n, char *buf, size_t sz);
 
 void node_ast_dump(node_t *n);
 
+node_t *node_get_parent_of_type(type_t type, node_t *n);
+
 node_t *node_get_stmt  (node_t *n);
 pvdr_t *node_get_pvdr  (node_t *n);
 node_t *node_get_probe (node_t *n);
 node_t *node_get_script(node_t *n);
 
-mdyn_t *node_map_get_mdyn   (node_t *map);
-int     node_map_get_fd     (node_t *map);
 int     node_stmt_reg_get   (node_t *stmt);
 ssize_t node_probe_stack_get(node_t *probe, size_t size);
-int     node_script_mdyn_add(node_t *script, mdyn_t *mdyn);
 
 node_t *node_str_new     (char *val);
 node_t *node_int_new     (int64_t val);

@@ -28,6 +28,7 @@
 #include <ply/ply.h>
 #include <ply/bpf-syscall.h>
 #include <ply/map.h>
+#include <ply/symtable.h>
 
 #define PTR_W ((int)(sizeof(uintptr_t) * 2))
 
@@ -54,14 +55,14 @@ static void dump_int(FILE *fp, node_t *integer, void *data)
 
 static void dump_str(FILE *fp, node_t *str, void *data)
 {
-	int size = (int)str->dyn.size;
+	int size = (int)str->dyn->size;
 
 	fprintf(fp, "%-*.*s", size, size, (const char *)data);
 }
 
 static void dump_stack(FILE *fp, node_t *stack, void *data)
 {
-	int i, fd = node_map_get_fd(stack);
+	int i, fd = stack->dyn->map.fd;
 	int64_t *_stack_id = data;
 	uint32_t stack_id = *_stack_id;
 	uint64_t ips[0x10];
@@ -113,7 +114,7 @@ void dump_rec(FILE *fp, node_t *rec, void *data, int len)
 			fputs(", ", fp);
 
 		dump_node(fp, varg, data);
-		data += varg->dyn.size;
+		data += varg->dyn->size;
 
 		if (!(--len))
 			break;
@@ -130,7 +131,7 @@ static void dump_node(FILE *fp, node_t *n, void *data)
 		return;
 	}
 
-	switch (n->dyn.type) {
+	switch (n->dyn->type) {
 	case TYPE_INT:
 		dump_int(fp, n, data);
 		break;
@@ -144,7 +145,7 @@ static void dump_node(FILE *fp, node_t *n, void *data)
 		dump_rec(fp, n, data, n->rec.n_vargs);
 		break;
 	default:
-		_e("unknown node type  %d", n->dyn.type);
+		_e("unknown node type  %d", n->dyn->type);
 		break;
 	}
 }
@@ -157,20 +158,20 @@ int cmp_node(node_t *n, const void *a, const void *b)
 	if (n->cmp)
 		return n->cmp(n, a, b);
 
-	switch (n->dyn.type) {
+	switch (n->dyn->type) {
 	case TYPE_INT:
 	case TYPE_STACK:
 		return *((int64_t *)a) - *((int64_t *)b);
 	case TYPE_STR:
-		return strncmp(a, b, n->dyn.size);
+		return strncmp(a, b, n->dyn->size);
 	case TYPE_REC:
 		node_foreach(varg, n->rec.vargs) {
 			cmp = cmp_node(varg, a, b);
 			if (cmp)
 				return cmp;
 
-			a += varg->dyn.size;
-			b += varg->dyn.size;
+			a += varg->dyn->size;
+			b += varg->dyn->size;
 		}
 		return 0;
 
@@ -181,16 +182,16 @@ int cmp_node(node_t *n, const void *a, const void *b)
 	return 0;
 }
 
-int cmp_mdyn(const void *ak, const void *bk, void *_mdyn)
+int cmp_map(const void *ak, const void *bk, void *_map)
 {
-	mdyn_t *mdyn = _mdyn;
-	node_t *map = mdyn->map, *rec = map->map.rec;
-	const void *av = ak + rec->dyn.size;
-	const void *bv = bk + rec->dyn.size;
+	node_t *map = _map;
+	node_t *rec = map->map.rec;
+	const void *av = ak + rec->dyn->size;
+	const void *bv = bk + rec->dyn->size;
 	int cmp;
 
-	if (mdyn->cmp)
-		return mdyn->cmp(map, ak, bk);
+	if (map->dyn->map.cmp)
+		return map->dyn->map.cmp(map, ak, bk);
 	
 	cmp = cmp_node(rec, ak, bk);
 	if (cmp)
@@ -221,19 +222,19 @@ static void __key_workaround(int fd, void *key, size_t key_sz, void *val)
 	fclose(fp);
 }
 
-void dump_mdyn(mdyn_t *mdyn)
+void dump_map(node_t *map)
 {
-	node_t *map = mdyn->map, *rec = map->map.rec;
-	size_t entry_size = rec->dyn.size + map->dyn.size;
+	node_t *rec = map->map.rec;
+	size_t entry_size = rec->dyn->size + map->dyn->size;
 	char *data = malloc(entry_size*MAP_LEN);
-	char *key = data, *val = data + rec->dyn.size;
+	char *key = data, *val = data + rec->dyn->size;
 	int err, n = 0;
 
-	__key_workaround(mdyn->mapfd, key, rec->dyn.size, val);
+	__key_workaround(map->dyn->map.fd, key, rec->dyn->size, val);
 
-	for (err = bpf_map_next(mdyn->mapfd, key, key); !err;
-	     err = bpf_map_next(mdyn->mapfd, key - entry_size, key)) {
-		err = bpf_map_lookup(mdyn->mapfd, key, val);
+	for (err = bpf_map_next(map->dyn->map.fd, key, key); !err;
+	     err = bpf_map_next(map->dyn->map.fd, key - entry_size, key)) {
+		err = bpf_map_lookup(map->dyn->map.fd, key, val);
 		if (err)
 			goto out_free;
 
@@ -242,16 +243,16 @@ void dump_mdyn(mdyn_t *mdyn)
 		val += entry_size;
 	}
 
-	qsort_r(data, n, entry_size, cmp_mdyn, mdyn);
+	qsort_r(data, n, entry_size, cmp_map, map);
 
 	printf("\n%s:\n", map->string);
 
-	if (mdyn->dump) {
-		mdyn->dump(stdout, map, data, n);
+	if (map->dyn->map.dump) {
+		map->dyn->map.dump(stdout, map, data, n);
 		goto out_free;
 	}
 
-	for (key = data, val = data + rec->dyn.size; n > 0; n--) {
+	for (key = data, val = data + rec->dyn->size; n > 0; n--) {
 		dump_node(stdout, rec, key);
 		fputs("\t", stdout);
 		dump_node(stdout, map, val);
@@ -266,35 +267,33 @@ out_free:
 
 int map_setup(node_t *script)
 {
-	mdyn_t *mdyn;
 	int dumpfd = 0xfd00;
+	sym_t *s;
 
-	for (mdyn = script->dyn.script.mdyns; mdyn; mdyn = mdyn->next) {
-		size_t max_len = mdyn->map->map.max_len;
-		size_t ksize, vsize;
+	sym_foreach(s, script->dyn->script.st->syms) {
+		size_t ksize, vsize, max_len;
+		node_t *map = s->map.map;
+
+		if (s->type != TYPE_MAP)
+			continue;
+
 
 		if (G.dump) {
-			mdyn->mapfd = dumpfd++;
+			s->dyn.map.fd = dumpfd++;
 			continue;
 		}
 
-		if (!strcmp(mdyn->map->string, "printf")) {
-			ksize   = mdyn->map->dyn.size;
-			vsize   = mdyn->map->call.vargs->next->dyn.size;
-			max_len = PRINTF_BUF_LEN;
-		} else if (!strcmp(mdyn->map->string, "stack")) {
-			ksize   = 4;
-			vsize   = 0x80;
-			max_len = MAP_LEN;
-		} else {
-			ksize = mdyn->map->map.rec->dyn.size;
-			vsize = mdyn->map->dyn.size;
-		}
+		max_len = map->map.max_len;
+		ksize   = map->map.rec->dyn->size;
+		vsize   = s->dyn.size;
 
-		mdyn->mapfd = bpf_map_create(mdyn->type, ksize, vsize, max_len);
-		if (mdyn->mapfd <= 0) {
-			_eno("%s", mdyn->map->string);
-			return mdyn->mapfd;
+		_d("%s: type:%d ksz:%#zx vsz:%#zx len:%#zx", map->string,
+		   s->dyn.map.type, ksize, vsize, max_len);
+		s->dyn.map.fd = bpf_map_create(s->dyn.map.type,
+					       ksize, vsize, max_len);
+		if (s->dyn.map.fd <= 0) {
+			_eno("%s", map->string);
+			return s->dyn.map.fd;
 		}
 	}
 
@@ -303,18 +302,19 @@ int map_setup(node_t *script)
 
 int map_teardown(node_t *script)
 {
-	mdyn_t *mdyn;
+	sym_t *s;
 
 	if (G.dump)
 		return 0;
 
-	for (mdyn = script->dyn.script.mdyns; mdyn; mdyn = mdyn->next) {
-		if (mdyn->mapfd) {
-			if (mdyn->map->string[0] == '@')
-				dump_mdyn(mdyn);
+	sym_foreach(s, script->dyn->script.st->syms) {
+		if (s->type != TYPE_MAP)
+			continue;
 
-			close(mdyn->mapfd);
-		}
+		if (s->name[0] == '@')
+			dump_map(s->map.map);
+
+		close(s->dyn.map.fd);
 	}
 
 	return 0;

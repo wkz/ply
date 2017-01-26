@@ -221,8 +221,8 @@ int emit_stack_zero(prog_t *prog, const node_t *n)
 	size_t i;
 
 	emit(prog, MOV_IMM(BPF_REG_0, 0));
-	for (i = 0; i < n->dyn.size; i += sizeof(int64_t))
-		emit(prog, STXDW(BPF_REG_10, n->dyn.addr + i, BPF_REG_0));
+	for (i = 0; i < n->dyn->size; i += sizeof(int64_t))
+		emit(prog, STXDW(BPF_REG_10, n->dyn->addr + i, BPF_REG_0));
 
 	return 0;
 }
@@ -336,17 +336,17 @@ int emit_xfer_dyn(prog_t *prog, const dyn_t *to, const node_t *from)
 					 sizeof(from->integer));
 	case TYPE_STR:
 		return emit_xfer_literal(prog, to, (void *)from->string,
-					 from->dyn.size);
+					 from->dyn->size);
 	default:
 		break;
 	}
 
-	return emit_xfer_dyns(prog, to, &from->dyn);	
+	return emit_xfer_dyns(prog, to, from->dyn);	
 }
 
 int emit_xfer(prog_t *prog, const node_t *to, const node_t *from)
 {
-	return emit_xfer_dyn(prog, &to->dyn, from);
+	return emit_xfer_dyn(prog, to->dyn, from);
 }
 
 #define LOG2_CMP(_bit)						\
@@ -436,16 +436,16 @@ int emit_map_load(prog_t *prog, node_t *n)
 
 	emit_stack_zero(prog, n);
 
-	emit_map_lookup_raw(prog, node_map_get_fd(n), n->map.rec->dyn.addr);
+	emit_map_lookup_raw(prog, n->dyn->map.fd, n->map.rec->dyn->addr);
 
 	/* if we get a null pointer, skip copy */
 	emit(prog, JMP_IMM(JMP_JEQ, BPF_REG_0, 0, 5));
 
 	/* if key existed, copy it to the value area */
-	emit_read_raw(prog, n->dyn.addr, BPF_REG_0, n->dyn.size);
+	emit_read_raw(prog, n->dyn->addr, BPF_REG_0, n->dyn->size);
 
-	if (n->dyn.loc == LOC_REG)
-		emit_xfer_stack(prog, &n->dyn, n->dyn.addr);
+	if (n->dyn->loc == LOC_REG)
+		emit_xfer_stack(prog, n->dyn, n->dyn->addr);
 
 	return 0;
 }
@@ -453,10 +453,10 @@ int emit_map_load(prog_t *prog, node_t *n)
 int emit_not(prog_t *prog, node_t *not)
 {
 	node_t *expr = not->not;
-	int src = expr->dyn.loc == LOC_REG ? expr->dyn.reg : BPF_REG_0;
+	int src = expr->dyn->loc == LOC_REG ? expr->dyn->reg : BPF_REG_0;
 	int err;
 	
-	err = emit_xfer_dyns(prog, &dyn_reg[src], &expr->dyn);
+	err = emit_xfer_dyns(prog, &dyn_reg[src], expr->dyn);
 	if (err)
 		return err;
 
@@ -465,7 +465,7 @@ int emit_not(prog_t *prog, node_t *not)
 	emit(prog, JMP_IMM(JMP_JA, 0, 0, 1));
 	emit(prog, MOV_IMM(src, 0));
 
-	return emit_xfer_dyns(prog, &not->dyn, &dyn_reg[src]);
+	return emit_xfer_dyns(prog, not->dyn, &dyn_reg[src]);
 }
 
 int emit_binop_alu(prog_t *prog, node_t *binop, int imm)
@@ -473,9 +473,9 @@ int emit_binop_alu(prog_t *prog, node_t *binop, int imm)
 	node_t *l = binop->binop.left, *r = binop->binop.right;
 
 	if (imm)
-		emit(prog, ALU_IMM(binop->binop.alu, l->dyn.reg, r->integer));
+		emit(prog, ALU_IMM(binop->binop.alu, l->dyn->reg, r->integer));
 	else
-		emit(prog, ALU(binop->binop.alu, l->dyn.reg, r->dyn.reg));
+		emit(prog, ALU(binop->binop.alu, l->dyn->reg, r->dyn->reg));
 	return 0;
 }
 
@@ -484,13 +484,13 @@ int emit_binop_jmp(prog_t *prog, node_t *binop, int imm)
 	node_t *l = binop->binop.left, *r = binop->binop.right;
 
 	if (imm)
-		emit(prog, JMP_IMM(binop->binop.jmp, l->dyn.reg, r->integer, 2));
+		emit(prog, JMP_IMM(binop->binop.jmp, l->dyn->reg, r->integer, 2));
 	else
-		emit(prog, JMP(binop->binop.jmp, l->dyn.reg, r->dyn.reg, 2));
+		emit(prog, JMP(binop->binop.jmp, l->dyn->reg, r->dyn->reg, 2));
 
-	emit(prog, MOV_IMM(l->dyn.reg, 0));
+	emit(prog, MOV_IMM(l->dyn->reg, 0));
 	emit(prog, JMP_IMM(JMP_JA, 0, 0, 1));
-	emit(prog, MOV_IMM(l->dyn.reg, 1));
+	emit(prog, MOV_IMM(l->dyn->reg, 1));
 	return 0;
 }
 
@@ -499,22 +499,22 @@ int emit_binop(prog_t *prog, node_t *binop)
 	node_t *l = binop->binop.left, *r = binop->binop.right;
 	int imm = 0;
 
-	if (l->dyn.loc == LOC_STACK)
-		l->dyn.reg = BPF_REG_0;
+	if (l->dyn->loc == LOC_STACK)
+		l->dyn->reg = BPF_REG_0;
 
-	if (l->type == TYPE_INT || l->dyn.loc != LOC_REG)
-		emit_xfer_dyn(prog, &dyn_reg[l->dyn.reg], l);
+	if (l->type == TYPE_INT || l->dyn->loc != LOC_REG)
+		emit_xfer_dyn(prog, &dyn_reg[l->dyn->reg], l);
 
-	if (r->dyn.loc == LOC_STACK)
-		r->dyn.reg = BPF_REG_1;
+	if (r->dyn->loc == LOC_STACK)
+		r->dyn->reg = BPF_REG_1;
 
-	if (r->type == TYPE_INT || r->dyn.loc != LOC_REG) {
+	if (r->type == TYPE_INT || r->dyn->loc != LOC_REG) {
 		if (r->type == TYPE_INT &&
 		    r->integer >= INT32_MIN &&
 		    r->integer <= INT32_MAX)
 			imm = 1;
 		else
-			emit_xfer_dyn(prog, &dyn_reg[r->dyn.reg], r);
+			emit_xfer_dyn(prog, &dyn_reg[r->dyn->reg], r);
 	}
 
 	switch (binop->binop.type) {
@@ -526,7 +526,7 @@ int emit_binop(prog_t *prog, node_t *binop)
 		break;
 	}
 
-	return emit_xfer_dyns(prog, &binop->dyn, &dyn_reg[l->dyn.reg]);
+	return emit_xfer_dyns(prog, binop->dyn, &dyn_reg[l->dyn->reg]);
 }
 
 int emit_assign(prog_t *prog, node_t *assign)
@@ -535,8 +535,8 @@ int emit_assign(prog_t *prog, node_t *assign)
 	int err;
 
 	if (!expr) {
-		emit_map_delete_raw(prog, node_map_get_fd(map),
-				    map->map.rec->dyn.addr);
+		emit_map_delete_raw(prog, map->dyn->map.fd,
+				    map->map.rec->dyn->addr);
 		return 0;
 	}
 	
@@ -546,8 +546,8 @@ int emit_assign(prog_t *prog, node_t *assign)
 			return err;
 	}
 
-	emit_map_update_raw(prog, node_map_get_fd(map),
-			    map->map.rec->dyn.addr, map->dyn.addr);
+	emit_map_update_raw(prog, map->dyn->map.fd,
+			    map->map.rec->dyn->addr, map->dyn->addr);
 	return 0;
 }
 
@@ -555,8 +555,8 @@ int emit_method(prog_t *prog, node_t *method)
 {
 	node_t *map = method->method.map;
 
-	emit_map_update_raw(prog, node_map_get_fd(map),
-			    map->map.rec->dyn.addr, map->dyn.addr);
+	emit_map_update_raw(prog, map->dyn->map.fd,
+			    map->map.rec->dyn->addr, map->dyn->addr);
 	return 0;
 }
 
@@ -580,16 +580,16 @@ static int compile_post(node_t *n, void *_prog)
 
 	(void)(prog);
 
-	if (n->dyn.loc == LOC_VIRTUAL)
+	if (n->dyn->loc == LOC_VIRTUAL)
 		return 0;
 
 	_D("> %s%s%s (%s/%s/%#zx)", n->string ? "" : "<",
 	   n->string ? : type_str(n->type), n->string ? "" : ">",
-	   type_str(n->type), type_str(n->dyn.type), n->dyn.size);
+	   type_str(n->type), type_str(n->dyn->type), n->dyn->size);
 
 	switch (n->type) {
 	case TYPE_INT:
-		if (n->dyn.loc != LOC_STACK)
+		if (n->dyn->loc != LOC_STACK)
 			break;
 		/* fall-through */
 	case TYPE_STR:
@@ -624,7 +624,7 @@ static int compile_post(node_t *n, void *_prog)
 		break;
 
 	case TYPE_CALL:
-		err = n->dyn.call.func->compile(n, prog);
+		err = n->dyn->call.func->compile(n, prog);
 		break;
 
 	case TYPE_UNROLL:
@@ -641,7 +641,7 @@ static int compile_post(node_t *n, void *_prog)
 
 	_D("< %s%s%s (%s/%s/%#zx)", n->string ? "" : "<",
 	   n->string ? : type_str(n->type), n->string ? "" : ">",
-	   type_str(n->type), type_str(n->dyn.type), n->dyn.size);
+	   type_str(n->type), type_str(n->dyn->type), n->dyn->size);
 
 	return err;
 }
@@ -664,9 +664,9 @@ static int compile_pred(node_t *pred, prog_t *prog)
 	if (err)
 		return err;
 
-	switch (pred->dyn.loc) {
+	switch (pred->dyn->loc) {
 	case LOC_REG:
-		emit(prog, JMP_IMM(JMP_JNE, pred->dyn.reg, 0, 2));
+		emit(prog, JMP_IMM(JMP_JNE, pred->dyn->reg, 0, 2));
 		break;
 
 	default:

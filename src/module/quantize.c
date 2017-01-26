@@ -29,9 +29,9 @@ int quantize_compile(node_t *call, prog_t *prog)
 {
 	node_t *map = call->parent->method.map;
 
-	emit(prog, LDXDW(BPF_REG_0, map->dyn.addr, BPF_REG_10));
+	emit(prog, LDXDW(BPF_REG_0, map->dyn->addr, BPF_REG_10));
 	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_0, 1));
-	emit(prog, STXDW(BPF_REG_10, map->dyn.addr, BPF_REG_0));
+	emit(prog, STXDW(BPF_REG_10, map->dyn->addr, BPF_REG_0));
 	return 0;
 }
 
@@ -122,10 +122,10 @@ static void quantize_dump_seg(FILE *fp, node_t *map,
 			      void *data, int len, int64_t tot)
 {
 	node_t *rec = map->map.rec;
-	size_t entry_size = rec->dyn.size + map->dyn.size;
-	size_t rec_size = rec->dyn.size - sizeof(int64_t);
+	size_t entry_size = rec->dyn->size + map->dyn->size;
+	size_t rec_size = rec->dyn->size - sizeof(int64_t);
 	char *key = data;
-	int64_t *log2 = data + rec_size, *count = data + rec->dyn.size;
+	int64_t *log2 = data + rec_size, *count = data + rec->dyn->size;
 
 	dump_rec(fp, rec, data, rec->rec.n_vargs - 1);
 	fputc('\n', fp);
@@ -149,10 +149,10 @@ static void quantize_dump_seg(FILE *fp, node_t *map,
 static void quantize_dump(FILE *fp, node_t *map, void *data, int len)
 {
 	node_t *rec = map->map.rec;
-	size_t entry_size = rec->dyn.size + map->dyn.size;
-	size_t rec_size = rec->dyn.size - sizeof(int64_t);
+	size_t entry_size = rec->dyn->size + map->dyn->size;
+	size_t rec_size = rec->dyn->size - sizeof(int64_t);
 	char *key = data, *seg_start = data;
-	int64_t *count = data + rec->dyn.size;
+	int64_t *count = data + rec->dyn->size;
 	int64_t seg_tot = *count;
 	int seg_len = 1;
 
@@ -176,10 +176,9 @@ static void quantize_dump(FILE *fp, node_t *map, void *data, int len)
 
 int quantize_loc_assign(node_t *call)
 {
-	mdyn_t *mdyn;
+	node_t *map = call->parent->method.map;
 
-	mdyn = node_map_get_mdyn(call->parent->method.map);
-	mdyn->dump = quantize_dump;
+	map->dyn->map.dump = quantize_dump;
 	return default_loc_assign(call);
 }
 
@@ -189,8 +188,8 @@ int quantize_annotate(node_t *call)
 	node_t *rec;
 
 	if (!call->call.vargs ||
-	    (call->call.vargs->dyn.type != TYPE_NONE &&
-	     call->call.vargs->dyn.type != TYPE_INT) ||
+	    (call->call.vargs->dyn->type != TYPE_NONE &&
+	     call->call.vargs->dyn->type != TYPE_INT) ||
 	    call->call.vargs->next ||
 	    call->parent->type != TYPE_METHOD)
 		return -EINVAL;
@@ -202,14 +201,14 @@ int quantize_annotate(node_t *call)
 	 */
 	rec->next = node_call_new(strdup("common"), strdup("log2"),
 				  call->call.vargs);
-	rec->next->dyn.type = TYPE_INT;
-	rec->next->dyn.size = sizeof(int64_t);
+	rec->next->dyn->type = TYPE_INT;
+	rec->next->dyn->size = sizeof(int64_t);
 	rec->next->parent = map->map.rec;
 	map->map.rec->rec.n_vargs++;
 	call->call.vargs = NULL;
 
-	call->dyn.type = TYPE_INT;
-	call->dyn.size = sizeof(int64_t);
+	call->dyn->type = TYPE_INT;
+	call->dyn->size = sizeof(int64_t);
 	return 0;
 }
 

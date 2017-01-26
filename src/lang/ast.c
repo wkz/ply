@@ -144,18 +144,18 @@ int node_fdump(node_t *n, FILE *fp)
 	}
 
 	fprintf(fp, "(type:%s/%s size:0x%zx loc:%s",
-		type_str(n->type), type_str(n->dyn.type),
-		n->dyn.size, loc_str(n->dyn.loc));
+		type_str(n->type), type_str(n->dyn->type),
+		n->dyn->size, loc_str(n->dyn->loc));
 
-	switch (n->dyn.loc) {
+	switch (n->dyn->loc) {
 	case LOC_NOWHERE:
 	case LOC_VIRTUAL:
 		break;
 	case LOC_REG:
-		fprintf(fp, "/%d", n->dyn.reg);
+		fprintf(fp, "/%d", n->dyn->reg);
 		break;
 	case LOC_STACK:
-		fprintf(fp, "/-0x%zx", -n->dyn.addr);
+		fprintf(fp, "/-0x%zx", -n->dyn->addr);
 		break;
 	}
 
@@ -191,7 +191,7 @@ void node_ast_dump(node_t *n)
 }
 
 
-static node_t *node_get_parent_of_type(type_t type, node_t *n)
+node_t *node_get_parent_of_type(type_t type, node_t *n)
 {
 	for (; n && n->type != type; n = n->parent);
 	return n;
@@ -215,7 +215,7 @@ pvdr_t *node_get_pvdr(node_t *n)
 {
 	node_t *probe = node_get_probe(n);
 
-	return probe ? probe->dyn.probe.pvdr : NULL;
+	return probe ? probe->dyn->probe.pvdr : NULL;
 }
 
 node_t *node_get_script(node_t *n)
@@ -223,33 +223,33 @@ node_t *node_get_script(node_t *n)
 	return node_get_parent_of_type(TYPE_SCRIPT, n);
 }
 
-mdyn_t *node_map_get_mdyn(node_t *map)
-{
-	node_t *script = node_get_script(map);
-	mdyn_t *mdyn;
+/* mdyn_t *node_map_get_mdyn(node_t *map) */
+/* { */
+/* 	node_t *script = node_get_script(map); */
+/* 	mdyn_t *mdyn; */
 
-	for (mdyn = script->dyn.script.mdyns; mdyn; mdyn = mdyn->next) {
-		if (!strcmp(mdyn->map->string, map->string))
-			return mdyn;
-	}
+/* 	for (mdyn = script->dyn->script.mdyns; mdyn; mdyn = mdyn->next) { */
+/* 		if (!strcmp(mdyn->map->string, map->string)) */
+/* 			return mdyn; */
+/* 	} */
 
-	return NULL;
-}
+/* 	return NULL; */
+/* } */
 
-int node_map_get_fd(node_t *map)
-{
-	mdyn_t *mdyn = node_map_get_mdyn(map);
+/* int node_map_get_fd(node_t *map) */
+/* { */
+/* 	mdyn_t *mdyn = node_map_get_mdyn(map); */
 
-	return mdyn ? mdyn->mapfd : -ENOENT;
-}
+/* 	return mdyn ? mdyn->mapfd : -ENOENT; */
+/* } */
 
 int node_stmt_reg_get(node_t *stmt)
 {
 	int reg;
 
 	for (reg = BPF_REG_6; reg < BPF_REG_9; reg++) {
-		if (stmt->dyn.free_regs & (1 << reg)) {
-			stmt->dyn.free_regs &= ~(1 << reg);
+		if (stmt->dyn->free_regs & (1 << reg)) {
+			stmt->dyn->free_regs &= ~(1 << reg);
 			return reg;
 		}
 	}
@@ -259,25 +259,32 @@ int node_stmt_reg_get(node_t *stmt)
 
 ssize_t node_probe_stack_get(node_t *probe, size_t size)
 {
-	probe->dyn.probe.sp -= size;
-	return probe->dyn.probe.sp;
+	probe->dyn->probe.sp -= size;
+	return probe->dyn->probe.sp;
 }
 
-int node_script_mdyn_add(node_t *script, mdyn_t *mdyn)
-{
-	if (!script->dyn.script.mdyns)
-		script->dyn.script.mdyns = mdyn;
-	else
-		insque_tail(mdyn, script->dyn.script.mdyns);
+/* int node_script_mdyn_add(node_t *script, mdyn_t *mdyn) */
+/* { */
+/* 	if (!script->dyn->script.mdyns) */
+/* 		script->dyn->script.mdyns = mdyn; */
+/* 	else */
+/* 		insque_tail(mdyn, script->dyn->script.mdyns); */
 
-	return 0;
-}
+/* 	return 0; */
+/* } */
 
 static inline node_t *node_new(type_t type) {
 	node_t *n = calloc(1, sizeof(*n));
 
 	assert(n);
 	n->type = type;
+
+	/* maps and vars have shared dyns allocated in the symtable */
+	if (n->type != TYPE_MAP && n->type != TYPE_VAR) {
+		n->dyn = calloc(1, sizeof(*n->dyn));
+		assert(n->dyn);
+	}
+				
 	return n;
 }
 
@@ -537,7 +544,7 @@ node_t *node_script_parse(FILE *fp)
 	return script;
 }
 
-static int _node_free(node_t *n, void *ctx)
+static int _node_free(node_t *n, void *_null)
 {
 	switch (n->type) {
 	case TYPE_CALL:
@@ -555,6 +562,9 @@ static int _node_free(node_t *n, void *ctx)
 	default:
 		break;
 	}
+
+	if (n->type != TYPE_MAP && n->type != TYPE_VAR)
+		free(n->dyn);
 
 	free(n);
 	return 0;
@@ -607,9 +617,7 @@ int node_walk(node_t *n,
 		break;
 
 	case TYPE_UNROLL:
-		for (i = 0; i < n->unroll.count; i++) {
-			do_list(n->unroll.stmts);
-		}
+		do_list(n->unroll.stmts);
 		break;
 
 	case TYPE_CALL:

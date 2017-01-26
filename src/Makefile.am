@@ -15,9 +15,10 @@ lang/lex.c: lang/lex.l
 BUILT_SOURCES = lang/lex.h lang/parse.h
 ply_SOURCES   = lang/lex.c lang/parse.y lang/ast.c
 ply_SOURCES  += module/module.c module/common.c module/method.c module/probe.c \
-		module/quantize.c module/printf.c module/trace.c
+		module/quantize.c module/trace.c
 ply_SOURCES  += pvdr/pvdr.c pvdr/kprobe.c
-ply_SOURCES  += annotate.c bpf-syscall.c compile.c map.c ply.c utils.c kallsyms.c
+ply_SOURCES  += annotate.c bpf-syscall.c compile.c kallsyms.c \
+		map.c ply.c symtable.c utils.c
 
 ply_SOURCES  += arch/arch-null.c
 if ARCH_ARM

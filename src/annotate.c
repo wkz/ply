@@ -25,6 +25,7 @@
 #include <ply/ast.h>
 #include <ply/ply.h>
 #include <ply/pvdr.h>
+#include <ply/symtable.h>
 
 #define b_xor(_a, _b) ((!!(_a)) ^ (!!(_b)))
 
@@ -36,20 +37,20 @@ static int loc_assign_binop(node_t *n, node_t *probe)
 	l = n->binop.left;
 	r = n->binop.right;
 
-	l->dyn.loc = LOC_REG;
-	if (n->dyn.loc == LOC_REG && ((1 << n->dyn.reg) & DYN_REGS))
-		l->dyn.reg = n->dyn.reg;
+	l->dyn->loc = LOC_REG;
+	if (n->dyn->loc == LOC_REG && ((1 << n->dyn->reg) & DYN_REGS))
+		l->dyn->reg = n->dyn->reg;
 	else
-		l->dyn.reg = node_stmt_reg_get(stmt);
+		l->dyn->reg = node_stmt_reg_get(stmt);
 
-	if (l->dyn.reg >= 0)
+	if (l->dyn->reg >= 0)
 		goto ldone;
 
-	l->dyn.loc  = LOC_STACK;
-	if (n->dyn.loc == LOC_STACK)
-		l->dyn.addr = n->dyn.addr;
+	l->dyn->loc  = LOC_STACK;
+	if (n->dyn->loc == LOC_STACK)
+		l->dyn->addr = n->dyn->addr;
 	else
-		l->dyn.addr = node_probe_stack_get(probe, l->dyn.size);
+		l->dyn->addr = node_probe_stack_get(probe, l->dyn->size);
 
 ldone:
 	if (r->type == TYPE_INT &&
@@ -57,11 +58,11 @@ ldone:
 	    r->integer <= INT32_MAX)
 		goto rdone;
 
-	r->dyn.loc = LOC_REG;
-	r->dyn.reg = node_stmt_reg_get(stmt);
-	if (r->dyn.reg < 0) {
-		r->dyn.loc  = LOC_STACK;
-		r->dyn.addr = node_probe_stack_get(probe, r->dyn.size);
+	r->dyn->loc = LOC_REG;
+	r->dyn->reg = node_stmt_reg_get(stmt);
+	if (r->dyn->reg < 0) {
+		r->dyn->loc  = LOC_STACK;
+		r->dyn->addr = node_probe_stack_get(probe, r->dyn->size);
 	}
 
 rdone:
@@ -74,7 +75,7 @@ static int loc_assign_pre(node_t *n, void *_probe)
 	ssize_t addr;
 	_D("> %s%s%s (%s/%s/%#zx)", n->string ? "" : "<",
 	   n->string ? : type_str(n->type), n->string ? "" : ">",
-	   type_str(n->type), type_str(n->dyn.type), n->dyn.size);
+	   type_str(n->type), type_str(n->dyn->type), n->dyn->size);
 
 	switch (n->type) {
 	case TYPE_NONE:
@@ -84,48 +85,48 @@ static int loc_assign_pre(node_t *n, void *_probe)
 	case TYPE_PROBE:
 		c = n->probe.pred;
 		if (c) {
-			c->dyn.loc = LOC_REG;
-			c->dyn.reg = BPF_REG_0;
-			c->dyn.free_regs = DYN_REGS;
+			c->dyn->loc = LOC_REG;
+			c->dyn->reg = BPF_REG_0;
+			c->dyn->free_regs = DYN_REGS;
 		}
 
 		node_foreach(c, n->probe.stmts) {
-			c->dyn.free_regs = DYN_REGS;
+			c->dyn->free_regs = DYN_REGS;
 		}
 		return 0;
 
 	case TYPE_CALL:
 		if (n->parent->type == TYPE_PROBE) {
-			n->dyn.loc = LOC_REG;
-			n->dyn.reg = BPF_REG_0;
+			n->dyn->loc = LOC_REG;
+			n->dyn->reg = BPF_REG_0;
 		}
 
-		return n->dyn.call.func->loc_assign(n);
+		return n->dyn->call.func->loc_assign(n);
 
 	case TYPE_ASSIGN:
-		n->dyn.loc = LOC_REG;
-		n->dyn.reg = BPF_REG_0;
+		n->dyn->loc = LOC_REG;
+		n->dyn->reg = BPF_REG_0;
 
 		c = n->assign.lval;
-		c->dyn.loc  = LOC_STACK;
-		c->dyn.addr = node_probe_stack_get(probe, c->dyn.size);
+		c->dyn->loc  = LOC_STACK;
+		c->dyn->addr = node_probe_stack_get(probe, c->dyn->size);
 
 		if (!n->assign.expr)
 			return 0;
 
-		n->assign.expr->dyn.loc  = LOC_STACK;
-		n->assign.expr->dyn.addr = c->dyn.addr;
+		n->assign.expr->dyn->loc  = LOC_STACK;
+		n->assign.expr->dyn->addr = c->dyn->addr;
 		return 0;
 	case TYPE_METHOD:
 		c = n->method.map;
-		c->dyn.loc  = LOC_STACK;
-		c->dyn.addr = node_probe_stack_get(probe, c->dyn.size);
+		c->dyn->loc  = LOC_STACK;
+		c->dyn->addr = node_probe_stack_get(probe, c->dyn->size);
 		return 0;
 
 	case TYPE_RETURN:
 		c = n->ret;
-		c->dyn.loc = LOC_REG;
-		c->dyn.reg = BPF_REG_0;
+		c->dyn->loc = LOC_REG;
+		c->dyn->reg = BPF_REG_0;
 		return 0;
 
 	case TYPE_BINOP:
@@ -133,28 +134,28 @@ static int loc_assign_pre(node_t *n, void *_probe)
 
 	case TYPE_NOT:
 		c = n->not;
-		c->dyn.loc  = n->dyn.loc;
-		c->dyn.reg  = n->dyn.reg;
-		c->dyn.addr = n->dyn.addr;
+		c->dyn->loc  = n->dyn->loc;
+		c->dyn->reg  = n->dyn->reg;
+		c->dyn->addr = n->dyn->addr;
 		return 0;
 
 	case TYPE_MAP:
 		/* upper node wants result in a register, but we still
 		 * need stack space to bounce the data in */
-		if (n->dyn.loc == LOC_REG)
-			n->dyn.addr = node_probe_stack_get(probe, n->dyn.size);
+		if (n->dyn->loc == LOC_REG)
+			n->dyn->addr = node_probe_stack_get(probe, n->dyn->size);
 
 		c = n->map.rec;
-		c->dyn.loc  = LOC_STACK;
-		c->dyn.addr = node_probe_stack_get(probe, c->dyn.size);
+		c->dyn->loc  = LOC_STACK;
+		c->dyn->addr = node_probe_stack_get(probe, c->dyn->size);
 		return 0;
 
 	case TYPE_REC:
-		addr = n->dyn.addr;
+		addr = n->dyn->addr;
 		node_foreach(c, n->rec.vargs) {
-			c->dyn.loc  = LOC_STACK;
-			c->dyn.addr = addr;
-			addr += c->dyn.size;
+			c->dyn->loc  = LOC_STACK;
+			c->dyn->addr = addr;
+			addr += c->dyn->size;
 		}
 		return 0;
 
@@ -190,25 +191,25 @@ static int type_sync(node_t *a, node_t *b)
 	/* if only one side is known, transfer it to the other
 	 * side. if both sides are known, they must be equal. */
 
-	if (b_xor(a->dyn.type, b->dyn.type)) {
-		if (a->dyn.type)
-			b->dyn.type = a->dyn.type;
+	if (b_xor(a->dyn->type, b->dyn->type)) {
+		if (a->dyn->type)
+			b->dyn->type = a->dyn->type;
 		else
-			a->dyn.type = b->dyn.type;
-	} else if (a->dyn.type != b->dyn.type) {
+			a->dyn->type = b->dyn->type;
+	} else if (a->dyn->type != b->dyn->type) {
 		_e("%s: type mismatch: %s != %s", a->string,
-		   type_str(a->dyn.type), type_str(b->dyn.type));
+		   type_str(a->dyn->type), type_str(b->dyn->type));
 		return -EINVAL;
 	}
 
-	if (b_xor(a->dyn.size, b->dyn.size)) {
-		if (a->dyn.size)
-			b->dyn.size = a->dyn.size;
+	if (b_xor(a->dyn->size, b->dyn->size)) {
+		if (a->dyn->size)
+			b->dyn->size = a->dyn->size;
 		else
-			a->dyn.size = b->dyn.size;
-	} else if (a->dyn.size != b->dyn.size) {
+			a->dyn->size = b->dyn->size;
+	} else if (a->dyn->size != b->dyn->size) {
 		_e("%s: size mismatch: %zx != %zx", a->string,
-		   a->dyn.size, b->dyn.size);
+		   a->dyn->size, b->dyn->size);
 		return -EINVAL;		
 	}
 
@@ -223,13 +224,13 @@ static int type_sync(node_t *a, node_t *b)
 	 * respective components */
 	for (i = 1, ac = a->rec.vargs, bc = b->rec.vargs;
 	     ac && bc; i++, ac = ac->next, bc = bc->next) {
-		if (ac->dyn.type != bc->dyn.type ||
-		    ac->dyn.size != bc->dyn.size) {			
+		if (ac->dyn->type != bc->dyn->type ||
+		    ac->dyn->size != bc->dyn->size) {			
 			_e("%s%srecord mismatch, argument %d: "
 			   "%s/%#zx != %s/%#zx",
 			   map_name ? : "", map_name ? ": key " : "", i,
-			   type_str(ac->dyn.type), ac->dyn.size,
-			   type_str(bc->dyn.type), bc->dyn.size);
+			   type_str(ac->dyn->type), ac->dyn->size,
+			   type_str(bc->dyn->type), bc->dyn->size);
 			return -EINVAL;
 		}
 	}
@@ -239,45 +240,6 @@ static int type_sync(node_t *a, node_t *b)
 		   map_name ? : "", map_name ? ": key " : "", i);
 		return -EINVAL;
 	}
-
-	return 0;
-}
-
-static int type_sync_map(node_t *a, node_t *b)
-{
-	node_t *a_rec = a->map.rec, *b_rec = b->map.rec;
-	int err;
-
-	err = type_sync(a, b);
-	if (err)
-		return err;
-
-	if (!(a_rec->dyn.size && b_rec->dyn.size))
-		return 0;
-
-
-	return type_sync(a_rec, b_rec);
-}
-
-static int type_infer_map(node_t *script, node_t *n)
-{
-	mdyn_t *mdyn;
-
-	for (mdyn = script->dyn.script.mdyns; mdyn; mdyn = mdyn->next) {
-		if (!strcmp(mdyn->map->string, n->string))
-			return type_sync_map(n, mdyn->map);
-	}
-
-	mdyn = calloc(1, sizeof(*mdyn));
-	assert(mdyn);
-
-	mdyn->type = BPF_MAP_TYPE_HASH;
-	mdyn->map  = n;
-
-	if (!script->dyn.script.mdyns)
-		script->dyn.script.mdyns = mdyn;
-	else
-		insque_tail(mdyn, script->dyn.script.mdyns);
 
 	return 0;
 }
@@ -335,8 +297,8 @@ static int type_infer_post(node_t *n, void *_script)
 		/* when the sizes of all arguments are known, the size
 		 * of the record is their sum. */
 		node_foreach(c, n->rec.vargs) {
-			if (c->dyn.size) {
-				sz += c->dyn.size;
+			if (c->dyn->size) {
+				sz += c->dyn->size;
 			} else {
 				sz = 0;
 				break;
@@ -344,12 +306,7 @@ static int type_infer_post(node_t *n, void *_script)
 		}
 
 		if (sz)
-			n->dyn.size = sz;
-		break;
-	case TYPE_MAP:
-		err = type_infer_map(script, n);
-		if (err)
-			return err;
+			n->dyn->size = sz;
 		break;
 	default:
 		break;
@@ -371,24 +328,28 @@ static int static_post(node_t *n, void *_null)
 	case TYPE_INT:
 	case TYPE_NOT:
 	case TYPE_RETURN:
-		n->dyn.type = TYPE_INT;
-		n->dyn.size = 8;
+		n->dyn->type = TYPE_INT;
+		n->dyn->size = 8;
 		break;
 	case TYPE_STR:
 		escaped = str_escape(n->string);
 
-		n->dyn.type = TYPE_STR;
-		n->dyn.size = _ALIGNED(strlen(escaped) + 1);
+		n->dyn->type = TYPE_STR;
+		n->dyn->size = _ALIGNED(strlen(escaped) + 1);
 
-		n->string = calloc(1, n->dyn.size);
-		memcpy(n->string, escaped, n->dyn.size);
+		n->string = calloc(1, n->dyn->size);
+		memcpy(n->string, escaped, n->dyn->size);
 		free(escaped);
 		break;
 	case TYPE_REC:
-		n->dyn.type = TYPE_REC;
+		n->dyn->type = TYPE_REC;
+		break;
+	case TYPE_BINOP:
+		n->dyn->type = TYPE_INT;
+		n->dyn->size = 8;
 		break;
 	case TYPE_CALL:
-		err = n->dyn.call.func->annotate(n);
+		err = n->dyn->call.func->annotate(n);
 		break;
 	default:
 		break;
@@ -405,7 +366,21 @@ static int static_post(node_t *n, void *_null)
 
 int annotate_script(node_t *script)
 {
+	symtable_t *st;
 	int err;
+
+	st = calloc(1, sizeof(*st));
+	assert(st);
+	err = symtable_populate(st, script);
+	if (err) {
+		_e("failed to populate symbol table");
+		return err;
+	}
+
+	script->dyn->script.st = st;
+
+	if (G.dump)
+		symtable_fdump(st, stderr);
 
 	/* insert all statically known types */
 	err = node_walk(script, NULL, static_post, NULL);
@@ -424,7 +399,7 @@ int annotate_script(node_t *script)
 		_e("dynamic type inference failed: %s", strerror(-err));
 		return err;
 	}
-
+	node_ast_dump(script);
 	/* calculate register or stack location of each node */
 	err = loc_assign(script);
 	if (err) {

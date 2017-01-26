@@ -22,7 +22,7 @@ struct trace_field {
 
 static int trace_field_compile(node_t *call, prog_t *prog)
 {
-	struct trace_field *tf = call->dyn.call.func->priv;
+	struct trace_field *tf = call->dyn->call.func->priv;
 	size_t offset = tf->offset;
 	size_t membsz = (tf->size / tf->nmemb);
 
@@ -32,18 +32,18 @@ static int trace_field_compile(node_t *call, prog_t *prog)
 	emit_stack_zero(prog, call);
 
 	emit(prog, MOV(BPF_REG_1, BPF_REG_10));
-	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_1, call->dyn.addr));
+	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_1, call->dyn->addr));
 	emit(prog, MOV_IMM(BPF_REG_2, membsz));
 	emit(prog, MOV(BPF_REG_3, BPF_REG_9));
 	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_3, offset));
 	emit(prog, CALL(BPF_FUNC_probe_read));
 
-	if (call->dyn.loc == LOC_REG) {
+	if (call->dyn->loc == LOC_REG) {
 		dyn_t src;
 
-		src = call->dyn;
+		src = *call->dyn;
 		src.loc = LOC_STACK;
-		return emit_xfer_dyns(prog, &call->dyn, &src);
+		return emit_xfer_dyns(prog, call->dyn, &src);
 	}
 
 	return 0;
@@ -51,7 +51,7 @@ static int trace_field_compile(node_t *call, prog_t *prog)
 
 static int trace_field_annotate(node_t *call)
 {
-	struct trace_field *tf = call->dyn.call.func->priv;
+	struct trace_field *tf = call->dyn->call.func->priv;
 	node_t *arg = call->call.vargs;
 	intptr_t reg;
 
@@ -61,12 +61,12 @@ static int trace_field_annotate(node_t *call)
 	    (tf->nmemb != 1 && (!arg || arg->next || arg->type != TYPE_INT)))
 	    return -EINVAL;
 
-	call->dyn.type = tf->type;
+	call->dyn->type = tf->type;
 
 	if (tf->type == TYPE_STR)
-		call->dyn.size = tf->size;
+		call->dyn->size = tf->size;
 	else
-		call->dyn.size = 8;
+		call->dyn->size = 8;
 
 	return 0;
 }

@@ -47,13 +47,13 @@ pvdr_t *pvdr_find(const char *pspec)
 int pvdr_resolve_call(node_t *call, void *_probe)
 {
 	node_t *probe = _probe;
-	pvdr_t *pvdr = probe->dyn.probe.pvdr;
+	pvdr_t *pvdr = probe->dyn->probe.pvdr;
 	int err;
 
 	if (call->type != TYPE_CALL)
 		return 0;
 
-	err = pvdr->resolve(call, &call->dyn.call.func);
+	err = pvdr->resolve(call, &call->dyn->call.func);
 	if (err)
 		_e("in '%s', unknown function '%s'",
 		   probe->string, call->string);
@@ -74,7 +74,7 @@ int pvdr_resolve(node_t *script)
 			return -ENOENT;
 		}
 
-		probe->dyn.probe.pvdr = pvdr;
+		probe->dyn->probe.pvdr = pvdr;
 		err = node_walk(probe, pvdr_resolve_call, NULL, probe);
 		if (err)
 			return err;

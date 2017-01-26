@@ -87,7 +87,7 @@ static void printf_output(node_t *script, void *rec)
 	}
 
 	*meta &= 0xffff;
-	call = script->dyn.script.printf[*meta];
+	call = script->dyn->script.printf[*meta];
 	if (!call)
 		return;
 
@@ -101,7 +101,7 @@ static void printf_output(node_t *script, void *rec)
 				break;
 
 			printf_spec(spec, fmt, rec + offs);
-			offs += arg->dyn.size;
+			offs += arg->dyn->size;
 			arg = arg->next;
 		} else {
 			fputc(*fmt, stdout);
@@ -112,33 +112,30 @@ static void printf_output(node_t *script, void *rec)
 void printf_drain(node_t *script)
 {
 	node_t *call, *rec;
-	mdyn_t *mdyn;
+	sym_t *s;
 	int64_t key;
 	char *val;
 	int err;
 
-	for (mdyn = script->dyn.script.mdyns; mdyn; mdyn = mdyn->next)
-		if (!strcmp(mdyn->map->string, "printf"))
-			break;
-
-	if (!mdyn) {
+	s = symtable_get_map(script->dyn->script.st, "printf");
+	if (!s) {
 		poll(NULL, 0, -1);
 		return;
 	}
 
-	call = mdyn->map;
+	call = s->map.map;
 	rec  = call->call.vargs->next;
-	val  = malloc(rec->dyn.size);
+	val  = malloc(rec->dyn->size);
 
 	for (key = 0;;) {
-		err = bpf_map_lookup(mdyn->mapfd, &key, val);
+		err = bpf_map_lookup(s->dyn->map.fd, &key, val);
 		if (err) {
 			err = usleep(200000);
 			if (err)
 				break;
 		} else {
 			printf_output(script, val);
-			bpf_map_delete(mdyn->mapfd, &key);
+			bpf_map_delete(s->dyn->map.fd, &key);
 			key++;
 			if (key >= (PRINTF_BUF_LEN - 1))
 				key = 0;
@@ -152,9 +149,9 @@ int printf_compile(node_t *call, prog_t *prog)
 	node_t *rec = call->call.vargs->next;
 	int map_fd = node_map_get_fd(call);
 
-	if (call->dyn.size > sizeof(int64_t)) {
-		size_t diff = call->dyn.size - sizeof(int64_t);
-		ssize_t addr = rec->dyn.addr + rec->dyn.size;
+	if (call->dyn->size > sizeof(int64_t)) {
+		size_t diff = call->dyn->size - sizeof(int64_t);
+		ssize_t addr = rec->dyn->addr + rec->dyn->size;
 
 		emit(prog, MOV_IMM(BPF_REG_0, 0));
 		for (; diff; addr += sizeof(int64_t), diff -= sizeof(int64_t))
@@ -164,20 +161,20 @@ int printf_compile(node_t *call, prog_t *prog)
 	/* lookup index into print buffer, stored out-of-band after
 	 * the last entry */
 	emit(prog, MOV_IMM(BPF_REG_0, PRINTF_BUF_LEN - 1));
-	emit(prog, STXDW(BPF_REG_10, call->dyn.addr, BPF_REG_0));
-	emit_map_lookup_raw(prog, map_fd, call->dyn.addr);
+	emit(prog, STXDW(BPF_REG_10, call->dyn->addr, BPF_REG_0));
+	emit_map_lookup_raw(prog, map_fd, call->dyn->addr);
 
 	/* if we get a null pointer, index is 0 */
 	emit(prog, JMP_IMM(JMP_JNE, BPF_REG_0, 0, 2));
-	emit(prog, STXDW(BPF_REG_10, call->dyn.addr, BPF_REG_0));
+	emit(prog, STXDW(BPF_REG_10, call->dyn->addr, BPF_REG_0));
 	emit(prog, JMP_IMM(JMP_JA, 0, 0, 5));
 
 	/* otherwise, get it from the out-of-band value */
-	emit_read_raw(prog, call->dyn.addr, BPF_REG_0, sizeof(int64_t));
+	emit_read_raw(prog, call->dyn->addr, BPF_REG_0, sizeof(int64_t));
 
-	/* at this point call->dyn.addr is loaded with the index of
+	/* at this point call->dyn->addr is loaded with the index of
 	 * the buffer */
-	emit_map_lookup_raw(prog, map_fd, call->dyn.addr);
+	emit_map_lookup_raw(prog, map_fd, call->dyn->addr);
 
 	/* lookup SHOULD return NULL, otherwise user-space has not
 	 * been able to empty the buffer in time. */
@@ -185,24 +182,24 @@ int printf_compile(node_t *call, prog_t *prog)
 
 	/* mark record with the overflow bit so that user-space at
 	 * least knows when data has been lost */
-	emit(prog, LDXDW(BPF_REG_0, rec->rec.vargs->dyn.addr, BPF_REG_10));
+	emit(prog, LDXDW(BPF_REG_0, rec->rec.vargs->dyn->addr, BPF_REG_10));
 	emit(prog, ALU_IMM(ALU_OP_OR, BPF_REG_0, PRINTF_META_OF));
-	emit(prog, STXDW(BPF_REG_10, rec->rec.vargs->dyn.addr, BPF_REG_0));
+	emit(prog, STXDW(BPF_REG_10, rec->rec.vargs->dyn->addr, BPF_REG_0));
 
 	/* store record */
-	emit_map_update_raw(prog, map_fd, call->dyn.addr, rec->dyn.addr);
+	emit_map_update_raw(prog, map_fd, call->dyn->addr, rec->dyn->addr);
 
 	/* calculate next index and store that in the record */
-	emit(prog, LDXDW(BPF_REG_0, call->dyn.addr, BPF_REG_10));
+	emit(prog, LDXDW(BPF_REG_0, call->dyn->addr, BPF_REG_10));
 	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_0, 1));
 	emit(prog, JMP_IMM(JMP_JNE, BPF_REG_0, PRINTF_BUF_LEN - 1, 1));
 	emit(prog, MOV_IMM(BPF_REG_0, 0));
-	emit(prog, STXDW(BPF_REG_10, rec->rec.vargs->dyn.addr, BPF_REG_0));
+	emit(prog, STXDW(BPF_REG_10, rec->rec.vargs->dyn->addr, BPF_REG_0));
 
 	/* store next index */
 	emit(prog, MOV_IMM(BPF_REG_0, PRINTF_BUF_LEN - 1));
-	emit(prog, STXDW(BPF_REG_10, call->dyn.addr, BPF_REG_0));
-	emit_map_update_raw(prog, map_fd, call->dyn.addr, rec->dyn.addr);
+	emit(prog, STXDW(BPF_REG_10, call->dyn->addr, BPF_REG_0));
+	emit_map_update_raw(prog, map_fd, call->dyn->addr, rec->dyn->addr);
 	return 0;
 }
 
@@ -220,8 +217,8 @@ static int printf_walk(node_t *n, void *_mdyn)
 		/* printf records can be of different sizes, store
 		 * pointer to the printf call with the largest record
 		 * so that all will fit. */
-		largest = mdyn->map->call.vargs->next->dyn.size;
-		new = n->call.vargs->next->dyn.size;
+		largest = mdyn->map->call.vargs->next->dyn->size;
+		new = n->call.vargs->next->dyn->size;
 
 		if (new > largest)
 			mdyn->map = n;
@@ -248,11 +245,11 @@ static size_t printf_rec_size(node_t *script)
 {
 	mdyn_t *mdyn;
 
-	mdyn = node_map_get_mdyn(script->dyn.script.printf[0]);
+	mdyn = node_map_get_mdyn(script->dyn->script.printf[0]);
 	if (!mdyn)
 		mdyn = printf_store_mdyn(script);
 
-	return mdyn->map->call.vargs->next->dyn.size;
+	return mdyn->map->call.vargs->next->dyn->size;
 }
 
 int printf_loc_assign(node_t *call)
@@ -265,15 +262,15 @@ int printf_loc_assign(node_t *call)
 
 	/* no need to store any format strings in the kernel, we can
 	 * fetch them from the AST, just store a format id instead. */
-	varg->dyn.loc = LOC_VIRTUAL;
+	varg->dyn->loc = LOC_VIRTUAL;
 
 	rec_max_size  = printf_rec_size(probe->parent);
-	rec->dyn.loc  = LOC_STACK;
-	rec->dyn.addr = node_probe_stack_get(probe, rec_max_size);
+	rec->dyn->loc  = LOC_STACK;
+	rec->dyn->addr = node_probe_stack_get(probe, rec_max_size);
 
 	/* allocate storage for printf's map key */
-	call->dyn.size = rec_max_size + sizeof(int64_t) - rec->dyn.size;
-	call->dyn.addr = node_probe_stack_get(probe, call->dyn.size);
+	call->dyn->size = rec_max_size + sizeof(int64_t) - rec->dyn->size;
+	call->dyn->addr = node_probe_stack_get(probe, call->dyn->size);
 	return 0;
 }
 
@@ -296,9 +293,9 @@ int printf_annotate(node_t *call)
 	/* rewrite printf("a:%d b:%d", a(), b())
          *    into printf("a:%d b:%d", [meta, a(), b()])
 	 */
-	meta = node_int_new(script->dyn.script.fmt_id++);
-	meta->dyn.type = TYPE_INT;
-	meta->dyn.size = 8;
+	meta = node_int_new(script->dyn->script.fmt_id++);
+	meta->dyn->type = TYPE_INT;
+	meta->dyn->size = 8;
 	meta->next = varg->next;
 	rec = node_rec_new(meta);
 	varg->next = rec;
@@ -308,7 +305,7 @@ int printf_annotate(node_t *call)
 		varg->parent = rec;
 	}
 
-	script->dyn.script.printf[meta->integer] = call;
+	script->dyn->script.printf[meta->integer] = call;
 	return 0;
 }
 

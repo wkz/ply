@@ -9,26 +9,26 @@ int default_loc_assign(node_t *call)
 	int reg;
 
 	node_foreach(varg, call->call.vargs) {
-		switch (varg->dyn.type) {
+		switch (varg->dyn->type) {
 		case TYPE_INT:
 			reg = node_stmt_reg_get(stmt);
 			if (reg > 0) {
-				varg->dyn.loc = LOC_REG;
-				varg->dyn.reg = reg;
+				varg->dyn->loc = LOC_REG;
+				varg->dyn->reg = reg;
 				continue;
 			}
 			/* no registers, fall-through and allocate on
 			 * the stack */
 		case TYPE_REC:
 		case TYPE_STR:
-			varg->dyn.loc  = LOC_STACK;
-			varg->dyn.addr = node_probe_stack_get(probe, varg->dyn.size);
+			varg->dyn->loc  = LOC_STACK;
+			varg->dyn->addr = node_probe_stack_get(probe, varg->dyn->size);
 			continue;
 
 
 		default:
 			_e("argument %d of '%s' is of unknown type '%s'",
-			   reg, call->string, type_str(varg->dyn.type));
+			   reg, call->string, type_str(varg->dyn->type));
 			return -EINVAL;
 		}
 	}

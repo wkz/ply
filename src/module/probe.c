@@ -17,8 +17,8 @@ static int probe_comm_compile(node_t *call, prog_t *prog)
 	emit_stack_zero(prog, call);
 
 	emit(prog, MOV(BPF_REG_1, BPF_REG_10));
-	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_1, call->dyn.addr));
-	emit(prog, MOV_IMM(BPF_REG_2, call->dyn.size));
+	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_1, call->dyn->addr));
+	emit(prog, MOV_IMM(BPF_REG_2, call->dyn->size));
 	emit(prog, CALL(BPF_FUNC_get_current_comm));
 	return 0;
 }
@@ -28,8 +28,8 @@ static int probe_comm_annotate(node_t *call)
 	if (call->call.vargs)
 		return -EINVAL;
 
-	call->dyn.type = TYPE_STR;
-	call->dyn.size = 16;
+	call->dyn->type = TYPE_STR;
+	call->dyn->size = 16;
 	return 0;
 }
 MODULE_FUNC(probe, comm);
@@ -43,18 +43,18 @@ static int probe_reg_compile(node_t *call, prog_t *prog)
 	emit_stack_zero(prog, call);
 
 	emit(prog, MOV(BPF_REG_1, BPF_REG_10));
-	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_1, call->dyn.addr));
+	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_1, call->dyn->addr));
 	emit(prog, MOV_IMM(BPF_REG_2, arch_reg_width()));
 	emit(prog, MOV(BPF_REG_3, BPF_REG_9));
 	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_3, sizeof(uintptr_t)*arg->integer));
 	emit(prog, CALL(BPF_FUNC_probe_read));
 
-	if (call->dyn.loc == LOC_REG) {
+	if (call->dyn->loc == LOC_REG) {
 		dyn_t src;
 
-		src = call->dyn;
+		src = *call->dyn;
 		src.loc = LOC_STACK;
-		return emit_xfer_dyns(prog, &call->dyn, &src);
+		return emit_xfer_dyns(prog, call->dyn, &src);
 	}
 
 	return 0;
@@ -66,13 +66,13 @@ static int probe_reg_loc_assign(node_t *call)
 
 	/* if the result is going to a register, allocate space on the
 	 * stack as a temporary location to probe_read to. */
-	if (call->dyn.loc == LOC_REG) {
+	if (call->dyn->loc == LOC_REG) {
 		probe = node_get_probe(call);
 
-		call->dyn.addr = node_probe_stack_get(probe, call->dyn.size);
+		call->dyn->addr = node_probe_stack_get(probe, call->dyn->size);
 	}
 
-	call->call.vargs->dyn.loc = LOC_VIRTUAL;
+	call->call.vargs->dyn->loc = LOC_VIRTUAL;
 	return 0;
 }
 
@@ -96,8 +96,8 @@ static int probe_reg_annotate(node_t *call)
 		return -ENOSYS;
 	}
 
-	call->dyn.type = TYPE_INT;
-	call->dyn.size = sizeof(int64_t);
+	call->dyn->type = TYPE_INT;
+	call->dyn->size = sizeof(int64_t);
 	return 0;
 }
 MODULE_FUNC_LOC(probe, reg);
@@ -126,8 +126,8 @@ static int probe_func_annotate(node_t *call)
 		return reg;
 
 	call->call.vargs = node_int_new(reg);
-	call->dyn.type = TYPE_INT;
-	call->dyn.size = sizeof(int64_t);
+	call->dyn->type = TYPE_INT;
+	call->dyn->size = sizeof(int64_t);
 	call->dump = dump_sym;
 	return 0;
 }
@@ -143,7 +143,7 @@ static int probe_stack_compile(node_t *call, prog_t *prog)
 	emit_ld_mapfd(prog, BPF_REG_2, stackmap_fd);
 	emit(prog, MOV_IMM(BPF_REG_3, 0));
 	emit(prog, CALL(BPF_FUNC_get_stackid));
-	return emit_xfer_dyns(prog, &call->dyn, &dyn_reg[BPF_REG_0]);
+	return emit_xfer_dyns(prog, call->dyn, &dyn_reg[BPF_REG_0]);
 }
 
 static int probe_stack_loc_assign(node_t *call)
@@ -169,8 +169,8 @@ static int probe_stack_annotate(node_t *call)
 	if (call->call.vargs)
 		return -EINVAL;
 
-	call->dyn.type = TYPE_STACK;
-	call->dyn.size = 8;
+	call->dyn->type = TYPE_STACK;
+	call->dyn->size = 8;
 	return 0;
 }
 MODULE_FUNC_LOC(probe, stack);
@@ -205,8 +205,8 @@ static int kprobe_arg_annotate(node_t *call)
 		return reg;
 
 	arg->integer = reg;
-	call->dyn.type = TYPE_INT;
-	call->dyn.size = sizeof(int64_t);
+	call->dyn->type = TYPE_INT;
+	call->dyn->size = sizeof(int64_t);
 	return 0;
 }
 MODULE_FUNC_LOC(kprobe, arg);
@@ -235,8 +235,8 @@ static int kretprobe_retval_annotate(node_t *call)
 		return reg;
 
 	call->call.vargs = node_int_new(reg);
-	call->dyn.type = TYPE_INT;
-	call->dyn.size = sizeof(int64_t);
+	call->dyn->type = TYPE_INT;
+	call->dyn->size = sizeof(int64_t);
 	call->dump = dump_sym;
 	return 0;
 }
