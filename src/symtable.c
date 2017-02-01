@@ -55,7 +55,7 @@ int symtable_fdump(symtable_t *st, FILE *fp)
 	return 0;
 }
 
-static sym_t *symtable_get(symtable_t *st, node_t *n)
+sym_t *symtable_get(symtable_t *st, node_t *n)
 {
 	sym_t *s;
 

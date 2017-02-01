@@ -165,6 +165,7 @@ typedef enum loc {
 const char *loc_str(loc_t loc);
 
 typedef struct symtable symtable_t;
+typedef struct evpipe evpipe_t;
 
 struct dyn {
 	type_t type;
@@ -173,8 +174,6 @@ struct dyn {
 	loc_t   loc;
 	int     reg;
 	ssize_t addr;
-
-	int     free_regs;
 
 	union {
 		struct {
@@ -190,14 +189,21 @@ struct dyn {
 		} call;
 
 		struct {
+			struct bpf_insn *start;
+		} unroll;
+
+		struct {
 			pvdr_t *pvdr;
 			void   *pvdr_priv;
 
 			ssize_t sp;
+			int     dyn_regs;
+			int     stat_regs;
 		} probe;
 
 		struct {
 			symtable_t *st;
+			evpipe_t   *evp;
 
 			int     fmt_id;
 			node_t *printf[64];
@@ -258,7 +264,8 @@ pvdr_t *node_get_pvdr  (node_t *n);
 node_t *node_get_probe (node_t *n);
 node_t *node_get_script(node_t *n);
 
-int     node_stmt_reg_get   (node_t *stmt);
+/* int     node_stmt_reg_get   (node_t *stmt); */
+int     node_probe_reg_get  (node_t *probe, int dynamic);
 ssize_t node_probe_stack_get(node_t *probe, size_t size);
 
 node_t *node_str_new     (char *val);

@@ -4,14 +4,17 @@
 
 int default_loc_assign(node_t *call)
 {
-	node_t *probe = node_get_probe(call), *stmt = node_get_stmt(call);
+	node_t *probe = node_get_probe(call);
 	node_t *varg;
 	int reg;
 
 	node_foreach(varg, call->call.vargs) {
+		if (varg->type == TYPE_VAR)
+			continue;
+
 		switch (varg->dyn->type) {
 		case TYPE_INT:
-			reg = node_stmt_reg_get(stmt);
+			reg = node_probe_reg_get(probe, 1);
 			if (reg > 0) {
 				varg->dyn->loc = LOC_REG;
 				varg->dyn->reg = reg;

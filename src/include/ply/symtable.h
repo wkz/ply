@@ -37,6 +37,7 @@ typedef struct symtable {
 } symtable_t;
 
 int    symtable_fdump   (symtable_t *st, FILE *fp);
+sym_t *symtable_get     (symtable_t *st, node_t *n);
 int    symtable_populate(symtable_t *st, node_t *script);
 
 #endif	/* _PLY_SYMTABLE_H */

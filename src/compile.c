@@ -19,6 +19,7 @@
 
 #include <errno.h>
 #include <inttypes.h>
+#include <stddef.h>
 #include <string.h>
 
 #include <ply/ast.h>
@@ -26,6 +27,7 @@
 #include <ply/compile.h>
 #include <ply/ply.h>
 #include <ply/pvdr.h>
+#include <ply/symtable.h>
 
 const dyn_t dyn_reg[] = {
 	[BPF_REG_0] =  { .type = TYPE_INT, .size = 8, .loc = LOC_REG, .reg = BPF_REG_0  },
@@ -44,28 +46,30 @@ const dyn_t dyn_reg[] = {
 static const char *bpf_func_name(enum bpf_func_id id)
 {
 	switch (id) {
-	case BPF_FUNC_map_lookup_elem:
-		return "map_lookup_elem";
-	case BPF_FUNC_map_update_elem:
-		return "map_update_elem";
-	case BPF_FUNC_map_delete_elem:
-		return "map_delete_elem";
-	case BPF_FUNC_probe_read:
-		return "probe_read";
-	case BPF_FUNC_ktime_get_ns:
-		return "ktime_get_ns";
-	case BPF_FUNC_trace_printk:
-		return "trace_printk";
+	case BPF_FUNC_get_current_comm:
+		return "get_current_comm";
 	case BPF_FUNC_get_current_pid_tgid:
 		return "get_current_pid_tgid";
 	case BPF_FUNC_get_current_uid_gid:
 		return "get_current_uid_gid";
-	case BPF_FUNC_get_current_comm:
-		return "get_current_comm";
 #ifdef LINUX_HAS_STACKMAP
 	case BPF_FUNC_get_stackid:
 		return "get_stackid";
 #endif
+	case BPF_FUNC_ktime_get_ns:
+		return "ktime_get_ns";
+	case BPF_FUNC_map_delete_elem:
+		return "map_delete_elem";
+	case BPF_FUNC_map_lookup_elem:
+		return "map_lookup_elem";
+	case BPF_FUNC_map_update_elem:
+		return "map_update_elem";
+	case BPF_FUNC_perf_event_output:
+		return "perf_event_output";
+	case BPF_FUNC_probe_read:
+		return "probe_read";
+	case BPF_FUNC_trace_printk:
+		return "trace_printk";
 	default:
 		return NULL;
 	}
@@ -427,11 +431,30 @@ int emit_map_lookup_raw(prog_t *prog, int fd, ssize_t addr)
 	return 0;
 }
 
+int emit_rec_load(prog_t *prog, node_t *n)
+{
+	node_t *c;
+	dyn_t to = { .loc = LOC_STACK };
+
+	to.addr = n->dyn->addr;
+	node_foreach(c, n->rec.vargs) {
+		if (c->type == TYPE_VAR) {
+			to.size = c->dyn->size;
+			emit_xfer_dyn(prog, &to, c);
+		}
+
+		to.addr += c->dyn->size;
+	}
+
+	return 0;
+}
+
 int emit_map_load(prog_t *prog, node_t *n)
 {
 	/* when overriding the current value, there is no need to load
 	 * any previous value */
-	if (n->parent->type == TYPE_ASSIGN)
+	if (n->parent->type == TYPE_ASSIGN &&
+	    n->parent->assign.lval == n)
 		return 0;
 
 	emit_stack_zero(prog, n);
@@ -449,6 +472,39 @@ int emit_map_load(prog_t *prog, node_t *n)
 
 	return 0;
 }
+
+/* int emit_var_load(prog_t *prog, node_t *n) */
+/* { */
+/* 	node_t *script = node_get_script(n); */
+/* 	sym_t *s; */
+
+/* 	s = symtable_get(script->dyn->script.st, n); */
+/* 	assert(s); */
+
+/* 	/\* this is not the first reference, value is loaded already *\/ */
+/* 	if (n != s->var.first) */
+/* 		return 0; */
+	
+/* 	/\* when overriding the current value, there is no need to load */
+/* 	 * any previous value *\/ */
+/* 	if (n->parent->type == TYPE_ASSIGN && */
+/* 	    n->parent->assign.lval == n) */
+/* 		return 0; */
+
+/* 	switch (n->dyn->loc) { */
+/* 	case LOC_STACK: */
+/* 		emit_stack_zero(prog, n); */
+/* 		break; */
+/* 	case LOC_REG: */
+/* 		emit(prog, MOV_IMM(n->dyn->reg, 0)); */
+/* 		break; */
+/* 	default: */
+/* 		assert(0); */
+/* 		break; */
+/* 	} */
+
+/* 	return 0; */
+/* } */
 
 int emit_not(prog_t *prog, node_t *not)
 {
@@ -531,23 +587,24 @@ int emit_binop(prog_t *prog, node_t *binop)
 
 int emit_assign(prog_t *prog, node_t *assign)
 {
-	node_t *map = assign->assign.lval, *expr = assign->assign.expr;
+	node_t *lval = assign->assign.lval, *expr = assign->assign.expr;
 	int err;
 
-	if (!expr) {
-		emit_map_delete_raw(prog, map->dyn->map.fd,
-				    map->map.rec->dyn->addr);
+	if (lval->type == TYPE_MAP && !expr) {
+		emit_map_delete_raw(prog, lval->dyn->map.fd,
+				    lval->map.rec->dyn->addr);
 		return 0;
 	}
 	
 	if (expr->type == TYPE_INT) {
-		err = emit_xfer(prog, map, expr);
+		err = emit_xfer(prog, lval, expr);
 		if (err)
 			return err;
 	}
 
-	emit_map_update_raw(prog, map->dyn->map.fd,
-			    map->map.rec->dyn->addr, map->dyn->addr);
+	if (lval->type == TYPE_MAP)
+		emit_map_update_raw(prog, lval->dyn->map.fd,
+				    lval->map.rec->dyn->addr, lval->dyn->addr);
 	return 0;
 }
 
@@ -560,13 +617,29 @@ int emit_method(prog_t *prog, node_t *method)
 	return 0;
 }
 
+int emit_unroll(prog_t *prog, node_t *n)
+{
+	struct bpf_insn *start = n->dyn->unroll.start;
+	ptrdiff_t insns = prog->ip - start;
+	int i, j;
+
+	for (i = 1; i < n->unroll.count; i++) {
+		_D("%d/%"PRId64, i, n->unroll.count - 1);
+		for (j = 0; j < insns; j++)
+			emit(prog, *start++);
+	}
+
+	return 0;
+}
+
 static int compile_pre(node_t *n, void *_prog)
 {
 	prog_t *prog = _prog;
 
-	(void)(prog);
-
 	switch (n->type) {
+	case TYPE_UNROLL:
+		n->dyn->unroll.start = prog->ip;
+		break;
 	default:
 		break;
 	}
@@ -597,7 +670,11 @@ static int compile_post(node_t *n, void *_prog)
 		break;
 
 	case TYPE_REC:
-		/* components are already pushed to the stack */
+		err = emit_rec_load(prog, n);
+		break;
+
+	case TYPE_VAR:
+		/* err = emit_var_load(prog, n); */
 		break;
 
 	case TYPE_MAP:
@@ -628,7 +705,7 @@ static int compile_post(node_t *n, void *_prog)
 		break;
 
 	case TYPE_UNROLL:
-		/* unroll is just code copy+paste, done in the ast */
+		err = emit_unroll(prog, n);
 		break;
 
 	case TYPE_PROBE:

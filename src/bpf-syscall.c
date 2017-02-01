@@ -20,6 +20,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <sys/syscall.h>
+
 #include <linux/bpf.h>
 #include <linux/perf_event.h>
 #include <linux/version.h>
@@ -103,4 +105,14 @@ int bpf_map_delete(int fd, void *key)
 int bpf_map_next(int fd, void *key, void *next_key)
 {
 	return bpf_map_op(BPF_MAP_GET_NEXT_KEY, fd, key, next_key, 0);
+}
+
+long perf_event_open(struct perf_event_attr *hw_event, pid_t pid,
+		     int cpu, int group_fd, unsigned long flags)
+{
+	int ret;
+
+	ret = syscall(__NR_perf_event_open, hw_event, pid, cpu,
+		      group_fd, flags);
+	return ret;
 }

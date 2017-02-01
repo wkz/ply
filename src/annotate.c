@@ -31,18 +31,18 @@
 
 static int loc_assign_binop(node_t *n, node_t *probe)
 {
-	node_t *l, *r, *stmt;
+	node_t *l, *r;
 
-	stmt = node_get_stmt(n);
 	l = n->binop.left;
 	r = n->binop.right;
 
 	l->dyn->loc = LOC_REG;
 	if (n->dyn->loc == LOC_REG && ((1 << n->dyn->reg) & DYN_REGS))
 		l->dyn->reg = n->dyn->reg;
-	else
-		l->dyn->reg = node_stmt_reg_get(stmt);
-
+	else {
+		_d("");
+		l->dyn->reg = node_probe_reg_get(probe, 1);
+	}
 	if (l->dyn->reg >= 0)
 		goto ldone;
 
@@ -59,7 +59,7 @@ ldone:
 		goto rdone;
 
 	r->dyn->loc = LOC_REG;
-	r->dyn->reg = node_stmt_reg_get(stmt);
+	r->dyn->reg = node_probe_reg_get(probe, 1);
 	if (r->dyn->reg < 0) {
 		r->dyn->loc  = LOC_STACK;
 		r->dyn->addr = node_probe_stack_get(probe, r->dyn->size);
@@ -67,6 +67,94 @@ ldone:
 
 rdone:
 	return 0;
+}
+
+static int loc_assign_map(node_t *n, node_t *probe)
+{
+	if (n->dyn->loc != LOC_NOWHERE)
+		return 0;
+
+	n->dyn->loc  = LOC_STACK;
+	n->dyn->addr = node_probe_stack_get(probe, n->dyn->size);
+}
+
+static int loc_assign_var(node_t *n, node_t *probe)
+{
+	node_fdump(n, stderr);
+	_d("");
+	if (n->dyn->loc != LOC_NOWHERE)
+		return 0;
+
+	if (n->dyn->type == TYPE_INT) {
+		n->dyn->loc = LOC_REG;
+		n->dyn->reg = node_probe_reg_get(probe, 0);
+
+		_d("2");
+		if (n->dyn->reg > 0)
+			return 0;
+	}
+
+	n->dyn->loc = LOC_NOWHERE;
+	return loc_assign_map(n, probe); 
+}
+
+static int loc_assign_assign(node_t *n, node_t *probe)
+{
+	node_t *c;
+	int err = 0;
+
+	/* if (n->dyn->loc != LOC_NOWHERE) */
+	/* 	return 0; */
+
+	/* n->dyn->save_regs = probe->dyn->probe.free_regs; */
+
+	c = n->assign.lval;
+	switch (c->type) {
+	case TYPE_VAR:
+		err = loc_assign_var(c, probe);
+		break;
+		/* if (c->dyn->type == TYPE_INT) { */
+		/* 	c->dyn->loc = LOC_REG; */
+		/* 	c->dyn->reg = node_probe_reg_get(probe); */
+		/* 	_d("WKZ"); */
+		/* 	node_fdump(n->assign.expr, stderr); */
+		/* 	if (c->dyn->reg > 0) { */
+		/* 		node_fdump(n->assign.expr, stderr); */
+		/* 		n->assign.expr->dyn->loc  = LOC_REG; */
+		/* 		n->assign.expr->dyn->addr = c->dyn->reg; */
+		/* 		break; */
+		/* 	} */
+		/* } */
+
+		/* /\* no registers left, fallback to stack like for maps *\/ */
+
+		/* /\* fall-through *\/ */
+
+	case TYPE_MAP:
+		err = loc_assign_map(c, probe);
+		/* c->dyn->loc  = LOC_STACK; */
+		/* c->dyn->addr = node_probe_stack_get(probe, c->dyn->size); */
+
+		/* if (!n->assign.expr) */
+		/* 	break; */
+
+		/* n->assign.expr->dyn->loc  = LOC_STACK; */
+		/* n->assign.expr->dyn->addr = c->dyn->addr; */
+		break;
+
+
+	default:
+		err = -ENOSYS;
+		break;
+	}
+
+	if (!err && n->assign.expr) {
+		n->assign.expr->dyn->loc  = c->dyn->loc;
+		n->assign.expr->dyn->reg  = c->dyn->reg;
+		n->assign.expr->dyn->addr = c->dyn->addr;
+	}
+
+	return err;
 }
 
 static int loc_assign_pre(node_t *n, void *_probe)
@@ -78,25 +166,22 @@ static int loc_assign_pre(node_t *n, void *_probe)
 	   type_str(n->type), type_str(n->dyn->type), n->dyn->size);
 
 	switch (n->type) {
-	case TYPE_NONE:
-	case TYPE_SCRIPT:
-		return 0;
-
 	case TYPE_PROBE:
 		c = n->probe.pred;
 		if (c) {
 			c->dyn->loc = LOC_REG;
 			c->dyn->reg = BPF_REG_0;
-			c->dyn->free_regs = DYN_REGS;
+			/* c->dyn->free_regs = DYN_REGS; */
 		}
 
-		node_foreach(c, n->probe.stmts) {
-			c->dyn->free_regs = DYN_REGS;
-		}
+		/* node_foreach(c, n->probe.stmts) { */
+		/* 	c->dyn->free_regs = DYN_REGS; */
+		/* } */
 		return 0;
 
 	case TYPE_CALL:
-		if (n->parent->type == TYPE_PROBE) {
+		if (n->parent->type == TYPE_PROBE ||
+		    n->parent->type == TYPE_UNROLL) {
 			n->dyn->loc = LOC_REG;
 			n->dyn->reg = BPF_REG_0;
 		}
@@ -107,16 +192,18 @@ static int loc_assign_pre(node_t *n, void *_probe)
 		n->dyn->loc = LOC_REG;
 		n->dyn->reg = BPF_REG_0;
 
-		c = n->assign.lval;
-		c->dyn->loc  = LOC_STACK;
-		c->dyn->addr = node_probe_stack_get(probe, c->dyn->size);
+		/* c = n->assign.lval; */
+		/* c->dyn->loc  = LOC_STACK; */
+		/* c->dyn->addr = node_probe_stack_get(probe, c->dyn->size); */
 
-		if (!n->assign.expr)
-			return 0;
+		/* if (!n->assign.expr) */
+		/* 	return 0; */
 
-		n->assign.expr->dyn->loc  = LOC_STACK;
-		n->assign.expr->dyn->addr = c->dyn->addr;
-		return 0;
+		/* n->assign.expr->dyn->loc  = LOC_STACK; */
+		/* n->assign.expr->dyn->addr = c->dyn->addr; */
+		/* return 0; */
+		return loc_assign_assign(n, probe);
+
 	case TYPE_METHOD:
 		c = n->method.map;
 		c->dyn->loc  = LOC_STACK;
@@ -139,10 +226,13 @@ static int loc_assign_pre(node_t *n, void *_probe)
 		c->dyn->addr = n->dyn->addr;
 		return 0;
 
+	case TYPE_VAR:
+		return loc_assign_var(n, probe);
+
 	case TYPE_MAP:
 		/* upper node wants result in a register, but we still
 		 * need stack space to bounce the data in */
-		if (n->dyn->loc == LOC_REG)
+		if (n->dyn->loc == LOC_REG && !n->dyn->addr)
 			n->dyn->addr = node_probe_stack_get(probe, n->dyn->size);
 
 		c = n->map.rec;
@@ -153,12 +243,17 @@ static int loc_assign_pre(node_t *n, void *_probe)
 	case TYPE_REC:
 		addr = n->dyn->addr;
 		node_foreach(c, n->rec.vargs) {
-			c->dyn->loc  = LOC_STACK;
-			c->dyn->addr = addr;
+			if (c->type != TYPE_VAR) {
+				c->dyn->loc  = LOC_STACK;
+				c->dyn->addr = addr;
+			}
+
 			addr += c->dyn->size;
 		}
 		return 0;
 
+	case TYPE_NONE:
+	case TYPE_SCRIPT:
 	case TYPE_UNROLL:
 	case TYPE_STR:
 	case TYPE_INT:
@@ -168,13 +263,49 @@ static int loc_assign_pre(node_t *n, void *_probe)
 	return -ENOSYS;
 }
 
+static int loc_assign_post(node_t *n, void *_probe)
+{
+	node_t *probe = _probe;
+	node_t *script = node_get_script(probe);
+	sym_t *s;
+
+	switch (n->type) {
+	case TYPE_UNROLL:		
+	case TYPE_VAR:
+		sym_foreach(s, script->dyn->script.st->syms) {
+			if (s->type == TYPE_VAR &&
+			    s->var.last == n &&
+			    s->dyn.loc == LOC_REG) {
+				/* this was the last reference to this var */
+				probe->dyn->probe.stat_regs |= (1 << s->dyn.reg);
+				break;
+			}
+		}
+		break;
+	default:
+		break;
+	}
+
+	/* for now, reset the dynamic registers after each statement,
+	 * we can do something more fine grained in the future. */
+	if (n->parent->type == TYPE_UNROLL ||
+	    n->parent->type == TYPE_PROBE) {
+		probe->dyn->probe.dyn_regs = DYN_REGS;
+	}
+
+	return 0;
+}
+
 static int loc_assign(node_t *script)
 {
 	node_t *probe;
 	int err;
 	
 	node_foreach(probe, script->script.probes) {
-		err = node_walk(probe, loc_assign_pre, NULL, probe);
+		probe->dyn->probe.dyn_regs = DYN_REGS;
+		probe->dyn->probe.stat_regs = DYN_REGS;
+
+		err = node_walk(probe, loc_assign_pre, loc_assign_post, probe);
 		if (err)
 			return err;
 	}

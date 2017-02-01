@@ -276,7 +276,7 @@ static const func_t *common_funcs[] = {
 	&common_int_func,
 	&common_strcmp_func,
 
-	/* &printf_func, */
+	&printf_func,
 
 	NULL
 };

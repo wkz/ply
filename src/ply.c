@@ -25,6 +25,7 @@
 #include <unistd.h>
 
 #include <ply/ast.h>
+#include <ply/evpipe.h>
 #include <ply/map.h>
 #include <ply/ply.h>
 #include <ply/pvdr.h>
@@ -185,10 +186,11 @@ static void sigint(int sigint)
 
 int main(int argc, char **argv)
 {
-	FILE *sfp, *enable;
+	evpipe_t *evp;
 	node_t *probe, *script;
 	prog_t *prog = NULL;
 	pvdr_t *pvdr;
+	FILE *sfp, *enable;
 	int err = 0, num, total;
 
 	scriptfp = stdin;
@@ -210,6 +212,14 @@ int main(int argc, char **argv)
 		goto err;
 
 	err = annotate_script(script);
+	if (err)
+		goto err;
+
+	evp = calloc(1, sizeof(*evp));
+	assert(evp);
+	script->dyn->script.evp = evp;
+
+	err = evpipe_init(evp, 4 << 10);
 	if (err)
 		goto err;
 
@@ -271,9 +281,10 @@ int main(int argc, char **argv)
 	rewind(enable);
 
 	fprintf(stderr, "%d probe%s active\n", total, (total == 1) ? "" : "s");
-	poll(NULL, 0, -1);
+	/* poll(NULL, 0, -1); */
 	/* printf_drain(script); */
-
+	err = evpipe_loop(evp);
+	
 	fprintf(stderr, "de-activating probes\n");
 	fputs("0\n", enable);
 	fflush(enable);

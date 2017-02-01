@@ -243,13 +243,36 @@ node_t *node_get_script(node_t *n)
 /* 	return mdyn ? mdyn->mapfd : -ENOENT; */
 /* } */
 
-int node_stmt_reg_get(node_t *stmt)
+/* int node_stmt_reg_get(node_t *stmt) */
+/* { */
+/* 	int reg; */
+
+/* 	for (reg = BPF_REG_6; reg < BPF_REG_9; reg++) { */
+/* 		if (stmt->dyn->free_regs & (1 << reg)) { */
+/* 			stmt->dyn->free_regs &= ~(1 << reg); */
+/* 			return reg; */
+/* 		} */
+/* 	} */
+
+/* 	return -1; */
+/* } */
+
+int node_probe_reg_get(node_t *probe, int dynamic)
 {
+	int *pool, *compl;
 	int reg;
 
+	if (dynamic) {
+		pool  = &probe->dyn->probe.dyn_regs;
+		compl = &probe->dyn->probe.stat_regs;
+	} else {
+		pool  = &probe->dyn->probe.stat_regs;
+		compl = &probe->dyn->probe.dyn_regs;
+	}		
+	
 	for (reg = BPF_REG_6; reg < BPF_REG_9; reg++) {
-		if (stmt->dyn->free_regs & (1 << reg)) {
-			stmt->dyn->free_regs &= ~(1 << reg);
+		if ((*pool) & (*compl) & (1 << reg)) {
+			*pool &= ~(1 << reg);
 			return reg;
 		}
 	}

@@ -20,6 +20,7 @@
 #pragma once
 
 #include <linux/bpf.h>
+#include <linux/perf_event.h>
 #include <linux/version.h>
 
 #define LOG_BUF_SIZE 0x20000
@@ -35,6 +36,9 @@ int bpf_map_lookup(int fd, void *key, void *val);
 int bpf_map_update(int fd, void *key, void *val, int flags);
 int bpf_map_delete(int fd, void *key);
 int bpf_map_next  (int fd, void *key, void *next_key);
+
+long perf_event_open(struct perf_event_attr *hw_event, pid_t pid,
+		     int cpu, int group_fd, unsigned long flags);
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0))
 #define LINUX_HAS_STACKMAP

@@ -32,7 +32,6 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
-#include <sys/syscall.h>
 #include <sys/types.h>
 
 #include <ply/bpf-syscall.h>
@@ -51,16 +50,6 @@ typedef struct kprobe {
 	} efds;
 } kprobe_t;
 
-static long
-perf_event_open(struct perf_event_attr *hw_event, pid_t pid,
-		int cpu, int group_fd, unsigned long flags)
-{
-	int ret;
-
-	ret = syscall(__NR_perf_event_open, hw_event, pid, cpu,
-		      group_fd, flags);
-	return ret;
-}
 
 static int probe_event_id(kprobe_t *kp, const char *path)
 {
