@@ -81,7 +81,7 @@ static int loc_assign_map(node_t *n, node_t *probe)
 static int loc_assign_var(node_t *n, node_t *probe)
 {
 	node_fdump(n, stderr);
-	_d("");
+
 	if (n->dyn->loc != LOC_NOWHERE)
 		return 0;
 
@@ -89,7 +89,6 @@ static int loc_assign_var(node_t *n, node_t *probe)
 		n->dyn->loc = LOC_REG;
 		n->dyn->reg = node_probe_reg_get(probe, 0);
 
-		_d("2");
 		if (n->dyn->reg > 0)
 			return 0;
 	}
@@ -103,45 +102,15 @@ static int loc_assign_assign(node_t *n, node_t *probe)
 	node_t *c;
 	int err = 0;
 
-	/* if (n->dyn->loc != LOC_NOWHERE) */
-	/* 	return 0; */
-
-	/* n->dyn->save_regs = probe->dyn->probe.free_regs; */
-
 	c = n->assign.lval;
 	switch (c->type) {
 	case TYPE_VAR:
 		err = loc_assign_var(c, probe);
 		break;
-		/* if (c->dyn->type == TYPE_INT) { */
-		/* 	c->dyn->loc = LOC_REG; */
-		/* 	c->dyn->reg = node_probe_reg_get(probe); */
-		/* 	_d("WKZ"); */
-		/* 	node_fdump(n->assign.expr, stderr); */
-		/* 	if (c->dyn->reg > 0) { */
-		/* 		node_fdump(n->assign.expr, stderr); */
-		/* 		n->assign.expr->dyn->loc  = LOC_REG; */
-		/* 		n->assign.expr->dyn->addr = c->dyn->reg; */
-		/* 		break; */
-		/* 	} */
-		/* } */
-
-		/* /\* no registers left, fallback to stack like for maps *\/ */
-
-		/* /\* fall-through *\/ */
 
 	case TYPE_MAP:
 		err = loc_assign_map(c, probe);
-		/* c->dyn->loc  = LOC_STACK; */
-		/* c->dyn->addr = node_probe_stack_get(probe, c->dyn->size); */
-
-		/* if (!n->assign.expr) */
-		/* 	break; */
-
-		/* n->assign.expr->dyn->loc  = LOC_STACK; */
-		/* n->assign.expr->dyn->addr = c->dyn->addr; */
 		break;
-
 
 	default:
 		err = -ENOSYS;
@@ -161,9 +130,6 @@ static int loc_assign_pre(node_t *n, void *_probe)
 {
 	node_t *c, *probe = _probe;
 	ssize_t addr;
-	_D("> %s%s%s (%s/%s/%#zx)", n->string ? "" : "<",
-	   n->string ? : type_str(n->type), n->string ? "" : ">",
-	   type_str(n->type), type_str(n->dyn->type), n->dyn->size);
 
 	switch (n->type) {
 	case TYPE_PROBE:
@@ -171,12 +137,8 @@ static int loc_assign_pre(node_t *n, void *_probe)
 		if (c) {
 			c->dyn->loc = LOC_REG;
 			c->dyn->reg = BPF_REG_0;
-			/* c->dyn->free_regs = DYN_REGS; */
 		}
 
-		/* node_foreach(c, n->probe.stmts) { */
-		/* 	c->dyn->free_regs = DYN_REGS; */
-		/* } */
 		return 0;
 
 	case TYPE_CALL:
@@ -191,17 +153,6 @@ static int loc_assign_pre(node_t *n, void *_probe)
 	case TYPE_ASSIGN:
 		n->dyn->loc = LOC_REG;
 		n->dyn->reg = BPF_REG_0;
-
-		/* c = n->assign.lval; */
-		/* c->dyn->loc  = LOC_STACK; */
-		/* c->dyn->addr = node_probe_stack_get(probe, c->dyn->size); */
-
-		/* if (!n->assign.expr) */
-		/* 	return 0; */
-
-		/* n->assign.expr->dyn->loc  = LOC_STACK; */
-		/* n->assign.expr->dyn->addr = c->dyn->addr; */
-		/* return 0; */
 		return loc_assign_assign(n, probe);
 
 	case TYPE_METHOD:
@@ -530,7 +481,7 @@ int annotate_script(node_t *script)
 		_e("dynamic type inference failed: %s", strerror(-err));
 		return err;
 	}
-	node_ast_dump(script);
+
 	/* calculate register or stack location of each node */
 	err = loc_assign(script);
 	if (err) {
