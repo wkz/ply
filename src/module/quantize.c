@@ -24,6 +24,7 @@
 #include <ply/map.h>
 #include <ply/module.h>
 #include <ply/ply.h>
+#include <ply/pvdr.h>
 
 int quantize_compile(node_t *call, prog_t *prog)
 {
@@ -184,8 +185,10 @@ int quantize_loc_assign(node_t *call)
 
 int quantize_annotate(node_t *call)
 {
+	pvdr_t *pvdr = node_get_probe(call)->dyn->probe.pvdr;
 	node_t *map = call->parent->method.map;
-	node_t *rec;
+	node_t *c;
+	int err;
 
 	if (!call->call.vargs ||
 	    (call->call.vargs->dyn->type != TYPE_NONE &&
@@ -194,16 +197,25 @@ int quantize_annotate(node_t *call)
 	    call->parent->type != TYPE_METHOD)
 		return -EINVAL;
 
-	for (rec = map->map.rec->rec.vargs; rec->next; rec = rec->next);
+	for (c = map->map.rec->rec.vargs; c->next; c = c->next);
 
 	/* rewrite map[c1, c2].quantize(some_int)
 	 * into    map[c1, c2, common.log2(some_int)].quantize()
 	 */
-	rec->next = node_call_new(strdup("common"), strdup("log2"),
-				  call->call.vargs);
-	rec->next->dyn->type = TYPE_INT;
-	rec->next->dyn->size = sizeof(int64_t);
-	rec->next->parent = map->map.rec;
+	c->next = node_call_new(strdup("common"), strdup("log2"),
+				call->call.vargs);
+	c->next->parent = map->map.rec;
+
+	c = c->next;
+
+	err = pvdr->resolve(c, &c->dyn->call.func);
+	if (err)
+		return err;
+
+	err = c->dyn->call.func->annotate(c);
+	if (err)
+		return err;
+
 	map->map.rec->rec.n_vargs++;
 	call->call.vargs = NULL;
 
