@@ -85,8 +85,6 @@ static int loc_assign_map(node_t *n, node_t *probe)
 
 static int loc_assign_var(node_t *n, node_t *probe)
 {
-	node_fdump(n, stderr);
-
 	if (n->dyn->loc != LOC_NOWHERE)
 		return 0;
 
@@ -431,17 +429,16 @@ static int static_post(node_t *n, void *_null)
 	case TYPE_REC:
 		n->dyn->type = TYPE_REC;
 		break;
-	case TYPE_BINOP:
-		n->dyn->type = TYPE_INT;
-		n->dyn->size = 8;
-		break;
 	case TYPE_CALL:
 		err = n->dyn->call.func->annotate(n);
 		break;
 	default:
 		break;
 	}
-	
+
+	if (!err)
+		err = type_bubble(n);
+
 	if (err) {
 		char nstr[0x80];
 
