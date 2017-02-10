@@ -539,65 +539,51 @@ int emit_not(prog_t *prog, node_t *not)
 	return emit_xfer_dyns(prog, not->dyn, &dyn_reg[src]);
 }
 
-int emit_binop_alu(prog_t *prog, node_t *binop, int imm)
-{
-	node_t *l = binop->binop.left, *r = binop->binop.right;
-
-	if (imm)
-		emit(prog, ALU_IMM(binop->binop.alu, l->dyn->reg, r->integer));
-	else
-		emit(prog, ALU(binop->binop.alu, l->dyn->reg, r->dyn->reg));
-	return 0;
-}
-
-int emit_binop_jmp(prog_t *prog, node_t *binop, int imm)
-{
-	node_t *l = binop->binop.left, *r = binop->binop.right;
-
-	if (imm)
-		emit(prog, JMP_IMM(binop->binop.jmp, l->dyn->reg, r->integer, 2));
-	else
-		emit(prog, JMP(binop->binop.jmp, l->dyn->reg, r->dyn->reg, 2));
-
-	emit(prog, MOV_IMM(l->dyn->reg, 0));
-	emit(prog, JMP_IMM(JMP_JA, 0, 0, 1));
-	emit(prog, MOV_IMM(l->dyn->reg, 1));
-	return 0;
-}
-
 int emit_binop(prog_t *prog, node_t *binop)
 {
 	node_t *l = binop->binop.left, *r = binop->binop.right;
+	const dyn_t *dst, *operand;
 	int imm = 0;
 
-	if (l->dyn->loc == LOC_STACK)
-		l->dyn->reg = BPF_REG_0;
+	if (binop->dyn->loc == LOC_REG)
+		dst = &dyn_reg[binop->dyn->reg];
+	else
+		dst = &dyn_reg[BPF_REG_0];
 
-	if (l->type == TYPE_INT || l->dyn->loc != LOC_REG)
-		emit_xfer_dyn(prog, &dyn_reg[l->dyn->reg], l);
+	if (r->dyn->loc == LOC_REG)
+		operand = &dyn_reg[r->dyn->reg];
+	else
+		operand = &dyn_reg[BPF_REG_1];
 
-	if (r->dyn->loc == LOC_STACK)
-		r->dyn->reg = BPF_REG_1;
+	emit_xfer_dyn(prog, dst, l);
 
-	if (r->type == TYPE_INT || r->dyn->loc != LOC_REG) {
-		if (r->type == TYPE_INT &&
-		    r->integer >= INT32_MIN &&
-		    r->integer <= INT32_MAX)
-			imm = 1;
-		else
-			emit_xfer_dyn(prog, &dyn_reg[r->dyn->reg], r);
-	}
+	if (r->type == TYPE_INT &&
+	    r->integer >= INT32_MIN &&
+	    r->integer <= INT32_MAX)
+		imm = 1;
+	else
+		emit_xfer_dyn(prog, operand, r);
 
 	switch (binop->binop.type) {
 	case BINOP_ALU:
-		emit_binop_alu(prog, binop, imm);
+		if (imm)
+			emit(prog, ALU_IMM(binop->binop.alu, dst->reg, r->integer));
+		else
+			emit(prog, ALU(binop->binop.alu, dst->reg, operand->reg));
 		break;
 	case BINOP_JMP:
-		emit_binop_jmp(prog, binop, imm);
+		if (imm)
+			emit(prog, JMP_IMM(binop->binop.jmp, dst->reg, r->integer, 2));
+		else
+			emit(prog, JMP(binop->binop.jmp, dst->reg, operand->reg, 2));
+
+		emit(prog, MOV_IMM(dst->reg, 0));
+		emit(prog, JMP_IMM(JMP_JA, 0, 0, 1));
+		emit(prog, MOV_IMM(dst->reg, 1));
 		break;
 	}
 
-	return emit_xfer_dyns(prog, binop->dyn, &dyn_reg[l->dyn->reg]);
+	return emit_xfer_dyns(prog, binop->dyn, dst);
 }
 
 int emit_assign(prog_t *prog, node_t *assign)
