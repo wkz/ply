@@ -9,7 +9,8 @@ int default_loc_assign(node_t *call)
 	int reg;
 
 	node_foreach(varg, call->call.vargs) {
-		if (varg->type == TYPE_VAR)
+		if (varg->type == TYPE_VAR ||
+		    varg->dyn->loc == LOC_VIRTUAL)
 			continue;
 
 		switch (varg->dyn->type) {
