@@ -199,8 +199,12 @@ int quantize_annotate(node_t *call)
 
 	for (c = map->map.rec->rec.vargs; c->next; c = c->next);
 
-	/* rewrite map[c1, c2].quantize(some_int)
-	 * into    map[c1, c2, common.log2(some_int)].quantize()
+	/* rewrite @map[c1, c2].quantize(some_int)
+	 * into    @map[c1, c2, common.log2(some_int)].quantize()
+	 *
+	 * This means we only have to retrieve one bucket (8 bytes) to
+	 * do an update. Storing all buckets in the value would
+	 * require loading 65*8=520 bytes per update.
 	 */
 	c->next = node_call_new(strdup("common"), strdup("log2"),
 				call->call.vargs);
