@@ -75,14 +75,29 @@ static const char *bpf_func_name(enum bpf_func_id id)
 	}
 }
 
+void reg_name(uint8_t reg, char *name)
+{
+	if (reg == BPF_REG_9) {
+		strcpy(name, "ctx");
+	} else if (reg == BPF_REG_10) {
+		strcpy(name, "sp");
+	} else {
+		sprintf(name, "r%u", reg);
+	}
+}
+
 void dump_reg(uint8_t reg, int16_t off)
 {
+	char name[4];
+
+	reg_name(reg, name);
+
 	if (off < 0)
-		fprintf(stderr, "[r%u - 0x%x]", reg, -off);
+		fprintf(stderr, "[%s - 0x%x]", name, -off);
 	else if (off > 0)
-		fprintf(stderr, "[r%u + 0x%x]", reg, off);
+		fprintf(stderr, "[%s + 0x%x]", name, off);
 	else
-		fprintf(stderr, "r%u", reg);
+		fprintf(stderr, "%s", name);
 }
 
 void dump_size(uint8_t size)
