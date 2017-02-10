@@ -1,3 +1,10 @@
+WARNING WARNING
+===============
+
+ply is currently under heavy development. Docs have not been updated
+to reflect these changes.
+
+
 ply
 ===
 
