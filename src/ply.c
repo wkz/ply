@@ -281,11 +281,9 @@ int main(int argc, char **argv)
 	rewind(enable);
 
 	fprintf(stderr, "%d probe%s active\n", total, (total == 1) ? "" : "s");
-	/* poll(NULL, 0, -1); */
-	/* printf_drain(script); */
-	err = evpipe_loop(evp);
-	
+	err = evpipe_loop(evp, 0);
 	fprintf(stderr, "de-activating probes\n");
+
 	fputs("0\n", enable);
 	fflush(enable);
 	fclose(enable);

@@ -17,7 +17,9 @@ struct lost_event {
 
 struct evqueue {
 	int fd;
-	volatile struct perf_event_mmap_page *mem;
+	struct perf_event_mmap_page *mem;
+
+	void *buf;
 };
 
 TAILQ_HEAD(evhandlers, evhandler);
@@ -57,41 +59,48 @@ static int event_handle(event_t *ev, size_t size)
 	return evh->handle(ev, evh->priv);
 }
 
-int evqueue_drain(struct evqueue *q)
+static inline uint64_t __get_head(struct perf_event_mmap_page *mem)
 {
-	uint64_t qsize     = q->mem->data_size;
-	uint64_t base_offs = q->mem->data_offset;
-	uint64_t tail_offs = q->mem->data_tail;
-	uint64_t head_offs = q->mem->data_head;
-	void *base, *head, *tail;
-	int err = 0;
+	uint64_t head = *((volatile uint64_t *)&mem->data_head);
 
 	asm volatile("" ::: "memory");
-	if (tail_offs == head_offs)
-		return -EAGAIN;
+	return head;
+}
 
-	base = ((void *)q->mem);
-	base = base + base_offs;
-	head = base + head_offs;// & (q->memsize - 1));
-	tail = base + tail_offs;// & (q->memsize - 1));
+static inline void __set_tail(struct perf_event_mmap_page *mem, uint64_t tail)
+{
+	asm volatile("" ::: "memory");
 
-	while (!err && tail != head) {
-		struct lost_event *lost;
-		event_t *ev = tail;
+	mem->data_tail = tail;
+}
 
-		if (tail + ev->hdr.size > base + qsize) {
-			size_t left = (base + qsize) - tail;
+int evqueue_drain(struct evqueue *q, int strict)
+{
+	struct lost_event *lost;
+	uint64_t size, offs, head, tail;
+	uint8_t *base, *this, *next;
+	event_t *ev;
+	int err = 0;
 
-			ev = malloc(ev->hdr.size);
-			assert(ev);
+	size = q->mem->data_size;
+	offs = q->mem->data_offset;
+	base = (uint8_t *)q->mem + offs;
 
-			memcpy(ev, tail, left);
-			memcpy(((void *)ev) + left, base, ev->hdr.size - left);
-			tail = base + (ev->hdr.size - left);
-		} else if (tail + ev->hdr.size == base + qsize) {
-			tail = base;
-		} else {
-			tail += ev->hdr.size;
+	for (head = __get_head(q->mem); q->mem->data_tail != head;
+	     head = __get_head(q->mem)) {
+		tail = q->mem->data_tail;
+
+		this = base + (tail % size);
+		ev   = (void *)this;
+		next = base + ((tail + ev->hdr.size) % size);
+
+		if (next < this) {
+			size_t left = (base + size) - this;
+
+			q->buf = realloc(q->buf, ev->hdr.size);
+			memcpy(q->buf, this, left);
+			memcpy(q->buf + left, base, ev->hdr.size - left);
+			ev = q->buf;
 		}
 
 		switch (ev->hdr.type) {
@@ -102,8 +111,12 @@ int evqueue_drain(struct evqueue *q)
 		case PERF_RECORD_LOST:
 			lost = (void *)ev;
 
-			_w("lost %"PRId64" records", lost->lost);
-			err = -EOVERFLOW;
+			if (strict) {
+				_e("lost %"PRId64" events", lost->lost);
+				err = -EOVERFLOW;
+			} else {
+				_w("lost %"PRId64" events", lost->lost);
+			}
 			break;
 
 		default:
@@ -111,10 +124,13 @@ int evqueue_drain(struct evqueue *q)
 			err = -EINVAL;
 			break;
 		}
+
+		if (err)
+			break;
+
+		__set_tail(q->mem, q->mem->data_tail + ev->hdr.size);
 	}
 
-	__sync_synchronize();
-	q->mem->data_tail = head_offs;
 	return err;
 }
 
@@ -153,7 +169,7 @@ int evqueue_init(evpipe_t *evp, uint32_t cpu, size_t size)
 	return 0;
 }
 
-int evpipe_loop(evpipe_t *evp)
+int evpipe_loop(evpipe_t *evp, int strict)
 {
 	struct pollfd *pfd;
 	int cpu, err, ready;
@@ -167,7 +183,7 @@ int evpipe_loop(evpipe_t *evp)
 			if (!(evp->poll[cpu].revents & POLLIN))
 				continue;
 
-			err = evqueue_drain(&evp->q[cpu]);
+			err = evqueue_drain(&evp->q[cpu], strict);
 			if (err)
 				return err;
 
