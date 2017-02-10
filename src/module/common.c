@@ -144,32 +144,6 @@ static int common_mem_compile(node_t *call, prog_t *prog)
 	emit(prog, MOV_IMM(BPF_REG_2, call->dyn->size));
 	emit_xfer_dyn(prog, &dyn_reg[BPF_REG_3], addr);
 	emit(prog, CALL(BPF_FUNC_probe_read));
-	return 0;
-}
-
-static int common_mem_annotate(node_t *call)
-{
-	node_t *arg = call->call.vargs;
-
-	if (!arg || arg->dyn->type != TYPE_INT)
-		return -EINVAL;
-
-	if (arg->next)
-		return -EINVAL;
-	
-	call->dyn->type = TYPE_STR;
-	call->dyn->size = 64;
-	return 0;
-}
-MODULE_FUNC(common, mem);
-
-static int common_int_compile(node_t *call, prog_t *prog)
-{
-	int err;
-
-	err = common_mem_compile(call, prog);
-	if (err)
-		return err;
 
 	if (call->dyn->loc == LOC_REG) {
 		dyn_t src;
@@ -178,13 +152,15 @@ static int common_int_compile(node_t *call, prog_t *prog)
 		src.loc = LOC_STACK;
 		return emit_xfer_dyns(prog, call->dyn, &src);
 	}
-
 	return 0;
 }
 
-static int common_int_loc_assign(node_t *call)
+static int common_mem_loc_assign(node_t *call)
 {
 	node_t *probe;
+
+	/* memory format is not needed by the kernel */
+	call->call.vargs->next->dyn->loc = LOC_VIRTUAL;
 
 	/* if the result is going to a register, allocate space on the
 	 * stack as a temporary location to probe_read to. */
@@ -197,21 +173,119 @@ static int common_int_loc_assign(node_t *call)
 	return default_loc_assign(call);
 }
 
-static int common_int_annotate(node_t *call)
+static int mem_parse_spec(char **fmt, type_t *type, size_t *size, int *sign)
+{
+	char *spec;
+	long repeat;
+
+	repeat = strtol(*fmt, &spec, 0);
+	if (repeat < 0)
+		return -EINVAL;
+
+	if (spec == *fmt)
+		repeat = 1;
+
+	if (repeat == 1) {
+		*type = TYPE_INT;
+	} else {
+		*type = TYPE_REC;
+	}
+
+	*sign = strchr("bhwqil", *spec) ? 1 : 0;
+
+	switch (*spec) {
+	case 'b':
+	case 'B':
+		*size = sizeof(uint8_t);
+		break;
+
+	case 'h':
+	case 'H':
+		*size = sizeof(uint16_t);
+		break;
+
+	case 'w':
+	case 'W':
+		*size = sizeof(uint32_t);
+		break;
+
+	case 'q':
+	case 'Q':
+		*size = sizeof(uint64_t);
+		break;
+
+	case 'i':
+	case 'I':
+		*size = sizeof(int);
+		break;
+
+	case 'l':
+	case 'L':
+		*size = sizeof(long);
+		break;
+
+	case 's':
+		*type = TYPE_STR;
+		*size = sizeof(char);
+		break;
+
+	case 'p':
+		*size = sizeof(void *);
+		break;
+
+	default:
+		return -EINVAL;
+	}
+
+	*size *= repeat;
+	*fmt = spec + 1;
+	return 0;
+}
+
+static int common_mem_infer(node_t *call)
+{
+	type_t type;
+	size_t size;
+	char *fmt;
+	int err, sign;
+
+	for (fmt = call->call.vargs->next->string; *fmt;) {
+		err = mem_parse_spec(&fmt, &type, &size, &sign);
+		if (err)
+			return err;
+
+		if (call->dyn->type == TYPE_NONE)
+			call->dyn->type = type;
+		else
+			call->dyn->type = TYPE_REC;
+
+		call->dyn->size += size;
+	}
+
+	/* align to 8 bytes */
+	call->dyn->size = (call->dyn->size + 7) & ~7;
+
+	return (call->dyn->type != TYPE_NONE) ? 0 : -EINVAL;
+}
+
+static int common_mem_annotate(node_t *call)
 {
 	node_t *arg = call->call.vargs;
 
 	if (!arg || arg->dyn->type != TYPE_INT)
 		return -EINVAL;
 
-	if (arg->next)
+	arg = arg->next;
+	if (!arg || arg->type != TYPE_STR)
 		return -EINVAL;
 
-	call->dyn->type = TYPE_INT;
-	call->dyn->size = 8;
-	return 0;
+	arg = arg->next;
+	if (arg)
+		return -EINVAL;
+
+	return common_mem_infer(call);
 }
-MODULE_FUNC_LOC(common, int);
+MODULE_FUNC_LOC(common, mem);
 
 
 static int common_strcmp_compile(node_t *call, prog_t *prog)
@@ -273,7 +347,6 @@ static const func_t *common_funcs[] = {
 
 	&common_log2_func,
 	&common_mem_func,
-	&common_int_func,
 	&common_strcmp_func,
 
 	&printf_func,
