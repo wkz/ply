@@ -58,12 +58,12 @@ typedef struct node node_t;
 %parse-param { node_t **script }
 %parse-param { yyscan_t scanner }
 
-%token NIL UNROLL BREAK CONTINUE RETURN
+%token NIL IF ELSE UNROLL BREAK CONTINUE RETURN
 %token <string> PSPEC IDENT MAP STRING OP
 %token <integer> INT
 
 %type <node> script probes probe stmts stmt block unroll
-%type <node> expr variable map record call mcall vargs
+%type <node> iff expr variable map record call mcall vargs
 
 %left OP
 %precedence '!'
@@ -102,6 +102,8 @@ stmt : variable '=' expr
      		{ $$ = node_method_new($1, $3); }
      | expr
 		{ $$ = $1; }
+     | iff
+		{ $$ = $1; }
      | unroll
 		{ $$ = $1; }
      | BREAK
@@ -116,6 +118,12 @@ block : '{' stmts '}'
 		{ $$ = $2; }
       | '{' stmts ';' '}'
 		{ $$ = $2; }
+;
+
+iff : IF '(' expr ')' block
+		{ $$ = node_if_new($3, $5, NULL); }
+    | IF '(' expr ')' block ELSE block
+		{ $$ = node_if_new($3, $5, $7); }
 ;
 
 unroll : UNROLL '(' INT ')' block

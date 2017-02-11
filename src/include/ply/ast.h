@@ -105,6 +105,12 @@ typedef struct method {
 	node_t *map, *call;
 } method_t;
 
+typedef struct iff {
+	node_t *cond;
+	node_t *then, *then_last;
+	node_t *els;
+} if_t;
+
 typedef struct unroll {
 	int64_t count;
 	node_t *stmts;
@@ -129,6 +135,7 @@ typedef struct script {
 	TYPE(TYPE_NONE,     "none")			\
 	TYPE(TYPE_SCRIPT,   "script")			\
 	TYPE(TYPE_PROBE,    "probe")			\
+	TYPE(TYPE_IF,       "if")			\
 	TYPE(TYPE_UNROLL,   "unroll")			\
 	TYPE(TYPE_BREAK,    "break")			\
 	TYPE(TYPE_CONTINUE, "continue")			\
@@ -191,6 +198,10 @@ struct dyn {
 		} call;
 
 		struct {
+			struct bpf_insn *jmp;
+		} iff;
+
+		struct {
 			struct bpf_insn *start;
 		} unroll;
 
@@ -228,6 +239,7 @@ struct node {
 	union {
 		script_t script;
 		probe_t  probe;
+		if_t     iff;
 		unroll_t unroll;
 		call_t   call;
 		assign_t assign;
@@ -281,6 +293,7 @@ node_t *node_return_new  (node_t *expr);
 node_t *node_binop_new   (node_t *left, char *opstr, node_t *right);
 node_t *node_assign_new  (node_t *lval, node_t *expr);
 node_t *node_method_new  (node_t *map, node_t *call);
+node_t *node_if_new      (node_t *cond, node_t *then, node_t *els);
 node_t *node_unroll_new  (int64_t count, node_t *stmts);
 node_t *node_call_new    (char *module, char *func, node_t *vargs);
 node_t *node_probe_new   (char *pspec, node_t *pred, node_t *stmts);

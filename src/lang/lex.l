@@ -59,6 +59,8 @@ cmp		[!=<>]=|<|>
 
 \n			{ lineno++; }
 "nil"			{ return NIL; }
+"if"			{ return IF; }
+"else"			{ return ELSE; }
 "unroll"		{ return UNROLL; }
 "break"			{ return BREAK; }
 "continue"		{ return CONTINUE; }

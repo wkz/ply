@@ -108,6 +108,7 @@ int node_fdump(node_t *n, FILE *fp)
 	case TYPE_NONE:
 	case TYPE_SCRIPT:
 	case TYPE_METHOD:
+	case TYPE_IF:
 	case TYPE_BREAK:
 	case TYPE_CONTINUE:
 	case TYPE_RETURN:
@@ -225,40 +226,6 @@ node_t *node_get_script(node_t *n)
 	return node_get_parent_of_type(TYPE_SCRIPT, n);
 }
 
-/* mdyn_t *node_map_get_mdyn(node_t *map) */
-/* { */
-/* 	node_t *script = node_get_script(map); */
-/* 	mdyn_t *mdyn; */
-
-/* 	for (mdyn = script->dyn->script.mdyns; mdyn; mdyn = mdyn->next) { */
-/* 		if (!strcmp(mdyn->map->string, map->string)) */
-/* 			return mdyn; */
-/* 	} */
-
-/* 	return NULL; */
-/* } */
-
-/* int node_map_get_fd(node_t *map) */
-/* { */
-/* 	mdyn_t *mdyn = node_map_get_mdyn(map); */
-
-/* 	return mdyn ? mdyn->mapfd : -ENOENT; */
-/* } */
-
-/* int node_stmt_reg_get(node_t *stmt) */
-/* { */
-/* 	int reg; */
-
-/* 	for (reg = BPF_REG_6; reg < BPF_REG_9; reg++) { */
-/* 		if (stmt->dyn->free_regs & (1 << reg)) { */
-/* 			stmt->dyn->free_regs &= ~(1 << reg); */
-/* 			return reg; */
-/* 		} */
-/* 	} */
-
-/* 	return -1; */
-/* } */
-
 int node_probe_reg_get(node_t *probe, int dynamic)
 {
 	int *pool, *compl;
@@ -288,15 +255,6 @@ ssize_t node_probe_stack_get(node_t *probe, size_t size)
 	return probe->dyn->probe.sp;
 }
 
-/* int node_script_mdyn_add(node_t *script, mdyn_t *mdyn) */
-/* { */
-/* 	if (!script->dyn->script.mdyns) */
-/* 		script->dyn->script.mdyns = mdyn; */
-/* 	else */
-/* 		insque_tail(mdyn, script->dyn->script.mdyns); */
-
-/* 	return 0; */
-/* } */
 
 node_t *node_new(type_t type) {
 	node_t *n = calloc(1, sizeof(*n));
@@ -514,6 +472,30 @@ node_t *node_call_new(char *module, char *func, node_t *vargs)
 	return n;
 }
 
+node_t *node_if_new(node_t *cond, node_t *then, node_t *els)
+{
+	node_t *c, *n = node_new(TYPE_IF);
+
+	n->iff.cond = cond;
+	n->iff.then = then;
+	n->iff.els  = els;
+
+	cond->parent = n;
+
+	node_foreach(c, then) {
+		c->parent = n;
+
+		if (!c->next)
+			n->iff.then_last = c;
+	}
+
+	if (els) {
+		node_foreach(c, els)
+			c->parent = n;
+	}
+	return n;
+}
+
 node_t *node_unroll_new(int64_t count, node_t *stmts)
 {
 	node_t *c, *n = node_new(TYPE_UNROLL);
@@ -639,6 +621,14 @@ int node_walk(node_t *n,
 		if (n->probe.pred)
 			do_walk(n->probe.pred);
 		do_list(n->probe.stmts);
+		break;
+
+	case TYPE_IF:
+		do_walk(n->iff.cond);
+		do_list(n->iff.then);
+
+		if (n->iff.els)
+			do_list(n->iff.els);
 		break;
 
 	case TYPE_UNROLL:

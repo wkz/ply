@@ -166,8 +166,19 @@ static int loc_assign_pre(node_t *n, void *_probe)
 
 	case TYPE_RETURN:
 		c = n->ret;
-		c->dyn->loc = LOC_REG;
-		c->dyn->reg = BPF_REG_0;
+
+		if (c->dyn->loc == LOC_NOWHERE) {
+			c->dyn->loc = LOC_REG;
+			c->dyn->reg = BPF_REG_0;
+		}
+		return 0;
+
+	case TYPE_IF:
+		c = n->iff.cond;
+		if (c->dyn->loc == LOC_NOWHERE) {
+			c->dyn->loc = LOC_REG;
+			c->dyn->reg = BPF_REG_0;
+		}
 		return 0;
 
 	case TYPE_BINOP:
@@ -175,9 +186,11 @@ static int loc_assign_pre(node_t *n, void *_probe)
 
 	case TYPE_NOT:
 		c = n->not;
-		c->dyn->loc  = n->dyn->loc;
-		c->dyn->reg  = n->dyn->reg;
-		c->dyn->addr = n->dyn->addr;
+		if (c->dyn->loc == LOC_NOWHERE) {
+			c->dyn->loc = LOC_REG;
+			c->dyn->reg = BPF_REG_0;
+			c->dyn->addr = n->dyn->addr;
+		}
 		return 0;
 
 	case TYPE_VAR:
@@ -474,9 +487,6 @@ int annotate_script(node_t *script)
 
 	script->dyn->script.st = st;
 
-	if (G.dump)
-		symtable_fdump(st, stderr);
-
 	/* insert all statically known types */
 	err = node_walk(script, NULL, static_post, NULL);
 	if (err) {
@@ -501,6 +511,9 @@ int annotate_script(node_t *script)
 		_e("location assignment failed: %s", strerror(-err));
 		return err;
 	}
+
+	if (G.dump)
+		symtable_fdump(st, stderr);
 
 	_d("ok");
 	return 0;

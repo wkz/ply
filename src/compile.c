@@ -30,11 +30,15 @@
 #include <ply/symtable.h>
 
 /* Illegal instructions. They are replaced by legal jumps when
- * compiling the containing unroll. */
+ * compiling the containing if/unroll. */
 const struct bpf_insn break_insn =
 	JMP_IMM(JMP_JA, 0xf, INT32_MIN, INT16_MIN);
 const struct bpf_insn continue_insn =
 	JMP_IMM(JMP_JA, 0xf, INT32_MIN, INT16_MIN + 1);
+const struct bpf_insn if_then_insn =
+	JMP_IMM(JMP_JA, 0xf, INT32_MIN, INT16_MIN + 2);
+const struct bpf_insn if_else_insn =
+	JMP_IMM(JMP_JA, 0xf, INT32_MIN, INT16_MIN + 3);
 
 const dyn_t dyn_reg[] = {
 	[BPF_REG_0] =  { .type = TYPE_INT, .size = 8, .loc = LOC_REG, .reg = BPF_REG_0  },
@@ -518,55 +522,27 @@ int emit_map_load(prog_t *prog, node_t *n)
 	return 0;
 }
 
-/* int emit_var_load(prog_t *prog, node_t *n) */
-/* { */
-/* 	node_t *script = node_get_script(n); */
-/* 	sym_t *s; */
-
-/* 	s = symtable_get(script->dyn->script.st, n); */
-/* 	assert(s); */
-
-/* 	/\* this is not the first reference, value is loaded already *\/ */
-/* 	if (n != s->var.first) */
-/* 		return 0; */
-	
-/* 	/\* when overriding the current value, there is no need to load */
-/* 	 * any previous value *\/ */
-/* 	if (n->parent->type == TYPE_ASSIGN && */
-/* 	    n->parent->assign.lval == n) */
-/* 		return 0; */
-
-/* 	switch (n->dyn->loc) { */
-/* 	case LOC_STACK: */
-/* 		emit_stack_zero(prog, n); */
-/* 		break; */
-/* 	case LOC_REG: */
-/* 		emit(prog, MOV_IMM(n->dyn->reg, 0)); */
-/* 		break; */
-/* 	default: */
-/* 		assert(0); */
-/* 		break; */
-/* 	} */
-
-/* 	return 0; */
-/* } */
-
 int emit_not(prog_t *prog, node_t *not)
 {
 	node_t *expr = not->not;
-	int src = expr->dyn->loc == LOC_REG ? expr->dyn->reg : BPF_REG_0;
+	const dyn_t *dst;
 	int err;
-	
-	err = emit_xfer_dyns(prog, &dyn_reg[src], expr->dyn);
+
+	if (not->dyn->loc == LOC_REG)
+		dst = &dyn_reg[not->dyn->reg];
+	else
+		dst = &dyn_reg[BPF_REG_0];
+
+	err = emit_xfer_dyn(prog, dst, expr);
 	if (err)
 		return err;
 
-	emit(prog, JMP_IMM(JMP_JNE, src, 0, 2));
-	emit(prog, MOV_IMM(src, 1));
+	emit(prog, JMP_IMM(JMP_JNE, dst->reg, 0, 2));
+	emit(prog, MOV_IMM(dst->reg, 1));
 	emit(prog, JMP_IMM(JMP_JA, 0, 0, 1));
-	emit(prog, MOV_IMM(src, 0));
+	emit(prog, MOV_IMM(dst->reg, 0));
 
-	return emit_xfer_dyns(prog, not->dyn, &dyn_reg[src]);
+	return emit_xfer_dyns(prog, not->dyn, dst);
 }
 
 int emit_binop(prog_t *prog, node_t *binop)
@@ -648,6 +624,62 @@ int emit_method(prog_t *prog, node_t *method)
 	return 0;
 }
 
+
+int emit_if_then(prog_t *prog, node_t *n)
+{
+	node_t *iff = n->parent;
+	const dyn_t *dst;
+	int err;
+
+	_d(">");
+
+	if (iff->dyn->loc == LOC_REG)
+		dst = &dyn_reg[iff->dyn->reg];
+	else
+		dst = &dyn_reg[BPF_REG_0];
+
+	err = emit_xfer_dyn(prog, dst, n);
+	if (err)
+		return err;
+
+	iff->dyn->iff.jmp = prog->ip;
+	emit(prog, if_then_insn);
+
+	_d("<");
+	return 0;
+}
+
+int emit_if_else(prog_t *prog, node_t *n)
+{
+	node_t *iff = n->parent;
+	struct bpf_insn *at = iff->dyn->iff.jmp;
+
+	_d(">");
+
+	iff->dyn->iff.jmp = prog->ip;
+	emit(prog, if_else_insn);
+
+	emit_at(prog, at,
+		JMP_IMM(JMP_JEQ, iff->dyn->reg, 0, prog->ip - at - 1));
+
+	_d("<");
+	return 0;
+}
+
+int emit_if(prog_t *prog, node_t *iff)
+{
+	struct bpf_insn *at, jmp;
+
+	at = iff->dyn->iff.jmp;
+	if (iff->iff.els)
+		jmp = JMP_IMM(JMP_JA, 0, 0, prog->ip - at - 1);
+	else
+		jmp = JMP_IMM(JMP_JEQ, iff->dyn->reg, 0, prog->ip - at - 1);
+
+	emit_at(prog, at, jmp);
+	return 0;
+}
+
 int emit_break(prog_t *prog, node_t *n)
 {
 	emit(prog, break_insn);
@@ -660,7 +692,8 @@ int emit_continue(prog_t *prog, node_t *n)
 	return 0;
 }
 
-int resolve_jmp(prog_t *prog, struct bpf_insn *at, struct bpf_insn search)
+static int resolve_jmp(prog_t *prog, struct bpf_insn *at,
+		       struct bpf_insn search)
 {
 	_d(">");
 	for (; at < prog->ip; at++) {
@@ -738,7 +771,6 @@ static int compile_post(node_t *n, void *_prog)
 		break;
 
 	case TYPE_VAR:
-		/* err = emit_var_load(prog, n); */
 		break;
 
 	case TYPE_MAP:
@@ -752,6 +784,7 @@ static int compile_post(node_t *n, void *_prog)
 	case TYPE_RETURN:
 		/* TODO */
 		break;
+
 	case TYPE_BINOP:
 		err = emit_binop(prog, n);
 		break;
@@ -766,6 +799,10 @@ static int compile_post(node_t *n, void *_prog)
 
 	case TYPE_CALL:
 		err = n->dyn->call.func->compile(n, prog);
+		break;
+
+	case TYPE_IF:
+		err = emit_if(prog, n);
 		break;
 
 	case TYPE_BREAK:
@@ -786,6 +823,15 @@ static int compile_post(node_t *n, void *_prog)
 		_e("unable to compile %s <%s>", n->string, type_str(n->type));
 		err = -ENOSYS;
 		break;
+	}
+
+	if (!err && n->parent->type == TYPE_IF) {
+		node_t *iff = n->parent;
+
+		if (n == iff->iff.cond)
+			err = emit_if_then(prog, n);
+		else if (iff->iff.els && n == iff->iff.then_last)
+			err = emit_if_else(prog, n);
 	}
 
 	_D("< %s%s%s (%s/%s/%#zx)", n->string ? "" : "<",
