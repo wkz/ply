@@ -288,6 +288,62 @@ static int common_mem_annotate(node_t *call)
 MODULE_FUNC_LOC(common, mem);
 
 
+static int common_sizeof_compile(node_t *call, prog_t *prog)
+{
+	assert(0);
+	return -EINVAL;
+}
+
+static int common_sizeof_calc(node_t *call, size_t *out)
+{
+	type_t type;
+	size_t size;
+	char *fmt;
+	int err, sign;
+
+	*out = 0;
+	for (fmt = call->call.vargs->string; *fmt;) {
+		err = mem_parse_spec(&fmt, &type, &size, &sign);
+		if (err)
+			return err;
+
+		*out += size;
+	}
+
+	return 0;
+}
+
+static int common_sizeof_annotate(node_t *call)
+{
+	node_t *arg = call->call.vargs;
+	size_t size;
+	int err;
+
+	if (!arg || arg->type != TYPE_STR || arg->next)
+		return -EINVAL;
+
+	err = common_sizeof_calc(call, &size);
+	if (err)
+		return err;
+
+	/* rewrite sizeof(fmt)
+	 * into    <int> */
+
+	node_free(arg);
+	free(call->string);
+	if (call->call.module)
+		free(call->call.module);
+
+	call->type = TYPE_INT;
+	call->integer = size;
+
+	call->dyn->type = TYPE_INT;
+	call->dyn->size = sizeof(int64_t);
+	return 0;
+}
+MODULE_FUNC(common, sizeof);
+
+
 static int common_strcmp_compile(node_t *call, prog_t *prog)
 {
 	node_t *s1 = call->call.vargs, *s2 = call->call.vargs->next;
@@ -347,6 +403,7 @@ static const func_t *common_funcs[] = {
 
 	&common_log2_func,
 	&common_mem_func,
+	&common_sizeof_func,
 	&common_strcmp_func,
 
 	&printf_func,
