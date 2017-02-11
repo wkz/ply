@@ -19,6 +19,8 @@
 
 #pragma once
 
+#include <stdint.h>
+
 #include <linux/bpf.h>
 
 #include <ply/ast.h>

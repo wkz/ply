@@ -58,7 +58,7 @@ typedef struct node node_t;
 %parse-param { node_t **script }
 %parse-param { yyscan_t scanner }
 
-%token NIL UNROLL RETURN
+%token NIL UNROLL BREAK CONTINUE RETURN
 %token <string> PSPEC IDENT MAP STRING OP
 %token <integer> INT
 
@@ -104,6 +104,10 @@ stmt : variable '=' expr
 		{ $$ = $1; }
      | unroll
 		{ $$ = $1; }
+     | BREAK
+		{ $$ = node_new(TYPE_BREAK); }
+     | CONTINUE
+		{ $$ = node_new(TYPE_CONTINUE); }
      | RETURN expr
 		{ $$ = node_return_new($2); }
 ;

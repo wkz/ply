@@ -209,6 +209,8 @@ static int loc_assign_pre(node_t *n, void *_probe)
 	case TYPE_NONE:
 	case TYPE_SCRIPT:
 	case TYPE_UNROLL:
+	case TYPE_BREAK:
+	case TYPE_CONTINUE:
 	case TYPE_STR:
 	case TYPE_INT:
 		return 0;
@@ -432,6 +434,15 @@ static int static_post(node_t *n, void *_null)
 	case TYPE_CALL:
 		err = n->dyn->call.func->annotate(n);
 		break;
+	case TYPE_BREAK:
+	case TYPE_CONTINUE:
+		if (!node_get_parent_of_type(TYPE_UNROLL, n)) {
+			_e("%s without unroll makes no sense",
+			   type_str(n->type));
+			err = -EINVAL;
+		}
+		break;
+
 	default:
 		break;
 	}

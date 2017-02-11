@@ -126,22 +126,24 @@ typedef struct script {
 } script_t;
 
 #define NODE_TYPE_TABLE					\
-	TYPE(TYPE_NONE,   "none")			\
-	TYPE(TYPE_SCRIPT, "script")			\
-	TYPE(TYPE_PROBE,  "probe")			\
-	TYPE(TYPE_UNROLL, "unroll")			\
-	TYPE(TYPE_CALL,   "call")			\
-	TYPE(TYPE_ASSIGN, "assign")			\
-	TYPE(TYPE_METHOD, "method")			\
-	TYPE(TYPE_RETURN, "return")			\
-	TYPE(TYPE_BINOP,  "binop")			\
-	TYPE(TYPE_NOT,    "not")			\
-	TYPE(TYPE_VAR,    "var")			\
-	TYPE(TYPE_MAP,    "map")			\
-	TYPE(TYPE_REC,    "rec")			\
-	TYPE(TYPE_STACK,  "stack")			\
-	TYPE(TYPE_INT,    "int")			\
-	TYPE(TYPE_STR,    "str")
+	TYPE(TYPE_NONE,     "none")			\
+	TYPE(TYPE_SCRIPT,   "script")			\
+	TYPE(TYPE_PROBE,    "probe")			\
+	TYPE(TYPE_UNROLL,   "unroll")			\
+	TYPE(TYPE_BREAK,    "break")			\
+	TYPE(TYPE_CONTINUE, "continue")			\
+	TYPE(TYPE_CALL,     "call")			\
+	TYPE(TYPE_ASSIGN,   "assign")			\
+	TYPE(TYPE_METHOD,   "method")			\
+	TYPE(TYPE_RETURN,   "return")			\
+	TYPE(TYPE_BINOP,    "binop")			\
+	TYPE(TYPE_NOT,      "not")			\
+	TYPE(TYPE_VAR,      "var")			\
+	TYPE(TYPE_MAP,      "map")			\
+	TYPE(TYPE_REC,      "rec")			\
+	TYPE(TYPE_STACK,    "stack")			\
+	TYPE(TYPE_INT,      "int")			\
+	TYPE(TYPE_STR,      "str")
 
 #define TYPE(_type, _typestr) _type,
 typedef enum type {
@@ -268,6 +270,7 @@ node_t *node_get_script(node_t *n);
 int     node_probe_reg_get  (node_t *probe, int dynamic);
 ssize_t node_probe_stack_get(node_t *probe, size_t size);
 
+node_t *node_new         (type_t type);
 node_t *node_str_new     (char *val);
 node_t *node_int_new     (int64_t val);
 node_t *node_rec_new     (node_t *vargs);

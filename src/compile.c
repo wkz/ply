@@ -29,6 +29,13 @@
 #include <ply/pvdr.h>
 #include <ply/symtable.h>
 
+/* Illegal instructions. They are replaced by legal jumps when
+ * compiling the containing unroll. */
+const struct bpf_insn break_insn =
+	JMP_IMM(JMP_JA, 0xf, INT32_MIN, INT16_MIN);
+const struct bpf_insn continue_insn =
+	JMP_IMM(JMP_JA, 0xf, INT32_MIN, INT16_MIN + 1);
+
 const dyn_t dyn_reg[] = {
 	[BPF_REG_0] =  { .type = TYPE_INT, .size = 8, .loc = LOC_REG, .reg = BPF_REG_0  },
 	[BPF_REG_1] =  { .type = TYPE_INT, .size = 8, .loc = LOC_REG, .reg = BPF_REG_1  },
@@ -42,6 +49,15 @@ const dyn_t dyn_reg[] = {
 	[BPF_REG_9] =  { .type = TYPE_INT, .size = 8, .loc = LOC_REG, .reg = BPF_REG_9  },
 	[BPF_REG_10] = { .type = TYPE_INT, .size = 8, .loc = LOC_REG, .reg = BPF_REG_10 },
 };
+
+static inline int bpf_insn_cmp(const struct bpf_insn *a,
+			       const struct bpf_insn *b)
+{
+	uint64_t *_a = (void *)a;
+	uint64_t *_b = (void *)b;
+
+	return *_a - *_b;
+}
 
 static const char *bpf_func_name(enum bpf_func_id id)
 {
@@ -166,6 +182,14 @@ void dump_insn(struct bpf_insn insn, size_t ip)
 	case BPF_JMP:
 		off = OFF_EXP;
 
+		if (!bpf_insn_cmp(&insn, &break_insn)) {
+			fputs("break\n", stderr);
+			return;
+		} else if (!bpf_insn_cmp(&insn, &continue_insn)) {
+			fputs("continue\n", stderr);
+			return;
+		}
+
 		switch (BPF_OP(insn.code)) {
 		case BPF_EXIT:
 			fputs("exit\n", stderr);
@@ -227,12 +251,18 @@ unknown:
 	fprintf(stderr, "data\t0x%16.16" PRIx64 "\n", *((uint64_t *)&insn));
 }
 
-void emit(prog_t *prog, struct bpf_insn insn)
+static void emit_at(prog_t *prog, struct bpf_insn *at, struct bpf_insn insn)
 {
 	if (G.dump)
-		dump_insn(insn, prog->ip - prog->insns);
+		dump_insn(insn, at - prog->insns);
 
-	*(prog->ip)++ = insn;
+	*at = insn;
+}
+
+void emit(prog_t *prog, struct bpf_insn insn)
+{
+	emit_at(prog, prog->ip, insn);
+	prog->ip++;
 }
 
 int emit_stack_zero(prog_t *prog, const node_t *n)
@@ -618,18 +648,51 @@ int emit_method(prog_t *prog, node_t *method)
 	return 0;
 }
 
+int emit_break(prog_t *prog, node_t *n)
+{
+	emit(prog, break_insn);
+	return 0;
+}
+
+int emit_continue(prog_t *prog, node_t *n)
+{
+	emit(prog, continue_insn);
+	return 0;
+}
+
+int resolve_jmp(prog_t *prog, struct bpf_insn *at, struct bpf_insn search)
+{
+	_d(">");
+	for (; at < prog->ip; at++) {
+		if (bpf_insn_cmp(at, &search))
+			continue;
+
+		/* replace placeholder instruction with real jump */
+		emit_at(prog, at, JMP_IMM(JMP_JA, 0, 0, prog->ip - at - 1));
+	}
+	_d("<");
+	return 0;
+}
+
 int emit_unroll(prog_t *prog, node_t *n)
 {
-	struct bpf_insn *start = n->dyn->unroll.start;
-	ptrdiff_t insns = prog->ip - start;
+	struct bpf_insn *at, *start;
+	ptrdiff_t insns;
 	int i, j;
 
-	for (i = 1; i < n->unroll.count; i++) {
+	start = n->dyn->unroll.start;
+	insns = prog->ip - start;
+
+	resolve_jmp(prog, start, continue_insn);
+
+	for (at = start, i = 1; i < n->unroll.count; i++) {
 		_D("%d/%"PRId64, i, n->unroll.count - 1);
+
 		for (j = 0; j < insns; j++)
-			emit(prog, *start++);
+			emit(prog, *at++);
 	}
 
+	resolve_jmp(prog, start, break_insn);
 	return 0;
 }
 
@@ -703,6 +766,14 @@ static int compile_post(node_t *n, void *_prog)
 
 	case TYPE_CALL:
 		err = n->dyn->call.func->compile(n, prog);
+		break;
+
+	case TYPE_BREAK:
+		err = emit_break(prog, n);
+		break;
+
+	case TYPE_CONTINUE:
+		err = emit_continue(prog, n);
 		break;
 
 	case TYPE_UNROLL:

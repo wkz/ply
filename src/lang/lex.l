@@ -60,6 +60,8 @@ cmp		[!=<>]=|<|>
 \n			{ lineno++; }
 "nil"			{ return NIL; }
 "unroll"		{ return UNROLL; }
+"break"			{ return BREAK; }
+"continue"		{ return CONTINUE; }
 "return"		{ return RETURN; }
 
 {pspec}			{ yylval->string = strdup(yytext); return PSPEC; }

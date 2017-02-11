@@ -108,6 +108,8 @@ int node_fdump(node_t *n, FILE *fp)
 	case TYPE_NONE:
 	case TYPE_SCRIPT:
 	case TYPE_METHOD:
+	case TYPE_BREAK:
+	case TYPE_CONTINUE:
 	case TYPE_RETURN:
 	case TYPE_NOT:
 	case TYPE_REC:
@@ -296,7 +298,7 @@ ssize_t node_probe_stack_get(node_t *probe, size_t size)
 /* 	return 0; */
 /* } */
 
-static inline node_t *node_new(type_t type) {
+node_t *node_new(type_t type) {
 	node_t *n = calloc(1, sizeof(*n));
 
 	assert(n);
