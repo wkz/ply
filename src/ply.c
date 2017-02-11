@@ -242,12 +242,8 @@ int main(int argc, char **argv)
 
 		pvdr = node_get_pvdr(probe);
 		num = pvdr->setup(probe, prog);
-		if (num < 0) {
-			if (num == -EINVAL)
-				_e("probe rejected, ensure that ply was built "
-				   "against the running kernel");
+		if (num < 0)
 			break;
-		}
 
 		total += num;
 	}

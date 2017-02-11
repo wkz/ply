@@ -126,8 +126,12 @@ static kprobe_t *probe_load(enum bpf_prog_type type,
 	kp->bfd = bpf_prog_load(type, prog->insns, prog->ip - prog->insns);
 	if (kp->bfd < 0) {
 		_eno("%s", probe->string);
-		_d("output from kernel bpf verifier:\n%s",
-		   bpf_log_buf[0] ? bpf_log_buf : "<NO OUTPUT>");
+		if (!bpf_log_buf[0]) {
+			_e("no output from kernel verifier");
+			_e("was ply built against the running kernel?");
+		} else {
+			_e("output from kernel bpf verifier:\n%s", bpf_log_buf);
+		}
 
 		free(kp);
 		return NULL;
