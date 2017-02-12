@@ -68,19 +68,46 @@ const char *loc_str(loc_t loc)
 	return "UNKNOWN";
 }
 
-static void _indent(int *indent)
+static int _has_next(node_t *n)
 {
-	int left = *indent;
+	if (n->next)
+		return 1;
+	else if (n->parent) {
+		if (n->parent->type == TYPE_BINOP &&
+		    n == n->parent->binop.left)
+			return 1;
+		else if (n->parent->type == TYPE_ASSIGN &&
+			 n == n->parent->assign.lval)
+			return 1;
+		else if (n->parent->type == TYPE_IF &&
+			 n == n->parent->iff.cond)
+			return 1;
+	}
 
-	while(left--)
-		fputc(' ', stderr);
-
-	*indent += 3;
+	return 0;
 }
 
-static int _unindent(node_t *n, void *indent)
+static void _indent(int *indent, node_t *n)
 {
-	*((int *)indent) -= 3;
+	node_t *p;
+	int i, j;
+
+	for (i = 0; i < *indent; i++) {
+		for (p = n, j = 0; j < (*indent - i); j++)
+			p = p->parent;
+
+		fprintf(stderr, "%c   ", _has_next(p) ? '|' : ' ');
+	}
+
+	fprintf(stderr, "%c-> ", _has_next(n) ? (n->prev ? '+' : '|') : '`');
+	(*indent)++;
+}
+
+static int _unindent(node_t *n, void *_indent)
+{
+	int *indent = _indent;
+
+	(*indent)--;
 	return 0;
 }
 
@@ -192,7 +219,7 @@ int node_sdump(node_t *n, char *buf, size_t sz)
 
 static int _node_ast_dump(node_t *n, void *indent)
 {
-	_indent((int *)indent);
+	_indent((int *)indent, n);
 
 	node_fdump(n, stderr);
 	fputs("\n", stderr);
@@ -201,7 +228,7 @@ static int _node_ast_dump(node_t *n, void *indent)
 
 void node_ast_dump(node_t *n)
 {
-	int indent = 3;
+	int indent = 0;
 
 	fprintf(stderr, "ast:\n");
 	node_walk(n, _node_ast_dump, _unindent, &indent);
