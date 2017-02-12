@@ -545,6 +545,13 @@ int emit_not(prog_t *prog, node_t *not)
 	return emit_xfer_dyns(prog, not->dyn, dst);
 }
 
+int emit_return(prog_t *prog, node_t *not)
+{
+	emit(prog, MOV_IMM(BPF_REG_0, 0));
+	emit(prog, EXIT);
+	return 0;
+}
+
 int emit_binop(prog_t *prog, node_t *binop)
 {
 	node_t *l = binop->binop.left, *r = binop->binop.right;
@@ -781,7 +788,7 @@ static int compile_post(node_t *n, void *_prog)
 		break;
 
 	case TYPE_RETURN:
-		/* TODO */
+		err = emit_return(prog, n);
 		break;
 
 	case TYPE_BINOP:

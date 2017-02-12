@@ -241,7 +241,6 @@ struct node {
 		map_t    map;
 		rec_t    rec;
 		node_t  *not;
-		node_t  *ret;
 		int64_t  integer;
 	};
 };
@@ -282,7 +281,6 @@ node_t *node_rec_new     (node_t *vargs);
 node_t *node_map_new     (char *name, node_t *rec);
 node_t *node_var_new     (char *name);
 node_t *node_not_new     (node_t *expr);
-node_t *node_return_new  (node_t *expr);
 node_t *node_binop_new   (node_t *left, op_t op, node_t *right);
 node_t *node_assign_new  (node_t *lval, node_t *expr);
 node_t *node_method_new  (node_t *map, node_t *call);

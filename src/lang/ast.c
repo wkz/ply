@@ -344,16 +344,6 @@ node_t *node_not_new(node_t *expr)
 	return n;
 }
 
-node_t *node_return_new(node_t *expr)
-{
-	node_t *n = node_new(TYPE_RETURN);
-
-	n->ret = expr;
-
-	expr->parent = n;
-	return n;
-}
-
 node_t *node_binop_new(node_t *left, op_t op, node_t *right)
 {
 	node_t *n = node_new(TYPE_BINOP);
@@ -585,10 +575,6 @@ int node_walk(node_t *n,
 		do_walk(n->assign.lval);
 		if (n->assign.expr)
 			do_walk(n->assign.expr);
-		break;
-
-	case TYPE_RETURN:
-		do_walk(n->ret);
 		break;
 
 	case TYPE_BINOP:

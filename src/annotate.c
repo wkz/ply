@@ -164,15 +164,6 @@ static int loc_assign_pre(node_t *n, void *_probe)
 		c->dyn->addr = node_probe_stack_get(probe, c->dyn->size);
 		return 0;
 
-	case TYPE_RETURN:
-		c = n->ret;
-
-		if (c->dyn->loc == LOC_NOWHERE) {
-			c->dyn->loc = LOC_REG;
-			c->dyn->reg = BPF_REG_0;
-		}
-		return 0;
-
 	case TYPE_IF:
 		c = n->iff.cond;
 		if (c->dyn->loc == LOC_NOWHERE) {
@@ -224,6 +215,7 @@ static int loc_assign_pre(node_t *n, void *_probe)
 	case TYPE_UNROLL:
 	case TYPE_BREAK:
 	case TYPE_CONTINUE:
+	case TYPE_RETURN:
 	case TYPE_STR:
 	case TYPE_INT:
 		return 0;
@@ -360,7 +352,6 @@ static int type_bubble(node_t *from)
 		to = (from == p->method.map) ? p->method.call : p->method.map;
 		break;
 	case TYPE_NOT:
-	case TYPE_RETURN:
 		to = p;
 		break;
 	case TYPE_BINOP:
