@@ -58,127 +58,125 @@ typedef struct node node_t;
 %parse-param { node_t **script }
 %parse-param { yyscan_t scanner }
 
+%token EQ NE LE GE LSH RSH
 %token NIL IF ELSE UNROLL BREAK CONTINUE RETURN
-%token <string> PSPEC IDENT MAP STRING OP
+%token <string> PSPEC IDENT MAP STRING
 %token <integer> INT
 
-%type <node> script probes probe stmts stmt block unroll
-%type <node> iff expr variable map record call mcall vargs
+%type <node> script probes probe stmts stmt assign block expr
+%type <node> iff unroll binop var map record call mcall vargs
 
-%left OP
+/* C operator precedence */
+%left '|'
+%left '^'
+%left '&'
+%left EQ NE
+%left '<' LE GE '>'
+%left LSH RSH
+%left '+' '-'
+%left '*' '/' '%'
+
+/* C if-else associativity */
+%right ')' ELSE
+
 %precedence '!'
 
 %start script
 
+%expect 0
+
 %%
 
-script : probes
-		{ *script = node_script_new($1); }
+script: probes { *script = node_script_new($1); }
 ;
 
-probes : probe
-		{ $$ = $1; }
-       | probes probe
-		{ insque_tail($2, $1); }
+probes: probe
+      | probes probe { insque_tail($2, $1); }
 ;
 
-probe : PSPEC block
-		{ $$ = node_probe_new($1, NULL, $2); }
-      | PSPEC '/' expr '/' block
-		{ $$ = node_probe_new($1, $3, $5); }
+probe: PSPEC block              { $$ = node_probe_new($1, NULL, $2); }
+     | PSPEC '/' expr '/' block { $$ = node_probe_new($1,   $3, $5); }
 ;
 
-stmts : stmt
-		{ $$ = $1; }
-      | stmts ';' stmt
-		{ insque_tail($3, $1); }
+stmts: stmt
+     | stmts stmt { insque_tail($2, $1); }
 ;
 
-stmt : variable '=' expr
-		{ $$ = node_assign_new($1, $3); }
-     | map '=' NIL
-		{ $$ = node_assign_new($1, NULL); }
-     | map '.' call
-     		{ $$ = node_method_new($1, $3); }
-     | expr
-		{ $$ = $1; }
-     | iff
-		{ $$ = $1; }
-     | unroll
-		{ $$ = $1; }
-     | BREAK
-		{ $$ = node_new(TYPE_BREAK); }
-     | CONTINUE
-		{ $$ = node_new(TYPE_CONTINUE); }
-     | RETURN expr
-		{ $$ = node_return_new($2); }
+stmt: map '.' call ';' { $$ = node_method_new($1, $3); }
+    | BREAK        ';' { $$ = node_new(TYPE_BREAK);    }
+    | CONTINUE     ';' { $$ = node_new(TYPE_CONTINUE); }
+    | RETURN       ';' { $$ = node_new(TYPE_RETURN);   }
+    | assign       ';'
+    | expr         ';'
+    | block
+    | iff
+    | unroll
 ;
 
-block : '{' stmts '}'
-		{ $$ = $2; }
-      | '{' stmts ';' '}'
-		{ $$ = $2; }
+assign: var '=' expr { $$ = node_assign_new($1,   $3); }
+      | map '=' expr { $$ = node_assign_new($1,   $3); }
+      | map '=' NIL  { $$ = node_assign_new($1, NULL); }
 ;
 
-iff : IF '(' expr ')' block
-		{ $$ = node_if_new($3, $5, NULL); }
-    | IF '(' expr ')' block ELSE block
-		{ $$ = node_if_new($3, $5, $7); }
+block: '{' stmts '}' { $$ = $2; }
 ;
 
-unroll : UNROLL '(' INT ')' block
-		{ $$ = node_unroll_new($3, $5); }
+expr: INT          { $$ = node_int_new($1); }
+    | STRING       { $$ = node_str_new($1); }
+    | '!' expr     { $$ = node_not_new($2); }
+    | '(' expr ')' { $$ = $2; }
+    | binop
+    | call
+    | map
+    | mcall
+    | record
+    | var
 ;
 
-expr : INT
-		{ $$ = node_int_new($1); }
-     | STRING
-		{ $$ = node_str_new($1); }
-     | record
-		{ $$ = $1; }
-     | expr OP expr
-     		{ $$ = node_binop_new($1, $2, $3); }
-     | '!' expr
-		{ $$ = node_not_new($2); }
-     | '(' expr ')'
-		{ $$ = $2; }
-     | variable
-		{ $$ = $1; }
-     | call
-		{ $$ = $1; }
-     | mcall
-		{ $$ = $1; }
+iff: IF '(' expr ')' stmt           { $$ = node_if_new($3, $5, NULL); }
+   | IF '(' expr ')' stmt ELSE stmt { $$ = node_if_new($3, $5,   $7); }
 ;
 
-variable : IDENT
-        	{ $$ = node_var_new($1); }
-         | map
-		{ $$ = $1; }
+unroll: UNROLL '(' INT ')' stmt { $$ = node_unroll_new($3, $5); }
 ;
 
-map : MAP record
-		{ $$ = node_map_new($1, $2); }
+binop: expr '|' expr { $$ = node_binop_new($1, OP_OR,  $3); }
+     | expr '^' expr { $$ = node_binop_new($1, OP_XOR, $3); }
+     | expr '&' expr { $$ = node_binop_new($1, OP_AND, $3); }
+     | expr EQ  expr { $$ = node_binop_new($1, OP_EQ,  $3); }
+     | expr NE  expr { $$ = node_binop_new($1, OP_NE,  $3); }
+     | expr '<' expr { $$ = node_binop_new($3, OP_GT,  $1); }
+     | expr LE  expr { $$ = node_binop_new($3, OP_GE,  $1); }
+     | expr GE  expr { $$ = node_binop_new($1, OP_GE,  $3); }
+     | expr '>' expr { $$ = node_binop_new($1, OP_GT,  $3); }
+     | expr LSH expr { $$ = node_binop_new($1, OP_LSH, $3); }
+     | expr RSH expr { $$ = node_binop_new($1, OP_RSH, $3); }
+     | expr '+' expr { $$ = node_binop_new($1, OP_ADD, $3); }
+     | expr '-' expr { $$ = node_binop_new($1, OP_SUB, $3); }
+     | expr '*' expr { $$ = node_binop_new($1, OP_MUL, $3); }
+     | expr '/' expr { $$ = node_binop_new($1, OP_DIV, $3); }
+     | expr '%' expr { $$ = node_binop_new($1, OP_MOD, $3); }
 ;
 
-record : '[' vargs ']'
-		{ $$ = node_rec_new($2); }
+var: IDENT { $$ = node_var_new($1); }
 ;
 
-call : IDENT '(' ')'
-		{ $$ = node_call_new(NULL, $1, NULL); }
-     | IDENT '(' vargs ')'
-		{ $$ = node_call_new(NULL, $1, $3); }
+map: MAP record { $$ = node_map_new($1, $2); }
 ;
 
-mcall : IDENT '.' IDENT '(' ')'
-		{ $$ = node_call_new($1, $3, NULL); }
-      | IDENT '.' IDENT '(' vargs ')'
-		{ $$ = node_call_new($1, $3, $5); }
+record: '[' vargs ']' { $$ = node_rec_new($2); }
+;
 
-vargs : expr
-		{ $$ = $1; }
-      | vargs ',' expr
-		{ insque_tail($3, $1); }
+call: IDENT '(' ')'       { $$ = node_call_new(NULL, $1, NULL); }
+    | IDENT '(' vargs ')' { $$ = node_call_new(NULL, $1,   $3); }
+;
+
+mcall: IDENT '.' IDENT '(' ')'        { $$ = node_call_new($1, $3, NULL); }
+     | IDENT '.' IDENT '(' vargs ')'  { $$ = node_call_new($1, $3,   $5); }
+;
+
+vargs: expr
+     | vargs ',' expr { insque_tail($3, $1); }
 ;
 
 %%

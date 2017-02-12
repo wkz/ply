@@ -32,13 +32,13 @@
 /* Illegal instructions. They are replaced by legal jumps when
  * compiling the containing if/unroll. */
 const struct bpf_insn break_insn =
-	JMP_IMM(JMP_JA, 0xf, INT32_MIN, INT16_MIN);
+	JMP_IMM(BPF_JA, 0xf, INT32_MIN, INT16_MIN);
 const struct bpf_insn continue_insn =
-	JMP_IMM(JMP_JA, 0xf, INT32_MIN, INT16_MIN + 1);
+	JMP_IMM(BPF_JA, 0xf, INT32_MIN, INT16_MIN + 1);
 const struct bpf_insn if_then_insn =
-	JMP_IMM(JMP_JA, 0xf, INT32_MIN, INT16_MIN + 2);
+	JMP_IMM(BPF_JA, 0xf, INT32_MIN, INT16_MIN + 2);
 const struct bpf_insn if_else_insn =
-	JMP_IMM(JMP_JA, 0xf, INT32_MIN, INT16_MIN + 3);
+	JMP_IMM(BPF_JA, 0xf, INT32_MIN, INT16_MIN + 3);
 
 const dyn_t dyn_reg[] = {
 	[BPF_REG_0] =  { .type = TYPE_INT, .size = 8, .loc = LOC_REG, .reg = BPF_REG_0  },
@@ -296,14 +296,14 @@ static int emit_xfer_literal(prog_t *prog, const dyn_t *to,
 	case LOC_REG:
 		if (*u64 > 0x3fffffffffffffff) {
 			emit(prog, MOV_IMM(to->reg, *u64 >> 33));
-			emit(prog, ALU_IMM(ALU_OP_LSH, to->reg, 31));
-			emit(prog, ALU_IMM(ALU_OP_OR, to->reg, (*u64 >> 2) & 0x7fffffff));
-			emit(prog, ALU_IMM(ALU_OP_LSH, to->reg, 2));
-			emit(prog, ALU_IMM(ALU_OP_OR, to->reg, *u64 & 0x3));
+			emit(prog, ALU_IMM(BPF_LSH, to->reg, 31));
+			emit(prog, ALU_IMM(BPF_OR, to->reg, (*u64 >> 2) & 0x7fffffff));
+			emit(prog, ALU_IMM(BPF_LSH, to->reg, 2));
+			emit(prog, ALU_IMM(BPF_OR, to->reg, *u64 & 0x3));
 		} else if (*u64 > 0x7fffffff) {
 			emit(prog, MOV_IMM(to->reg, *u64 >> 31));
-			emit(prog, ALU_IMM(ALU_OP_LSH, to->reg, 31));
-			emit(prog, ALU_IMM(ALU_OP_OR, to->reg, *u64 & 0x7fffffff));
+			emit(prog, ALU_IMM(BPF_LSH, to->reg, 31));
+			emit(prog, ALU_IMM(BPF_OR, to->reg, *u64 & 0x7fffffff));
 		} else {
 			emit(prog, MOV_IMM(to->reg, *u64));
 		}
@@ -403,10 +403,10 @@ int emit_xfer(prog_t *prog, const node_t *to, const node_t *from)
 }
 
 #define LOG2_CMP(_bit)						\
-	emit(prog, JMP_IMM(JMP_JSGE, src, (1 << (_bit)), 1));	\
-	emit(prog, JMP_IMM(JMP_JA, 0, 0, 2));			\
-	emit(prog, ALU_IMM(ALU_OP_ADD, dst, _bit));		\
-	emit(prog, ALU_IMM(ALU_OP_RSH, src, _bit))
+	emit(prog, JMP_IMM(BPF_JSGE, src, (1 << (_bit)), 1));	\
+	emit(prog, JMP_IMM(BPF_JA, 0, 0, 2));			\
+	emit(prog, ALU_IMM(BPF_ADD, dst, _bit));		\
+	emit(prog, ALU_IMM(BPF_RSH, src, _bit))
 
 int emit_log2_raw(prog_t *prog, int dst, int src)
 {
@@ -415,22 +415,22 @@ int emit_log2_raw(prog_t *prog, int dst, int src)
 	emit(prog, MOV_IMM(dst, 0));
 
 	/* negative? */
-	emit(prog, JMP_IMM(JMP_JSGE, src, 0, 2));
-	emit(prog, ALU_IMM(ALU_OP_SUB, dst, 1));
-	emit(prog, JMP_IMM(JMP_JA, 0, 0, 8 + 5 * 4));
+	emit(prog, JMP_IMM(BPF_JSGE, src, 0, 2));
+	emit(prog, ALU_IMM(BPF_SUB, dst, 1));
+	emit(prog, JMP_IMM(BPF_JA, 0, 0, 8 + 5 * 4));
 
 	/* zero? */
-	emit(prog, JMP_IMM(JMP_JEQ, src, 0, 7 + 5 * 4));
+	emit(prog, JMP_IMM(BPF_JEQ, src, 0, 7 + 5 * 4));
 
-	emit(prog, ALU_IMM(ALU_OP_ADD, dst, 1));
+	emit(prog, ALU_IMM(BPF_ADD, dst, 1));
 
 	emit(prog, MOV_IMM(cmp, 1));
-	emit(prog, ALU_IMM(ALU_OP_LSH, cmp, 32));
+	emit(prog, ALU_IMM(BPF_LSH, cmp, 32));
 
-	emit(prog, JMP(JMP_JSGE, src, cmp, 1));
-	emit(prog, JMP_IMM(JMP_JA, 0, 0, 2));
-	emit(prog, ALU_IMM(ALU_OP_ADD, dst, 32));
-	emit(prog, ALU_IMM(ALU_OP_RSH, src, 32));
+	emit(prog, JMP(BPF_JSGE, src, cmp, 1));
+	emit(prog, JMP_IMM(BPF_JA, 0, 0, 2));
+	emit(prog, ALU_IMM(BPF_ADD, dst, 32));
+	emit(prog, ALU_IMM(BPF_RSH, src, 32));
 
 	LOG2_CMP(16);
 	LOG2_CMP( 8);
@@ -443,7 +443,7 @@ int emit_log2_raw(prog_t *prog, int dst, int src)
 int emit_read_raw(prog_t *prog, ssize_t to, int from, size_t size)
 {
 	emit(prog, MOV(BPF_REG_1, BPF_REG_10));
-	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_1, to));
+	emit(prog, ALU_IMM(BPF_ADD, BPF_REG_1, to));
 	emit(prog, MOV_IMM(BPF_REG_2, size));
 	emit(prog, MOV(BPF_REG_3, from));
 	emit(prog, CALL(BPF_FUNC_probe_read));
@@ -454,9 +454,9 @@ int emit_map_update_raw(prog_t *prog, int fd, ssize_t key, ssize_t val)
 {
 	emit_ld_mapfd(prog, BPF_REG_1, fd);
 	emit(prog, MOV(BPF_REG_2, BPF_REG_10));
-	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_2, key));
+	emit(prog, ALU_IMM(BPF_ADD, BPF_REG_2, key));
 	emit(prog, MOV(BPF_REG_3, BPF_REG_10));
-	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_3, val));
+	emit(prog, ALU_IMM(BPF_ADD, BPF_REG_3, val));
 	emit(prog, MOV_IMM(BPF_REG_4, 0));
 	emit(prog, CALL(BPF_FUNC_map_update_elem));
 	return 0;
@@ -466,7 +466,7 @@ int emit_map_delete_raw(prog_t *prog, int fd, ssize_t key)
 {
 	emit_ld_mapfd(prog, BPF_REG_1, fd);
 	emit(prog, MOV(BPF_REG_2, BPF_REG_10));
-	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_2, key));
+	emit(prog, ALU_IMM(BPF_ADD, BPF_REG_2, key));
 	emit(prog, CALL(BPF_FUNC_map_delete_elem));
 	return 0;
 }
@@ -475,7 +475,7 @@ int emit_map_lookup_raw(prog_t *prog, int fd, ssize_t addr)
 {
 	emit_ld_mapfd(prog, BPF_REG_1, fd);
 	emit(prog, MOV(BPF_REG_2, BPF_REG_10));
-	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_2, addr));
+	emit(prog, ALU_IMM(BPF_ADD, BPF_REG_2, addr));
 	emit(prog, CALL(BPF_FUNC_map_lookup_elem));
 	return 0;
 }
@@ -511,7 +511,7 @@ int emit_map_load(prog_t *prog, node_t *n)
 	emit_map_lookup_raw(prog, n->dyn->map.fd, n->map.rec->dyn->addr);
 
 	/* if we get a null pointer, skip copy */
-	emit(prog, JMP_IMM(JMP_JEQ, BPF_REG_0, 0, 5));
+	emit(prog, JMP_IMM(BPF_JEQ, BPF_REG_0, 0, 5));
 
 	/* if key existed, copy it to the value area */
 	emit_read_raw(prog, n->dyn->addr, BPF_REG_0, n->dyn->size);
@@ -537,9 +537,9 @@ int emit_not(prog_t *prog, node_t *not)
 	if (err)
 		return err;
 
-	emit(prog, JMP_IMM(JMP_JNE, dst->reg, 0, 2));
+	emit(prog, JMP_IMM(BPF_JNE, dst->reg, 0, 2));
 	emit(prog, MOV_IMM(dst->reg, 1));
-	emit(prog, JMP_IMM(JMP_JA, 0, 0, 1));
+	emit(prog, JMP_IMM(BPF_JA, 0, 0, 1));
 	emit(prog, MOV_IMM(dst->reg, 0));
 
 	return emit_xfer_dyns(prog, not->dyn, dst);
@@ -570,23 +570,22 @@ int emit_binop(prog_t *prog, node_t *binop)
 	else
 		emit_xfer_dyn(prog, operand, r);
 
-	switch (binop->binop.type) {
-	case BINOP_ALU:
+	if (binop->binop.op & OP_JMP) {
+		int op = binop->binop.op & ~OP_JMP;
+
+		emit(prog, MOV_IMM(dst->reg, 1));
+
 		if (imm)
-			emit(prog, ALU_IMM(binop->binop.alu, dst->reg, r->integer));
+			emit(prog, JMP_IMM(op, dst->reg, r->integer, 1));
 		else
-			emit(prog, ALU(binop->binop.alu, dst->reg, operand->reg));
-		break;
-	case BINOP_JMP:
-		if (imm)
-			emit(prog, JMP_IMM(binop->binop.jmp, dst->reg, r->integer, 2));
-		else
-			emit(prog, JMP(binop->binop.jmp, dst->reg, operand->reg, 2));
+			emit(prog, JMP(op, dst->reg, operand->reg, 1));
 
 		emit(prog, MOV_IMM(dst->reg, 0));
-		emit(prog, JMP_IMM(JMP_JA, 0, 0, 1));
-		emit(prog, MOV_IMM(dst->reg, 1));
-		break;
+	} else {
+		if (imm)
+			emit(prog, ALU_IMM(binop->binop.op, dst->reg, r->integer));
+		else
+			emit(prog, ALU(binop->binop.op, dst->reg, operand->reg));
 	}
 
 	return emit_xfer_dyns(prog, binop->dyn, dst);
@@ -660,7 +659,7 @@ int emit_if_else(prog_t *prog, node_t *n)
 	emit(prog, if_else_insn);
 
 	emit_at(prog, at,
-		JMP_IMM(JMP_JEQ, iff->dyn->reg, 0, prog->ip - at - 1));
+		JMP_IMM(BPF_JEQ, iff->dyn->reg, 0, prog->ip - at - 1));
 
 	_d("<");
 	return 0;
@@ -672,9 +671,9 @@ int emit_if(prog_t *prog, node_t *iff)
 
 	at = iff->dyn->iff.jmp;
 	if (iff->iff.els)
-		jmp = JMP_IMM(JMP_JA, 0, 0, prog->ip - at - 1);
+		jmp = JMP_IMM(BPF_JA, 0, 0, prog->ip - at - 1);
 	else
-		jmp = JMP_IMM(JMP_JEQ, iff->dyn->reg, 0, prog->ip - at - 1);
+		jmp = JMP_IMM(BPF_JEQ, iff->dyn->reg, 0, prog->ip - at - 1);
 
 	emit_at(prog, at, jmp);
 	return 0;
@@ -701,7 +700,7 @@ static int resolve_jmp(prog_t *prog, struct bpf_insn *at,
 			continue;
 
 		/* replace placeholder instruction with real jump */
-		emit_at(prog, at, JMP_IMM(JMP_JA, 0, 0, prog->ip - at - 1));
+		emit_at(prog, at, JMP_IMM(BPF_JA, 0, 0, prog->ip - at - 1));
 	}
 	_d("<");
 	return 0;
@@ -861,7 +860,7 @@ static int compile_pred(node_t *pred, prog_t *prog)
 
 	switch (pred->dyn->loc) {
 	case LOC_REG:
-		emit(prog, JMP_IMM(JMP_JNE, pred->dyn->reg, 0, 2));
+		emit(prog, JMP_IMM(BPF_JNE, pred->dyn->reg, 0, 2));
 		break;
 
 	default:

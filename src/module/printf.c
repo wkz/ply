@@ -112,7 +112,7 @@ int printf_compile(node_t *call, prog_t *prog)
 	emit_ld_mapfd(prog, BPF_REG_2, script->dyn->script.evp->mapfd);
 
 	emit(prog, MOV(BPF_REG_4, BPF_REG_10));
-	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_4, rec->dyn->addr));
+	emit(prog, ALU_IMM(BPF_ADD, BPF_REG_4, rec->dyn->addr));
 
 	emit(prog, MOV_IMM(BPF_REG_5, rec->dyn->size));
 	emit(prog, CALL(BPF_FUNC_perf_event_output));

@@ -31,7 +31,7 @@ int quantize_compile(node_t *call, prog_t *prog)
 	node_t *map = call->parent->method.map;
 
 	emit(prog, LDXDW(BPF_REG_0, map->dyn->addr, BPF_REG_10));
-	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_0, 1));
+	emit(prog, ALU_IMM(BPF_ADD, BPF_REG_0, 1));
 	emit(prog, STXDW(BPF_REG_10, map->dyn->addr, BPF_REG_0));
 	return 0;
 }

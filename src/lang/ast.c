@@ -30,6 +30,17 @@
 #include "parse.h"
 #include "lex.h"
 
+const char *op_str(op_t op)
+{
+#define OP(_type, _bpf_type, _typestr) [_type] = _typestr,
+	static const char *strs[] = {
+		OP_TABLE
+	};
+#undef TYPE
+
+	return strs[op];
+}
+
 const char *type_str(type_t type)
 {
 #define TYPE(_type, _typestr) [_type] = _typestr,
@@ -119,10 +130,13 @@ int node_fdump(node_t *n, FILE *fp)
 		
 	case TYPE_PROBE:
 	case TYPE_ASSIGN:
-	case TYPE_BINOP:
 	case TYPE_MAP:
 	case TYPE_VAR:
 		fprintf(fp, "%s ", n->string);
+		break;
+
+	case TYPE_BINOP:
+		fprintf(fp, "%s ", op_str(n->binop.op));
 		break;
 
 	case TYPE_UNROLL:
@@ -340,90 +354,14 @@ node_t *node_return_new(node_t *expr)
 	return n;
 }
 
-static alu_op_t alu_op_from_str(char *opstr)
-{
-	switch (opstr[0]) {
-	case '+':
-		return ALU_OP_ADD;
-	case '-':
-		return ALU_OP_SUB;
-	case '*':
-		return ALU_OP_MUL;
-	case '/':
-		return ALU_OP_DIV;
-	case '|':
-		return ALU_OP_OR;
-	case '&':
-		return ALU_OP_AND;
-	case '<':
-		return ALU_OP_LSH;
-	case '>':
-		return ALU_OP_RSH;
-	case '%':
-		return ALU_OP_MOD;
-	case '^':
-		return ALU_OP_XOR;
-	case '=':
-		return ALU_OP_MOV;
-	default:
-		assert(0);
-		return -EINVAL;
-	}
-}
-static int binop_op_parse(node_t *n, char *opstr)
-{
-	node_t *swap;
-
-	n->binop.type = BINOP_JMP;
-	switch (opstr[0]) {
-	case '=':
-		n->binop.jmp = JMP_JEQ;
-		return 0;
-	case '!':
-		n->binop.jmp = JMP_JNE;
-		return 0;
-	case '<':
-		if (opstr[1] == '<')
-			break;
-		else if (opstr[1] && opstr[1] == '=')
-			n->binop.jmp = JMP_JSGE;
-		else
-			n->binop.jmp = JMP_JSGT;
-
-		swap = n->binop.left;
-		n->binop.left = n->binop.right;
-		n->binop.right = swap;
-		return 0;
-	case '>':
-		if (opstr[1] == '>')
-			break;
-		else if (opstr[1] && opstr[1] == '=')
-			n->binop.jmp = JMP_JSGE;
-		else
-			n->binop.jmp = JMP_JSGT;
-		return 0;
-	default:
-		break;
-	}
-
-	n->binop.type = BINOP_ALU;
-	n->binop.alu  = alu_op_from_str(opstr);
-	return 0;
-}
-
-node_t *node_binop_new(node_t *left, char *opstr, node_t *right)
+node_t *node_binop_new(node_t *left, op_t op, node_t *right)
 {
 	node_t *n = node_new(TYPE_BINOP);
 	int err;
 
-	n->string = opstr;
+	n->binop.op    = op;
 	n->binop.left  = left;
 	n->binop.right = right;
-	err = binop_op_parse(n, opstr);
-	if (err) {
-		assert(0);
-		return NULL;
-	}
 
 	left->parent  = n;
 	right->parent = n;
@@ -560,7 +498,6 @@ static int _node_free(node_t *n, void *_null)
 		/* fall-through */
 	case TYPE_PROBE:
 	case TYPE_ASSIGN:
-	case TYPE_BINOP:
 	case TYPE_MAP:
 	case TYPE_STR:
 		free(n->string);

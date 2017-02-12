@@ -17,7 +17,7 @@ static int probe_comm_compile(node_t *call, prog_t *prog)
 	emit_stack_zero(prog, call);
 
 	emit(prog, MOV(BPF_REG_1, BPF_REG_10));
-	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_1, call->dyn->addr));
+	emit(prog, ALU_IMM(BPF_ADD, BPF_REG_1, call->dyn->addr));
 	emit(prog, MOV_IMM(BPF_REG_2, call->dyn->size));
 	emit(prog, CALL(BPF_FUNC_get_current_comm));
 	return 0;
@@ -43,10 +43,10 @@ static int probe_reg_compile(node_t *call, prog_t *prog)
 	emit_stack_zero(prog, call);
 
 	emit(prog, MOV(BPF_REG_1, BPF_REG_10));
-	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_1, call->dyn->addr));
+	emit(prog, ALU_IMM(BPF_ADD, BPF_REG_1, call->dyn->addr));
 	emit(prog, MOV_IMM(BPF_REG_2, arch_reg_width()));
 	emit(prog, MOV(BPF_REG_3, BPF_REG_9));
-	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_3, sizeof(uintptr_t)*arg->integer));
+	emit(prog, ALU_IMM(BPF_ADD, BPF_REG_3, sizeof(uintptr_t)*arg->integer));
 	emit(prog, CALL(BPF_FUNC_probe_read));
 
 	if (call->dyn->loc == LOC_REG) {

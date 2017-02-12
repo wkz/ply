@@ -42,30 +42,31 @@ static inline void insque_tail(void *elem, void *prev)
 	insque(le, pe);
 }
 
-typedef enum jmp {
-	JMP_JEQ  = BPF_JEQ,
-	JMP_JGT  = BPF_JGT,
-	JMP_JGE  = BPF_JGE,
-	JMP_JNE  = BPF_JNE,
-	JMP_JSGT = BPF_JSGT,
-	JMP_JSGE = BPF_JSGE,
-	JMP_JA   = BPF_JA,
-} jmp_t;
+/* The bpf opcode-field is 8 bits, so we know this won't collide with
+ * any BPF_* defines */
+#define OP_JMP 0x100
 
-typedef enum alu_op {
-	ALU_OP_ADD = BPF_ADD,
-	ALU_OP_SUB = BPF_SUB,
-	ALU_OP_MUL = BPF_MUL,
-	ALU_OP_DIV = BPF_DIV,
-	ALU_OP_OR  = BPF_OR,
-	ALU_OP_AND = BPF_AND,
-	ALU_OP_LSH = BPF_LSH,
-	ALU_OP_RSH = BPF_RSH,
-	ALU_OP_NEG = BPF_NEG,
-	ALU_OP_MOD = BPF_MOD,
-	ALU_OP_XOR = BPF_XOR,
-	ALU_OP_MOV = BPF_MOV,
-} alu_op_t;
+#define OP_TABLE				\
+	OP(OP_OR,  BPF_OR,            "|" )	\
+	OP(OP_XOR, BPF_XOR,           "^" )	\
+	OP(OP_AND, BPF_AND,           "&" )	\
+	OP(OP_EQ,  BPF_JEQ  | OP_JMP, "==")	\
+	OP(OP_NE,  BPF_JNE  | OP_JMP, "!=")	\
+	OP(OP_GE,  BPF_JSGE | OP_JMP, ">=")	\
+	OP(OP_GT,  BPF_JSGT | OP_JMP, ">" )	\
+	OP(OP_LSH, BPF_LSH,           "<<")	\
+	OP(OP_RSH, BPF_RSH,           ">>")	\
+	OP(OP_ADD, BPF_ADD,           "+" )	\
+	OP(OP_SUB, BPF_SUB,           "-" )	\
+	OP(OP_MUL, BPF_MUL,           "*" )	\
+	OP(OP_DIV, BPF_DIV,           "/" )	\
+	OP(OP_MOD, BPF_MOD,           "%" )
+
+#define OP(_type, _bpf_type, _typestr) _type = _bpf_type,
+typedef enum op {
+	OP_TABLE
+} op_t;
+#undef OP
 
 typedef struct node node_t;
 typedef struct dyn  dyn_t;
@@ -84,16 +85,8 @@ typedef struct map {
 	node_t *rec;
 } map_t;
 
-typedef enum binop_type {
-	BINOP_ALU,
-	BINOP_JMP,
-} binop_type_t;
-
 typedef struct binop {
-	binop_type_t type;
-	alu_op_t     alu;
-	jmp_t        jmp;
-
+	op_t    op;
 	node_t *left, *right;
 } binop_t;
 
@@ -290,7 +283,7 @@ node_t *node_map_new     (char *name, node_t *rec);
 node_t *node_var_new     (char *name);
 node_t *node_not_new     (node_t *expr);
 node_t *node_return_new  (node_t *expr);
-node_t *node_binop_new   (node_t *left, char *opstr, node_t *right);
+node_t *node_binop_new   (node_t *left, op_t op, node_t *right);
 node_t *node_assign_new  (node_t *lval, node_t *expr);
 node_t *node_method_new  (node_t *map, node_t *call);
 node_t *node_if_new      (node_t *cond, node_t *then, node_t *els);
@@ -302,5 +295,5 @@ node_t *node_script_parse(FILE *fp);
 
 void node_free(node_t *n);
 int  node_walk(node_t *n,
-	     int  (*pre)(node_t *n, void *ctx),
-	     int (*post)(node_t *n, void *ctx), void *ctx);
+	       int  (*pre)(node_t *n, void *ctx),
+	       int (*post)(node_t *n, void *ctx), void *ctx);

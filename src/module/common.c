@@ -39,13 +39,13 @@ static int int32_void_func(enum bpf_func_id func, enum extract_op op,
 	switch (op) {
 	case EXTRACT_OP_MASK:
 		/* TODO [kernel] cast imm to u32 on bitwise operators */
-		emit(prog, ALU_IMM(ALU_OP_AND, BPF_REG_0, 0x7fffffff));
+		emit(prog, ALU_IMM(BPF_AND, BPF_REG_0, 0x7fffffff));
 		break;
 	case EXTRACT_OP_SHIFT:
-		emit(prog, ALU_IMM(ALU_OP_RSH, BPF_REG_0, 32));
+		emit(prog, ALU_IMM(BPF_RSH, BPF_REG_0, 32));
 		break;
 	case EXTRACT_OP_DIV_1G:
-		emit(prog, ALU_IMM(ALU_OP_DIV, BPF_REG_0, 1000000000));
+		emit(prog, ALU_IMM(BPF_DIV, BPF_REG_0, 1000000000));
 		break;
 	default:
 		break;
@@ -140,7 +140,7 @@ static int common_mem_compile(node_t *call, prog_t *prog)
 	emit_stack_zero(prog, call);
 
 	emit(prog, MOV(BPF_REG_1, BPF_REG_10));
-	emit(prog, ALU_IMM(ALU_OP_ADD, BPF_REG_1, call->dyn->addr));
+	emit(prog, ALU_IMM(BPF_ADD, BPF_REG_1, call->dyn->addr));
 	emit(prog, MOV_IMM(BPF_REG_2, call->dyn->size));
 	emit_xfer_dyn(prog, &dyn_reg[BPF_REG_3], addr);
 	emit(prog, CALL(BPF_FUNC_probe_read));
@@ -357,13 +357,13 @@ static int common_strcmp_compile(node_t *call, prog_t *prog)
 	for (i = 0; l; i++, l--) {
 		emit(prog, LDXB(      dst, s1->dyn->addr + i, BPF_REG_10));
 		emit(prog, LDXB(BPF_REG_1, s2->dyn->addr + i, BPF_REG_10));
-		emit(prog, ALU(ALU_OP_SUB, dst, BPF_REG_1));
+		emit(prog, ALU(BPF_SUB, dst, BPF_REG_1));
 
 		if (l == 1)
 			break;
 
-		emit(prog, JMP_IMM(JMP_JEQ, BPF_REG_1, 0, 5 * (l - 2) + 4));
-		emit(prog, JMP_IMM(JMP_JNE,       dst, 0, 5 * (l - 2) + 3));
+		emit(prog, JMP_IMM(BPF_JEQ, BPF_REG_1, 0, 5 * (l - 2) + 4));
+		emit(prog, JMP_IMM(BPF_JNE,       dst, 0, 5 * (l - 2) + 3));
 	}
 
 	return emit_xfer_dyns(prog, call->dyn, &dyn_reg[dst]);

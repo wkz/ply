@@ -49,8 +49,6 @@ uazd		[_a-zA-Z0-9]
 ident		{uaz}{uazd}*
 map		@{ident}*
 pspec		{ident}:[*?:_.,/a-zA-Z0-9]*
-op		[+\-*|&%^]|<<|>>
-cmp		[!=<>]=|<|>
 
 %%
 "/*"			comment(yyscanner);
@@ -70,9 +68,14 @@ cmp		[!=<>]=|<|>
 {ident}			{ yylval->string = strdup(yytext); return IDENT; }
 {map}			{ yylval->string = strdup(yytext); return MAP;   }
 
-{op}|{cmp}		{ yylval->string = strdup(yytext); return OP;  }
+"<<" { return LSH; }
+">>" { return RSH; }
+"<=" { return LE; }
+">=" { return GE; }
+"==" { return EQ; }
+"!=" { return NE; }
 
-[=$.,;+\-*/!()\[\]{}]	{ return *yytext; }
+[=$.,;+\-*/%<>&\^|!()\[\]{}]	{ return *yytext; }
 \"(\\.|[^\\"])*\"	{ yylval->string = strndup(&yytext[1], strlen(yytext) - 2); return STRING; }
 [0-9]+			{ yylval->integer = strtoul(yytext, NULL, 0); return INT; }
 0[xX][0-9a-fA-F]+	{ yylval->integer = strtoul(yytext, NULL, 0); return INT; }
