@@ -41,11 +41,11 @@ void dump_sym(FILE *fp, node_t *integer, void *data)
 
 	k = G.ksyms ? ksym_get(G.ksyms, pc) : NULL;
 	if (k) {
-		fprintf(fp, "%s", k->sym);
+		fprintf(fp, "%-20.20s", k->sym);
 		return;
 	}
 
-	fprintf(fp, "\n\t<%*.*" PRIxPTR ">", PTR_W, PTR_W, pc);
+	fprintf(fp, "<%*.*" PRIxPTR ">", PTR_W, PTR_W, pc);
 }
 
 static void dump_int(FILE *fp, node_t *integer, void *data)
