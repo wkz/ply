@@ -3,7 +3,6 @@ SUFFIXES         = .c .h .y
 sbin_PROGRAMS    = ply
 ACLOCAL_AMFLAGS  = -I ../m4
 AM_YFLAGS        = -d -Wall
-ply_CFLAGS       = -Wno-unused-parameter
 ply_CFLAGS       = -I$(top_srcdir)/src/include
 ply_CFLAGS      += -DGIT_VERSION=\"$(shell git describe --always --dirty)\"
 

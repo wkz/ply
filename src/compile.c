@@ -825,6 +825,7 @@ static int compile_post(node_t *n, void *_prog)
 
 	case TYPE_PROBE:
 	case TYPE_SCRIPT:
+	case TYPE_STACK:
 	case TYPE_NONE:
 		_e("unable to compile %s <%s>", n->string, type_str(n->type));
 		err = -ENOSYS;

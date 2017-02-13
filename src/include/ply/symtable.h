@@ -36,7 +36,11 @@ typedef struct symtable {
 	sym_t *syms;
 } symtable_t;
 
-int    symtable_fdump   (symtable_t *st, FILE *fp);
+int symtable_fdump(symtable_t *st, FILE *fp);
+
+sym_t *symtable_get_stack(symtable_t *st);
+int    symtable_ref_stack(symtable_t *st);
+
 sym_t *symtable_get     (symtable_t *st, node_t *n);
 int    symtable_populate(symtable_t *st, node_t *script);
 

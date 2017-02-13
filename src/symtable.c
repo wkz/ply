@@ -55,6 +55,46 @@ int symtable_fdump(symtable_t *st, FILE *fp)
 	return 0;
 }
 
+
+sym_t *symtable_get_stack(symtable_t *st)
+{
+	sym_t *s;
+
+	sym_foreach(s, st->syms) {
+		if (s->type == TYPE_MAP && !strcmp(s->name, "stack"))
+			return s;
+	}
+
+	return NULL;
+}
+
+int symtable_ref_stack(symtable_t *st)
+{
+	sym_t *s;
+
+	s = symtable_get_stack(st);
+	if (s)
+		return 0;
+
+	s = calloc(1, sizeof(*s));
+	assert(s);
+
+	s->type = TYPE_MAP;
+	s->name = strdup("stack"); /* user maps start with @ => no conflict */
+	s->dyn.map.type  = BPF_MAP_TYPE_STACK_TRACE;
+	s->dyn.map.ksize = sizeof(uint32_t);
+	s->dyn.map.vsize = sizeof(uint64_t) * 0x10; /* save 16 frames */
+	s->dyn.map.nelem = G.map_nelem;
+
+	if (st->syms)
+		insque_tail(s, st->syms);
+	else
+		st->syms = s;
+
+	return 0;
+}
+
+
 sym_t *symtable_get(symtable_t *st, node_t *n)
 {
 	sym_t *s;

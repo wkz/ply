@@ -62,12 +62,19 @@ static void dump_str(FILE *fp, node_t *str, void *data)
 
 static void dump_stack(FILE *fp, node_t *stack, void *data)
 {
-	int i, fd = stack->dyn->map.fd;
 	int64_t *_stack_id = data;
 	uint32_t stack_id = *_stack_id;
 	uint64_t ips[0x10];
+	sym_t *s;
+	int i;
 
-	if (bpf_map_lookup(fd, &stack_id, ips)) {
+	s = symtable_get_stack(node_get_script(stack)->dyn->script.st);
+	if (!s) {
+		_e("no stack map in symbol table");
+		return;
+	}
+
+	if (bpf_map_lookup(s->dyn.map.fd, &stack_id, ips)) {
 		_eno("failed to lookup stack-id:%#" PRIx32, stack_id);
 		fprintf(fp, "<ERR stack-id:%#" PRIx32 ">", stack_id);
 		return;
@@ -226,7 +233,7 @@ void dump_map(node_t *map)
 {
 	node_t *rec = map->map.rec;
 	size_t entry_size = rec->dyn->size + map->dyn->size;
-	char *data = malloc(entry_size*MAP_LEN);
+	char *data = malloc(entry_size*G.map_nelem);
 	char *key = data, *val = data + rec->dyn->size;
 	int err, n = 0;
 
@@ -271,28 +278,24 @@ int map_setup(node_t *script)
 	sym_t *s;
 
 	sym_foreach(s, script->dyn->script.st->syms) {
-		size_t ksize, vsize, max_len;
-		node_t *map = s->map.map;
-
 		if (s->type != TYPE_MAP)
 			continue;
-
 
 		if (G.dump) {
 			s->dyn.map.fd = dumpfd++;
 			continue;
 		}
 
-		max_len = map->map.max_len;
-		ksize   = map->map.rec->dyn->size;
-		vsize   = s->dyn.size;
+		_d("%s: type:%d ksize:%#zx vsize:%#zx nelem:%#zx", s->name,
+		   s->dyn.map.type, s->dyn.map.ksize, s->dyn.map.vsize,
+		   s->dyn.map.nelem);
 
-		_d("%s: type:%d ksz:%#zx vsz:%#zx len:%#zx", map->string,
-		   s->dyn.map.type, ksize, vsize, max_len);
 		s->dyn.map.fd = bpf_map_create(s->dyn.map.type,
-					       ksize, vsize, max_len);
+					       s->dyn.map.ksize,
+					       s->dyn.map.vsize,
+					       s->dyn.map.nelem);
 		if (s->dyn.map.fd <= 0) {
-			_eno("%s", map->string);
+			_eno("%s", s->name);
 			return s->dyn.map.fd;
 		}
 	}

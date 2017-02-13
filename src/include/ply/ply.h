@@ -26,11 +26,6 @@
 #include <ply/kallsyms.h>
 #include <ply/ast.h>
 
-#define MAP_LEN 512
-
-#define PRINTF_BUF_LEN MAP_LEN
-#define PRINTF_META_OF (1 << 30)
-
 #define _d(_fmt, ...)							\
 	if (G.debug) {							\
 		fprintf(stderr, "dbg %-20s: " _fmt "\n", __func__,	\
@@ -58,6 +53,8 @@ struct globals {
 	int dump:1;
 	int timeout;
 
+	size_t map_nelem;
+
 	ksyms_t *ksyms;
 };
 extern struct globals G;
@@ -71,7 +68,6 @@ static inline FILE *fopenf(const char *mode, const char *fmt, ...)
 {
 	char path[0x100];
 	va_list ap;
-	FILE *fp;
 	int ret;
 
 	va_start(ap, fmt);

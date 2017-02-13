@@ -11,6 +11,7 @@
 #include <ply/map.h>
 #include <ply/module.h>
 #include <ply/ply.h>
+#include <ply/symtable.h>
 
 static int probe_comm_compile(node_t *call, prog_t *prog)
 {
@@ -137,10 +138,13 @@ MODULE_FUNC_ALIAS(probe, probefunc, func);
 #ifdef LINUX_HAS_STACKMAP
 static int probe_stack_compile(node_t *call, prog_t *prog)
 {
-	int stackmap_fd = node_map_get_fd(call);
+	node_t *script = node_get_script(call);
+	sym_t *s = symtable_get_stack(script->dyn->script.st);
+
+	assert(s);
 
 	emit(prog, MOV(BPF_REG_1, BPF_REG_9));
-	emit_ld_mapfd(prog, BPF_REG_2, stackmap_fd);
+	emit_ld_mapfd(prog, BPF_REG_2, s->dyn.map.fd);
 	emit(prog, MOV_IMM(BPF_REG_3, 0));
 	emit(prog, CALL(BPF_FUNC_get_stackid));
 	return emit_xfer_dyns(prog, call->dyn, &dyn_reg[BPF_REG_0]);
@@ -148,18 +152,12 @@ static int probe_stack_compile(node_t *call, prog_t *prog)
 
 static int probe_stack_loc_assign(node_t *call)
 {
-	mdyn_t *mdyn;
+	node_t *script = node_get_script(call);
+	int err;
 
-	mdyn = node_map_get_mdyn(call);
-	if (!mdyn) {
-		mdyn = calloc(1, sizeof(*mdyn));
-		assert(mdyn);
-
-		mdyn->type = BPF_MAP_TYPE_STACK_TRACE;
-		mdyn->map  = call;
-
-		node_script_mdyn_add(node_get_script(call), mdyn);
-	}
+	err = symtable_ref_stack(script->dyn->script.st);
+	if (err)
+		return err;
 
 	return default_loc_assign(call);
 }
@@ -273,6 +271,7 @@ static const func_t *kretprobe_funcs[] = {
 	&probe_execname_func,
 	&probe_reg_func,
 	&probe_func_func,
+	&probe_probefunc_func,
 #ifdef LINUX_HAS_STACKMAP
 	&probe_stack_func,
 #endif

@@ -345,9 +345,8 @@ node_t *node_map_new(char *name, node_t *rec)
 {
 	node_t *n = node_new(TYPE_MAP);
 
-	n->string = name;
-	n->map.max_len = 0x400;
-	n->map.rec     = rec;
+	n->string  = name;
+	n->map.rec = rec;
 
 	rec->parent = n;
 	return n;

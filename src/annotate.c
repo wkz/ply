@@ -211,7 +211,6 @@ static int loc_assign_pre(node_t *n, void *_probe)
 		}
 		return 0;
 
-	case TYPE_NONE:
 	case TYPE_SCRIPT:
 	case TYPE_UNROLL:
 	case TYPE_BREAK:
@@ -220,6 +219,10 @@ static int loc_assign_pre(node_t *n, void *_probe)
 	case TYPE_STR:
 	case TYPE_INT:
 		return 0;
+
+	case TYPE_NONE:
+	case TYPE_STACK:
+		return -EINVAL;
 	}
 
 	return -ENOSYS;
@@ -384,6 +387,13 @@ static int type_infer_post(node_t *n, void *_script)
 	int err;
 
 	switch (n->type) {
+	case TYPE_MAP:
+		if (!n->dyn->size || n->dyn->map.vsize)
+			break;
+
+		n->dyn->map.vsize = n->dyn->size;
+		n->dyn->map.nelem = G.map_nelem;
+		break;
 	case TYPE_REC:
 		/* when the sizes of all arguments are known, the size
 		 * of the record is their sum. */
@@ -396,8 +406,12 @@ static int type_infer_post(node_t *n, void *_script)
 			}
 		}
 
-		if (sz)
+		if (sz) {
 			n->dyn->size = sz;
+
+			if (n->parent->type == TYPE_MAP)
+				n->parent->dyn->map.ksize = sz;
+		}
 		break;
 	default:
 		break;

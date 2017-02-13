@@ -18,10 +18,6 @@ AC_CHECK_HEADERS(poll.h search.h signal.h stdint.h stdio.h stdlib.h string.h uni
 AC_CHECK_HEADERS(linux/bpf.h linux/perf_event.h linux/version.h)
 AC_CHECK_HEADERS(sys/ioctl.h sys/queue.h sys/socket.h sys/stat.h sys/syscall.h sys/types.h)
 
-AC_ARG_ENABLE(debug,
-   [AS_HELP_STRING([--enable-debug], [Enable debug mode, also set CFLAGS="-g -O0".])],
-   AC_DEFINE(DEBUG, 1, [Define to enable debug mode.]))
-
 AC_ARG_WITH([kerneldir],
   [AS_HELP_STRING([--with-kerneldir=DIR], [Custom kernel to build against])],
   [kerneldir=$withval],

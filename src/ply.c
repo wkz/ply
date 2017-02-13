@@ -86,6 +86,8 @@ static int parse_opts(int argc, char **argv, FILE **sfp)
 	int cmd = 0;
 	int opt;
 
+	G.map_nelem = 0x400;
+
 	while ((opt = getopt_long(argc, argv, sopts, lopts, NULL)) > 0) {
 		switch (opt) {
 		case 'A':

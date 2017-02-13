@@ -81,7 +81,6 @@ typedef struct rec {
 } rec_t;
 
 typedef struct map {
-	int max_len;
 	node_t *rec;
 } map_t;
 
@@ -179,8 +178,9 @@ struct dyn {
 
 	union {
 		struct {
-			enum bpf_map_type type;
 			int fd;
+			enum bpf_map_type type;
+			size_t ksize, vsize, nelem;
 
 			mdumper_t dump;
 			cmper_t cmp;
