@@ -127,6 +127,8 @@ static int probe_func_annotate(node_t *call)
 		return reg;
 
 	call->call.vargs = node_int_new(reg);
+	call->call.vargs->parent = call;
+
 	call->dyn->type = TYPE_INT;
 	call->dyn->size = sizeof(int64_t);
 	call->dump = dump_sym;
