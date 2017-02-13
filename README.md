@@ -1,25 +1,205 @@
-WARNING WARNING
-===============
-
-ply is currently under heavy development. Docs have not been updated
-to reflect these changes.
-
-
 ply
 ===
 
-A dynamic tracer for Linux.
+A dynamic tracer for Linux that lets you:
 
-`ply` compiles ply-scripts into Linux [BPF][1] programs that can be
-attached to kprobes in the kernel. The script has a C-like syntax,
-taking inspiration from `awk(1)`. The compiler is very rudimentary and
-only supports a handful of built-in functions and access to CPU
-registers in probes at present. On the other hand, the only run-time
-dependency is libc, which means you can run it on just about any Linux
-based system with a modern kernel.
+   * Extract arbitrary data, i.e register values, function arguments,
+     stack/heap data, stack traces.
 
-For a more complete documentation of the ply-script language, see
-[wkz.github.io/ply][2].
+   * Perform in-kernel aggregations on arbitrary data.
+
+`ply` follows the [Little Language][1] approach of yore, compiling ply
+scripts into Linux [BPF][2] programs that are attached to kprobes and
+tracepoints in the kernel. The scripts have a C-like syntax, heavily
+inspired by `dtrace(1)` and by extension `awk(1)`.
+
+The primary goals of `ply` are:
+
+   * Expose most of the BPF tracing feature-set in such a way that new
+     scripts can be whipped up very quickly to test different
+     hypotheses.
+
+   * Keep dependencies to a minimum. Right now Flex and Bison are
+     required at build-time, leaving `libc` as the only runtime
+     dependency. Thus, `ply` is well suited for embedded targets.
+
+For a more complete documentation and language reference, see
+[wkz.github.io/ply][3].
+
+If you need more fine-grained control over the kernel/userspace
+interaction in your tracing, checkout the [bcc][4] project which
+compiles C programs to BPF using LLVM in combination with a python
+userspace recipient to give you the full six degrees of freedom.
+
+
+Examples
+-------
+
+### Syscall Count
+
+```
+kprobe:SyS_*
+{
+	@[func()].count();
+}
+```
+
+This probe will be attached to all functions whose name starts with
+`SyS_`, i.e. all syscalls. On each syscall, the probe will fire and
+index into the user-defined map `@` using the built-in function
+`func()` as the key and bump a counter. Map names always start with
+'@' and for scripts where there is only one map it is idiomatic to
+simply call it '@'.
+
+`ply` will compile the script, attach it to the matching probes and
+start collecting data. On exit, the value of all user-defined maps are
+dumped:
+
+```
+wkz@wkz-x260:~$ sudo ply -c 'kprobe:SyS_*{ @[func()].count(); }'
+341 probes active
+^Cde-activating probes
+
+@:
+sys_tgkill          	       1
+sys_mprotect        	       1
+sys_lseek           	       1
+sys_readv           	       1
+sys_rename          	       1
+sys_statfs          	       1
+sys_bind            	       2
+sys_access          	       4
+sys_fdatasync       	       5
+sys_times           	       6
+<REDACTED LINES>
+sys_epoll_wait      	    7211
+sys_ppoll           	    9836
+sys_poll            	   13446
+sys_futex           	   20034
+sys_ioctl           	   23806
+sys_recvmsg         	   23989
+sys_write           	   24791
+sys_read            	   32168
+```
+
+### Read Distribution
+
+```
+kretprobe:SyS_read
+{
+	@[""].quantize(retval());
+}
+```
+
+This example shows a very simple script that instruments the return of
+the `read(2)` syscall and records the distribution of the return
+argument. Due to a quirk in the language, a key must be supplied, so
+the empty string is used as a dummy.
+
+```
+wkz@wkz-x260:~$ sudo ply -c 'kretprobe:SyS_read{ @[""].quantize(retval()); }'
+1 probe active
+^Cde-activating probes
+
+@:
+
+	         < 0	    8869 ┤███████                         │
+	           0	     565 ┤▌                               │
+	           1	   13460 ┤██████████▋                     │
+	[   2,    3]	    1915 ┤█▌                              │
+	[   4,    7]	    1736 ┤█▍                              │
+	[   8,   15]	   10054 ┤████████                        │
+	[  16,   31]	    2583 ┤██                              │
+	[  32,   63]	     769 ┤▋                               │
+	[  64,  127]	      55 ┤                                │
+	[ 128,  255]	       5 ┤                                │
+	[ 256,  511]	     202 ┤▏                               │
+	[ 512,   1k)	      27 ┤                                │
+	[  1k,   2k)	     157 ┤▏                               │
+	[  2k,   4k)	       4 ┤                                │
+	[  4k,   8k)	      20 ┤                                │
+	[  8k,  16k)	       6 ┤                                │
+	[ 16k,  32k)	      23 ┤                                │
+	[ 32k,  64k)	      20 ┤                                │
+```
+
+
+### Opensnoop
+
+```
+#!/usr/bin/env ply
+
+kprobe:SyS_open
+{
+	printf("%s: %s\n", comm(), mem(arg(0), "128s"));
+}
+```
+
+Every time a process calls `open` print the calling process's `comm`,
+i.e. executable name, and the filename by extracting a 128-byte string
+from the address of the first argument.
+
+```
+wkz@wkz-x260:~$ sudo ./opensoop.ply
+1 probe active
+ply: /sys/kernel/debug/tracing/events/enable
+BrowserBlocking: /home/wkz/.config/google-chrome/Default/Cookies-journal
+BrowserBlocking: /var/tmp/etilqs_802095c1ff1111c4
+BrowserBlocking: /home/wkz/.config/google-chrome/Default
+irqbalance: /proc/interrupts
+irqbalance: /proc/stat
+irqbalance: /proc/irq/18/smp_affinity
+irqbalance: /proc/irq/122/smp_affinity
+irqbalance: /proc/irq/11/smp_affinity
+irqbalance: /proc/irq/123/smp_affinity
+irqbalance: /proc/irq/16/smp_affinity
+irqbalance: /proc/irq/1/smp_affinity
+irqbalance: /proc/irq/8/smp_affinity
+irqbalance: /proc/irq/9/smp_affinity
+irqbalance: /proc/irq/12/smp_affinity
+irqbalance: /proc/irq/120/smp_affinity
+irqbalance: /proc/irq/121/smp_affinity
+systemd-timesyn: /var/lib/systemd/clock
+chrome: /proc/self/status
+chrome: /proc/self/status
+Chrome_IOThread: /dev/shm/.com.google.Chrome.3Y4k6r
+CompositorTileW: /dev/shm/.com.google.Chrome.RXT4wj
+CompositorTileW: /dev/shm/.com.google.Chrome.n3cWXa
+Chrome_IOThread: /dev/shm/.com.google.Chrome.phCOo2
+Chrome_IOThread: /dev/shm/.com.google.Chrome.D90KPT
+Chrome_IOThread: /dev/shm/.com.google.Chrome.RUgLgL
+Chrome_IOThread: /dev/shm/.com.google.Chrome.3VxUHC
+chrome: /proc/self/status
+chrome: /proc/self/status
+chrome: /proc/self/status
+chrome: /proc/self/status
+chrome: /proc/self/status
+chrome: /proc/self/status
+chrome: /proc/self/status
+chrome: /proc/self/status
+SimpleCacheWork: /home/wkz/.cache/google-chrome/Default/Cache/ad851e438fd4ed16_0
+SimpleCacheWork: /home/wkz/.cache/google-chrome/Default/Cache/ad851e438fd4ed16_1
+SimpleCacheWork: /home/wkz/.cache/google-chrome/Default/Cache/ad851e438fd4ed16_s
+SimpleCacheWork: /home/wkz/.cache/google-chrome/Default/Cache/88c6f731c72489c0_0
+SimpleCacheWork: /home/wkz/.cache/google-chrome/Default/Cache/88c6f731c72489c0_1
+SimpleCacheWork: /home/wkz/.cache/google-chrome/Default/Cache/88c6f731c72489c0_s
+Chrome_FileUser: /proc/19152/task
+Chrome_FileUser: /proc/19152/task/19152/status
+Chrome_FileUser: /proc/19152/task/19153/status
+Chrome_FileUser: /proc/19152/task/19154/status
+Chrome_FileUser: /proc/19152/task
+Chrome_FileUser: /proc/19152/task/19152/status
+Chrome_FileUser: /proc/19152/task/19153/status
+Chrome_FileUser: /proc/19152/task
+Chrome_FileUser: /proc/19152/task/19152/status
+Chrome_FileUser: /proc/19152/task/19153/status
+WRN evqueue_drain       : lost 6 events
+Chrome_IOThread: /dev/shm/.com.google.Chrome.RBxACy
+Chrome_IOThread: /dev/shm/.com.google.Chrome.l8blxu
+Chrome_IOThread: /dev/shm/.com.google.Chrome.HYebsq
+^Cde-activating probes
+```
+
 
 Build and Installation
 ----------------------
@@ -41,144 +221,17 @@ installed, you need to tell `configure` where to find it:
 ./configure --with-kerneldir=/path/to/shiny/linux
 ```
 
-Examples
--------
 
-### Syscall Count
+Maintainers
+-----------
 
-```
-#!/usr/bin/env ply
+`ply` is developed and maintained by [Tobias Waldekranz][5]. Please
+direct all bug reports and pull requests towards the official
+[Github][6] repo.
 
-kprobe:SyS_*
-{
-	$syscalls[func].count()
-}
-```
-
-This probe will be attached to all functions whose name starts with
-`SYS_`, i.e. all syscalls. On each syscall, the probe will fire and
-index into the user-defined map `$syscalls` using the built-in
-variable `func` as the key and bump a counter.
-
-`ply` will compile the script, attach it to the matching probes and
-start collecting data. On exit, `ply` will dump the value of all
-user-defined variables and maps:
-
-```
-wkz@wkz-box:~$ sudo syscall-count.ply
-331 probes active
-^Cde-activating probes
-
-$syscalls:
-sys_mprotect        	       1
-sys_readv           	       1
-sys_newlstat        	       1
-sys_access          	       2
-sys_bind            	       3
-sys_getsockname     	       3
-sys_rt_sigaction    	       4
-sys_ftruncate       	       4
-sys_unlink          	       4
-sys_pselect6        	       4
-sys_timerfd_settime 	       4
-sys_dup             	       5
-sys_fdatasync       	       5
-sys_lseek           	      17
-sys_inotify_add_watch	      21
-sys_newstat         	      24
-sys_recvfrom        	      31
-sys_connect         	      33
-sys_socket          	      36
-sys_getsockopt      	      42
-sys_epoll_ctl       	      58
-sys_pread64         	      66
-sys_openat          	      67
-sys_setsockopt      	      85
-sys_newuname        	     112
-sys_getdents        	     136
-sys_timer_settime   	     159
-sys_pwrite64        	     172
-sys_rt_sigprocmask  	     380
-sys_clock_gettime   	     407
-sys_nanosleep       	    1183
-sys_newfstat        	    1657
-sys_open            	    1663
-sys_close           	    1899
-sys_madvise         	    2251
-sys_sendmsg         	    3980
-sys_sendto          	    4024
-sys_fcntl           	    6534
-sys_ppoll           	    7436
-sys_mmap            	   10801
-sys_setitimer       	   14201
-sys_select          	   14624
-sys_munmap          	   14778
-sys_mmap_pgoff      	   14887
-sys_epoll_wait      	   14898
-sys_writev          	   19516
-sys_write           	   22644
-sys_read            	   28700
-sys_poll            	   53401
-sys_futex           	   78401
-sys_ioctl           	  146141
-sys_recvmsg         	  181933
-```
-
-### Distributions
-
-```
-#!/usr/bin/env ply
-
-kprobe:SyS_read
-{
-	$sizes.quantize(arg(2))
-}
-```
-
-This example shows a very simple script that instruments the `read(2)`
-syscall and records the distribution of the `size` argument,
-i.e. argument 2 (zero indexed), into the user-defined variable
-`$sizes`.
-
-```
-wkz@wkz-box:~$ sudo read-dist.ply
-1 probe active
-^Cde-activating probes
-
-$sizes:
-[   0,    1]	    2089
-[   2,    4)	     434
-[   4,    8)	    6334
-[   8,   16)	    9738
-[  16,   32)	    1645
-[  32,   64)	      16
-[  64,  128)	      24
-[ 128,  256)	      63
-[ 256,  512)	     102
-[ 512,   1k)	     200
-[  1k,   2k)	     433
-[  2k,   4k)	     750
-[  4k,   8k)	    1492
-[  8k,  16k)	    1157
-[ 16k,  32k)	    5703
-[ 32k,  64k)	      26
-[ 64k, 128k)	      48
-```
-
-Motivation
-----------
-
-The intention of `ply` is to be a lightweight alternative to
-[bcc][3]. Both in terms of dependencies and in usage. `bcc` requires
-LLVM which rules out many embedded platforms. `ply` has no run-time
-dependencies and only depends on flex and bison to build. By using the
-[Little Language][4] approach, scripts are easy to write and
-modify. C, while being an extremely powerful and elegant language does
-not offer the same exploratory feeling as say `awk`, which `ply` more
-closely resembles.
-
-
-[1]: https://www.kernel.org/doc/Documentation/networking/filter.txt
-[2]: https://wkz.github.io/ply
-[3]: https://github.com/iovisor/bcc
-[4]: http://c2.com/cgi/wiki?LittleLanguage
+[1]: http://c2.com/cgi/wiki?LittleLanguage
+[2]: https://www.kernel.org/doc/Documentation/networking/filter.txt
+[3]: https://wkz.github.io/ply
+[4]: https://github.com/iovisor/bcc
+[5]: mailto://tobias@waldekranz.com
+[6]: https://github.com/iovisor/ply
