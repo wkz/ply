@@ -138,10 +138,9 @@ int printf_loc_assign(node_t *call)
 int printf_annotate(node_t *call)
 {
 	evhandler_t *evh;
-	node_t *script = node_get_script(call);
-	node_t *varg = call->call.vargs;
-	node_t *meta, *rec;
+	node_t *meta, *rec, *varg;
 
+	varg = call->call.vargs;
 	if (!varg) {
 		_e("format string missing from %s", node_str(call));
 		return -EINVAL;

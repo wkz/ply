@@ -113,7 +113,6 @@ static kprobe_t *probe_load(enum bpf_prog_type type,
 			    node_t *probe, prog_t *prog)
 {
 	kprobe_t *kp;
-	char *func;
 
 	kp = malloc(sizeof(*kp));
 	assert(kp);

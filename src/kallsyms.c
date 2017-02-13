@@ -65,7 +65,6 @@ static int ksyms_cache_build(const char *in, const char *out)
 	struct ksym_cache_hdr hdr = { .version = LINUX_VERSION_CODE };
 	struct ksym ksym[2];
 	FILE *cfp, *kfp;
-	char line[0x80];
 	int err, i;
 
 	kfp = fopen(in, "r");
@@ -155,7 +154,6 @@ static int ksyms_cache_open(ksyms_t *ks)
 ksyms_t *ksyms_new(void)
 {
 	ksyms_t *ks;
-	const ksym_t *k;
 	int err;
 
 	ks = calloc(1, sizeof(*ks));

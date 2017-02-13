@@ -171,7 +171,6 @@ int evqueue_init(evpipe_t *evp, uint32_t cpu, size_t size)
 
 int evpipe_loop(evpipe_t *evp, int strict)
 {
-	struct pollfd *pfd;
 	int cpu, err, ready;
 	
 	for (;;) {
@@ -195,7 +194,6 @@ int evpipe_loop(evpipe_t *evp, int strict)
 int evpipe_init(evpipe_t *evp, size_t qsize)
 {
 	uint32_t cpu;
-	long cpus;
 	int err;
 
 	if (G.dump) {

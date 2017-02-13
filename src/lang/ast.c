@@ -374,7 +374,6 @@ node_t *node_not_new(node_t *expr)
 node_t *node_binop_new(node_t *left, op_t op, node_t *right)
 {
 	node_t *n = node_new(TYPE_BINOP);
-	int err;
 
 	n->binop.op    = op;
 	n->binop.left  = left;
@@ -559,7 +558,6 @@ int node_walk(node_t *n,
 {
 #define do_list(_head) err = _node_walk_list(_head, pre, post, ctx); if (err) return err
 #define do_walk(_node) err =       node_walk(_node, pre, post, ctx); if (err) return err
-	int64_t i;
 	int err;
 
 	err = pre ? pre(n, ctx) : 0;

@@ -53,7 +53,6 @@ static int trace_field_annotate(node_t *call)
 {
 	struct trace_field *tf = call->dyn->call.func->priv;
 	node_t *arg = call->call.vargs;
-	intptr_t reg;
 
 	/* accept no argument for non-arrays and exactly one integer
 	 * index for arrays */

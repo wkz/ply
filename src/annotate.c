@@ -81,6 +81,7 @@ static int loc_assign_map(node_t *n, node_t *probe)
 
 	n->dyn->loc  = LOC_STACK;
 	n->dyn->addr = node_probe_stack_get(probe, n->dyn->size);
+	return 0;
 }
 
 static int loc_assign_var(node_t *n, node_t *probe)
@@ -378,7 +379,6 @@ static int type_bubble(node_t *from)
 
 static int type_infer_post(node_t *n, void *_script)
 {
-	node_t *script = _script;
 	node_t *c;
 	size_t sz = 0;
 	int err;
