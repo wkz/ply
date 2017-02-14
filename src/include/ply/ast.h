@@ -34,6 +34,15 @@
 
 #define DYN_REGS ((1 << BPF_REG_6) | (1 << BPF_REG_7) | (1 << BPF_REG_8))
 
+static inline void *insque_head(void *_new, void *_old)
+{
+	struct { void *next, *prev; } *new = _new, *old = _old;
+
+	new->next = old;
+	old->prev = new;
+	return new;
+}
+
 static inline void insque_tail(void *elem, void *prev)
 {
 	struct { void *next, *prev; } *le = elem, *pe = prev;

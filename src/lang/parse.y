@@ -65,6 +65,7 @@ typedef struct node node_t;
 
 %type <node> script probes probe stmts stmt assign block expr
 %type <node> iff unroll binop var map record call mcall vargs
+%type <node> stmtb iffb unrollb
 
 /* C operator precedence */
 %left '|'
@@ -81,44 +82,50 @@ typedef struct node node_t;
 
 %precedence '!'
 
-%start script
-
+/* Don't allow any ambiguity in the grammar */
 %expect 0
 
+%start script
 %%
 
 script: probes { *script = node_script_new($1); }
 ;
 
 probes: probe
-      | probes probe { insque_tail($2, $1); }
+      | probe probes { $$ = insque_head($1, $2); }
 ;
 
 probe: PSPEC block              { $$ = node_probe_new($1, NULL, $2); }
      | PSPEC '/' expr '/' block { $$ = node_probe_new($1,   $3, $5); }
 ;
 
-stmts: stmt
-     | stmts stmt { insque_tail($2, $1); }
+block: '{' stmts '}' { $$ = $2; }
 ;
 
-stmt: map '.' call ';' { $$ = node_method_new($1, $3); }
-    | BREAK        ';' { $$ = node_new(TYPE_BREAK);    }
-    | CONTINUE     ';' { $$ = node_new(TYPE_CONTINUE); }
-    | RETURN       ';' { $$ = node_new(TYPE_RETURN);   }
-    | assign       ';'
-    | expr         ';'
-    | block
+stmts: stmt
+     | stmt ';'
+     | stmtb
+     | stmt ';' stmts { $$ = insque_head($1, $3); }
+     | stmtb    stmts { $$ = insque_head($1, $2); }
+;
+
+stmt: map '.' call { $$ = node_method_new($1, $3); }
+    | BREAK        { $$ = node_new(TYPE_BREAK);    }
+    | CONTINUE     { $$ = node_new(TYPE_CONTINUE); }
+    | RETURN       { $$ = node_new(TYPE_RETURN);   }
+    | assign
+    | expr
     | iff
     | unroll
+;
+
+stmtb: iffb
+     | unrollb
 ;
 
 assign: var '=' expr { $$ = node_assign_new($1,   $3); }
       | map '=' expr { $$ = node_assign_new($1,   $3); }
       | map '=' NIL  { $$ = node_assign_new($1, NULL); }
-;
-
-block: '{' stmts '}' { $$ = $2; }
 ;
 
 expr: INT          { $$ = node_int_new($1); }
@@ -137,7 +144,15 @@ iff: IF '(' expr ')' stmt           { $$ = node_if_new($3, $5, NULL); }
    | IF '(' expr ')' stmt ELSE stmt { $$ = node_if_new($3, $5,   $7); }
 ;
 
+iffb: IF '(' expr ')' block            { $$ = node_if_new($3, $5, NULL); }
+    | IF '(' expr ')' stmt  ELSE block { $$ = node_if_new($3, $5,   $7); }
+    | IF '(' expr ')' block ELSE block { $$ = node_if_new($3, $5,   $7); }
+;
+
 unroll: UNROLL '(' INT ')' stmt { $$ = node_unroll_new($3, $5); }
+;
+
+unrollb: UNROLL '(' INT ')' block { $$ = node_unroll_new($3, $5); }
 ;
 
 binop: expr '|' expr { $$ = node_binop_new($1, OP_OR,  $3); }
