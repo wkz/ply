@@ -1,6 +1,8 @@
 #include <ply/ply.h>
 #include <ply/symtable.h>
 
+#include "config.h"
+
 int sym_fdump(sym_t *s, FILE *fp)
 {
 	int w;
@@ -55,7 +57,7 @@ int symtable_fdump(symtable_t *st, FILE *fp)
 	return 0;
 }
 
-
+#ifdef LINUX_HAS_STACKMAP
 sym_t *symtable_get_stack(symtable_t *st)
 {
 	sym_t *s;
@@ -93,7 +95,10 @@ int symtable_ref_stack(symtable_t *st)
 
 	return 0;
 }
-
+#else
+sym_t *symtable_get_stack(symtable_t *st) { return NULL; }
+int    symtable_ref_stack(symtable_t *st) { return -ENOSYS; }
+#endif	/* LINUX_HAS_STACKMAP */
 
 sym_t *symtable_get(symtable_t *st, node_t *n)
 {
