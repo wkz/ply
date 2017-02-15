@@ -49,6 +49,18 @@ static int trace_field_compile(node_t *call, prog_t *prog)
 	return 0;
 }
 
+static int trace_field_loc_assign(node_t *call)
+{
+	node_t *probe = node_get_probe(call);
+
+	/* upper node wants result in a register, but we still
+	 * need stack space to bounce the data in */
+	if (call->dyn->loc == LOC_REG)
+		call->dyn->addr = node_probe_stack_get(probe, call->dyn->size);
+
+	return 0;
+}
+
 static int trace_field_annotate(node_t *call)
 {
 	struct trace_field *tf = call->dyn->call.func->priv;
@@ -184,7 +196,7 @@ int trace_get_func(const module_t *m, node_t *call, const func_t **out)
 	f->name       = call->string;
 	f->priv       = tf;
 	f->annotate   = trace_field_annotate;
-	f->loc_assign = default_loc_assign;
+	f->loc_assign = trace_field_loc_assign;
 	f->compile    = trace_field_compile;
 	*out = f;
 	return 0;
