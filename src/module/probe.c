@@ -146,7 +146,7 @@ static int probe_stack_compile(node_t *call, prog_t *prog)
 	assert(s);
 
 	emit(prog, MOV(BPF_REG_1, BPF_REG_9));
-	emit_ld_mapfd(prog, BPF_REG_2, s->dyn.map.fd);
+	emit_ld_mapfd(prog, BPF_REG_2, s->map->fd);
 	emit(prog, MOV_IMM(BPF_REG_3, 0));
 	emit(prog, CALL(BPF_FUNC_get_stackid));
 	return emit_xfer_dyns(prog, call->dyn, &dyn_reg[BPF_REG_0]);

@@ -388,11 +388,11 @@ static int type_infer_post(node_t *n, void *_script)
 
 	switch (n->type) {
 	case TYPE_MAP:
-		if (!n->dyn->size || n->dyn->map.vsize)
-			break;
+		err = sym_map_sync(n);
 
-		n->dyn->map.vsize = n->dyn->size;
-		n->dyn->map.nelem = G.map_nelem;
+		c = sym_from_node(n)->map->map;
+		err = err ? : type_sync(n, c);
+		err = err ? : type_sync(n->map.rec, c->map.rec);
 		break;
 	case TYPE_REC:
 		/* when the sizes of all arguments are known, the size
@@ -410,7 +410,7 @@ static int type_infer_post(node_t *n, void *_script)
 			n->dyn->size = sz;
 
 			if (n->parent->type == TYPE_MAP)
-				n->parent->dyn->map.ksize = sz;
+				err = sym_map_sync(n->parent);
 		}
 		break;
 	default:

@@ -355,6 +355,9 @@ static int emit_xfer_stack(prog_t *prog, const dyn_t *to, ssize_t from)
 		return 0;
 
 	case LOC_STACK:
+		if (to->addr == from)
+			return 0;
+
 		_e("stack<->stack transfer not implemented");
 		return -ENOSYS;
 	}
@@ -500,6 +503,8 @@ int emit_rec_load(prog_t *prog, node_t *n)
 
 int emit_map_load(prog_t *prog, node_t *n)
 {
+	sym_t *s = sym_from_node(n);
+
 	/* when overriding the current value, there is no need to load
 	 * any previous value */
 	if (n->parent->type == TYPE_ASSIGN &&
@@ -508,7 +513,7 @@ int emit_map_load(prog_t *prog, node_t *n)
 
 	emit_stack_zero(prog, n);
 
-	emit_map_lookup_raw(prog, n->dyn->map.fd, n->map.rec->dyn->addr);
+	emit_map_lookup_raw(prog, s->map->fd, n->map.rec->dyn->addr);
 
 	/* if we get a null pointer, skip copy */
 	emit(prog, JMP_IMM(BPF_JEQ, BPF_REG_0, 0, 5));
@@ -601,32 +606,32 @@ int emit_binop(prog_t *prog, node_t *binop)
 int emit_assign(prog_t *prog, node_t *assign)
 {
 	node_t *lval = assign->assign.lval, *expr = assign->assign.expr;
+	sym_t *s = sym_from_node(lval);
 	int err;
 
 	if (lval->type == TYPE_MAP && !expr) {
-		emit_map_delete_raw(prog, lval->dyn->map.fd,
+		emit_map_delete_raw(prog, s->map->fd,
 				    lval->map.rec->dyn->addr);
 		return 0;
 	}
 	
-	if (expr->type == TYPE_INT) {
-		err = emit_xfer(prog, lval, expr);
-		if (err)
-			return err;
-	}
+	err = emit_xfer(prog, lval, expr);
+	if (err)
+		return err;
 
 	if (lval->type == TYPE_MAP)
-		emit_map_update_raw(prog, lval->dyn->map.fd,
-				    lval->map.rec->dyn->addr, lval->dyn->addr);
+		emit_map_update_raw(prog, s->map->fd, lval->map.rec->dyn->addr,
+				    lval->dyn->addr);
 	return 0;
 }
 
 int emit_method(prog_t *prog, node_t *method)
 {
 	node_t *map = method->method.map;
+	sym_t *s = sym_from_node(map);
 
-	emit_map_update_raw(prog, map->dyn->map.fd,
-			    map->map.rec->dyn->addr, map->dyn->addr);
+	emit_map_update_raw(prog, s->map->fd, map->map.rec->dyn->addr,
+			    map->dyn->addr);
 	return 0;
 }
 
@@ -894,7 +899,7 @@ prog_t *compile_probe(node_t *probe)
 
 	prog->ip = prog->insns;
 
-	_d("");
+	_d("%s", probe->string);
 
 	/* context (pt_regs) pointer is supplied in r1 */
 	emit(prog, MOV(BPF_REG_9, BPF_REG_1));

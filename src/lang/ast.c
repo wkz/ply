@@ -99,7 +99,7 @@ static void _indent(int *indent, node_t *n)
 		fprintf(stderr, "%c   ", _has_next(p) ? '|' : ' ');
 	}
 
-	fprintf(stderr, "%c-> ", _has_next(n) ? (n->prev ? '+' : '|') : '`');
+	fprintf(stderr, "%c-> ", _has_next(n) ? '|' : '`');
 	(*indent)++;
 }
 

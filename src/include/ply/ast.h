@@ -22,12 +22,17 @@
 #include <assert.h>
 #include <errno.h>
 #include <search.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include <linux/bpf.h>
+
+#define container_of(_ptr, _type, _memb) ({			\
+	const typeof( ((_type *)0)->_memb ) *__mptr = (_ptr);	\
+	(_type *)( (char *)__mptr - offsetof(_type,_memb) );})
 
 #define _ALIGN sizeof(int64_t)
 #define _ALIGNED(_size) (((_size) + _ALIGN - 1) & ~(_ALIGN - 1))
@@ -187,10 +192,6 @@ struct dyn {
 
 	union {
 		struct {
-			int fd;
-			enum bpf_map_type type;
-			size_t ksize, vsize, nelem;
-
 			mdumper_t dump;
 			cmper_t cmp;
 		} map;
@@ -219,9 +220,6 @@ struct dyn {
 		struct {
 			symtable_t *st;
 			evpipe_t   *evp;
-
-			int     fmt_id;
-			node_t *printf[64];
 		} script;
 	};
 };

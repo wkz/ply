@@ -7,19 +7,14 @@ int sym_fdump(sym_t *s, FILE *fp)
 {
 	int w;
 
-	switch (s->type) {
-	case TYPE_VAR:
-		fprintf(fp, "%s(%s)%n", s->name, s->var.probe->string, &w);
-		if (w < 40)
-			fprintf(fp, "%*s", 40 - w, "");
-		break;
-	case TYPE_MAP:
-		fprintf(fp, "%-40s", s->name);
-		break;
-	default:
+	if (s->type != TYPE_MAP && s->type != TYPE_VAR) {
 		_d("corrupt sym (%s)", type_str(s->type));
 		return -EINVAL;
 	}
+
+	fprintf(fp, "%s(%s)%n", s->name, s->probe->string, &w);
+	if (w < 40)
+		fprintf(fp, "%*s", 40 - w, "");
 
 	fprintf(fp, " (type:%s/%s size:0x%zx loc:%s",
 		type_str(s->type), type_str(s->dyn.type),
@@ -41,6 +36,51 @@ int sym_fdump(sym_t *s, FILE *fp)
 	return 0;
 }
 
+static int __sync_size(size_t *known, size_t new)
+{
+	if (!new)
+		return 0;
+
+	if (!(*known)) {
+		*known = new;
+		return 0;
+	}
+
+	if (*known != new)
+		return -EINVAL;
+
+	return 0;
+}
+
+int sym_map_sync(node_t *map)
+{
+	node_t *rec = map->map.rec;
+	sym_t *s;
+	int err;
+
+	s = sym_from_node(map);
+	if (!s) {
+		_e("unknown map '%s'", map->string);
+		return -EINVAL;
+	}
+
+	err = __sync_size(&s->map->vsize, map->dyn->size);
+	if (err) {
+		_e("conflicting key sizes for '%s' %zd != %zd",
+		   s->name, map->dyn->size, s->map->vsize);
+		return err;
+	}
+
+	err = __sync_size(&s->map->ksize, rec->dyn->size);
+	if (err) {
+		_e("conflicting value sizes for '%s' %zd != %zd",
+		   s->name, rec->dyn->size, s->map->ksize);
+		return err;
+	}
+
+	return 0;
+}
+
 int symtable_fdump(symtable_t *st, FILE *fp)
 {
 	sym_t *s;
@@ -57,69 +97,104 @@ int symtable_fdump(symtable_t *st, FILE *fp)
 	return 0;
 }
 
-#ifdef LINUX_HAS_STACKMAP
-sym_t *symtable_get_stack(symtable_t *st)
+/* #ifdef LINUX_HAS_STACKMAP */
+/* sym_t *symtable_get_stack(symtable_t *st) */
+/* { */
+/* 	sym_t *s; */
+
+/* 	sym_foreach(s, st->syms) { */
+/* 		if (s->type == TYPE_MAP && !strcmp(s->name, "stack")) */
+/* 			return s; */
+/* 	} */
+
+/* 	return NULL; */
+/* } */
+
+/* int symtable_ref_stack(symtable_t *st) */
+/* { */
+/* 	sym_t *s; */
+
+/* 	s = symtable_get_stack(st); */
+/* 	if (s) */
+/* 		return 0; */
+
+/* 	s = calloc(1, sizeof(*s)); */
+/* 	assert(s); */
+
+/* 	s->type = TYPE_MAP; */
+/* 	s->name = strdup("stack"); /\* user maps start with @ => no conflict *\/ */
+/* 	s->dyn.map.type  = BPF_MAP_TYPE_STACK_TRACE; */
+/* 	s->dyn.map.ksize = sizeof(uint32_t); */
+/* 	s->dyn.map.vsize = sizeof(uint64_t) * 0x10; /\* save 16 frames *\/ */
+/* 	s->dyn.map.nelem = G.map_nelem; */
+
+/* 	if (st->syms) */
+/* 		insque_tail(s, st->syms); */
+/* 	else */
+/* 		st->syms = s; */
+
+/* 	return 0; */
+/* } */
+/* #else */
+sym_t *symtable_get_stack(symtable_t *st) { return NULL; }
+int    symtable_ref_stack(symtable_t *st) { return -ENOSYS; }
+/* #endif	/\* LINUX_HAS_STACKMAP *\/ */
+
+static sym_t *symtable_get(symtable_t *st, node_t *n)
 {
 	sym_t *s;
 
 	sym_foreach(s, st->syms) {
-		if (s->type == TYPE_MAP && !strcmp(s->name, "stack"))
+		if (s->type == n->type &&
+		    !strcmp(s->name, n->string) &&
+		    node_get_probe(n) == s->probe)
 			return s;
 	}
 
 	return NULL;
 }
 
-int symtable_ref_stack(symtable_t *st)
+static sym_t *symtable_new(symtable_t *st, node_t *n)
 {
 	sym_t *s;
-
-	s = symtable_get_stack(st);
-	if (s)
-		return 0;
 
 	s = calloc(1, sizeof(*s));
 	assert(s);
 
-	s->type = TYPE_MAP;
-	s->name = strdup("stack"); /* user maps start with @ => no conflict */
-	s->dyn.map.type  = BPF_MAP_TYPE_STACK_TRACE;
-	s->dyn.map.ksize = sizeof(uint32_t);
-	s->dyn.map.vsize = sizeof(uint64_t) * 0x10; /* save 16 frames */
-	s->dyn.map.nelem = G.map_nelem;
+	s->type  = n->type;
+	s->name  = strdup(n->string);
+	s->probe = node_get_probe(n);
 
 	if (st->syms)
 		insque_tail(s, st->syms);
 	else
 		st->syms = s;
 
-	return 0;
+	return s;
 }
-#else
-sym_t *symtable_get_stack(symtable_t *st) { return NULL; }
-int    symtable_ref_stack(symtable_t *st) { return -ENOSYS; }
-#endif	/* LINUX_HAS_STACKMAP */
 
-sym_t *symtable_get(symtable_t *st, node_t *n)
+static struct sym_map_data *symtable_map_data(symtable_t *st, sym_t *ms)
 {
+	struct sym_map_data *md;
 	sym_t *s;
 
 	sym_foreach(s, st->syms) {
-		if (s->type != n->type ||
-		    strcmp(s->name, n->string))
-			continue;
-
-		if (s->type == TYPE_VAR &&
-		    node_get_probe(n) != s->var.probe)
-			continue;
-
-		return s;
+		if (s->type == ms->type &&
+		    !strcmp(s->name, ms->name) &&
+		    s->map)
+			return s->map;
 	}
 
-	return NULL;
+	md = calloc(1, sizeof(*md));
+	assert(md);
+
+	md->fd    = -1;
+	md->type  = BPF_MAP_TYPE_HASH;
+	md->nelem = G.map_nelem;
+	return md;
 }
 
-static int symtable_ref_map(symtable_t *st, node_t *map)
+static int symtable_map_ref(symtable_t *st, node_t *map)
 {
 	sym_t *s;
 
@@ -127,25 +202,16 @@ static int symtable_ref_map(symtable_t *st, node_t *map)
 	if (s)
 		goto found;
 
-	s = calloc(1, sizeof(*s));
-	assert(s);
-
-	s->type = map->type;
-	s->name = strdup(map->string);
-	s->map.map = map;
-	s->dyn.map.type = BPF_MAP_TYPE_HASH;
-
-	if (st->syms)
-		insque_tail(s, st->syms);
-	else
-		st->syms = s;
+	s = symtable_new(st, map);
+	s->map = symtable_map_data(st, s);
+	s->map->map = map;
 
 found:
 	map->dyn = &s->dyn;
 	return 0;
 }
 
-static int symtable_ref_var(symtable_t *st, node_t *var)
+static int symtable_var_ref(symtable_t *st, node_t *var)
 {
 	node_t *unroll;
 	sym_t *s;
@@ -156,23 +222,13 @@ static int symtable_ref_var(symtable_t *st, node_t *var)
 		goto found;
 	}
 
-	s = calloc(1, sizeof(*s));
-	assert(s);
-
-	s->type = var->type;
-	s->name = strdup(var->string);
-	s->var.probe = node_get_probe(var);
+	s = symtable_new(st, var);
 	s->var.first = s->var.last = var;
 
 	unroll = node_get_parent_of_type(TYPE_UNROLL, var);
 	if (unroll)
 		s->var.last = unroll;
 		
-	if (st->syms)
-		insque_tail(s, st->syms);
-	else
-		st->syms = s;
-
 found:
 	var->dyn = &s->dyn;
 	return 0;
@@ -185,28 +241,14 @@ static int _symtable_populate(node_t *n, void *_st)
 
 	switch (n->type) {
 	case TYPE_MAP:
-		return symtable_ref_map(st, n);
+		return symtable_map_ref(st, n);
 	case TYPE_VAR:
-		return symtable_ref_var(st, n);
+		return symtable_var_ref(st, n);
 
 	default:
 		break;
 	}
 
-	return 0;
-}
-
-int symtable_type_sync(symtable_t *st, node_t *to, node_t *from)
-{
-	sym_t *s;
-
-	s = symtable_get(st, to);
-	if (!s) {
-		_e("unknown symbol '%s'", to->string);
-		return -EINVAL;
-	}
-
-	
 	return 0;
 }
 

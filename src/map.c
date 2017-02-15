@@ -74,7 +74,7 @@ static void dump_stack(FILE *fp, node_t *stack, void *data)
 		return;
 	}
 
-	if (bpf_map_lookup(s->dyn.map.fd, &stack_id, ips)) {
+	if (bpf_map_lookup(s->map->fd, &stack_id, ips)) {
 		_eno("failed to lookup stack-id:%#" PRIx32, stack_id);
 		fprintf(fp, "<ERR stack-id:%#" PRIx32 ">", stack_id);
 		return;
@@ -232,25 +232,33 @@ static void __key_workaround(int fd, void *key, size_t key_sz, void *val)
 void dump_map(node_t *map)
 {
 	node_t *rec = map->map.rec;
-	size_t entry_size = rec->dyn->size + map->dyn->size;
-	char *data = malloc(entry_size*G.map_nelem);
-	char *key = data, *val = data + rec->dyn->size;
+	sym_t *s = sym_from_node(map);
+	char *data, *key, *val;
+	size_t rsize;
 	int err, n = 0;
 
-	__key_workaround(map->dyn->map.fd, key, rec->dyn->size, val);
+	rsize = s->map->ksize + s->map->vsize;
 
-	for (err = bpf_map_next(map->dyn->map.fd, key, key); !err;
-	     err = bpf_map_next(map->dyn->map.fd, key - entry_size, key)) {
-		err = bpf_map_lookup(map->dyn->map.fd, key, val);
+	data = malloc(rsize * s->map->nelem);
+	assert(data);
+
+	key = data;
+	val = data + s->map->ksize;
+
+	__key_workaround(s->map->fd, key, rec->dyn->size, val);
+
+	for (err = bpf_map_next(s->map->fd, key, key); !err;
+	     err = bpf_map_next(s->map->fd, key - rsize, key)) {
+		err = bpf_map_lookup(s->map->fd, key, val);
 		if (err)
 			goto out_free;
 
 		n++;
-		key += entry_size;
-		val += entry_size;
+		key += rsize;
+		val += rsize;
 	}
 
-	qsort_r(data, n, entry_size, cmp_map, map);
+	qsort_r(data, n, rsize, cmp_map, map);
 
 	printf("\n%s:\n", map->string);
 
@@ -265,8 +273,8 @@ void dump_map(node_t *map)
 		dump_node(stdout, map, val);
 		fputs("\n", stdout);
 
-		key += entry_size;
-		val += entry_size;
+		key += rsize;
+		val += rsize;
 	}
 out_free:
 	free(data);
@@ -278,25 +286,22 @@ int map_setup(node_t *script)
 	sym_t *s;
 
 	sym_foreach(s, script->dyn->script.st->syms) {
-		if (s->type != TYPE_MAP)
+		if (s->type != TYPE_MAP || s->map->fd >= 0)
 			continue;
 
 		if (G.dump) {
-			s->dyn.map.fd = dumpfd++;
+			s->map->fd = dumpfd++;
 			continue;
 		}
 
 		_d("%s: type:%d ksize:%#zx vsize:%#zx nelem:%#zx", s->name,
-		   s->dyn.map.type, s->dyn.map.ksize, s->dyn.map.vsize,
-		   s->dyn.map.nelem);
+		   s->map->type, s->map->ksize, s->map->vsize, s->map->nelem);
 
-		s->dyn.map.fd = bpf_map_create(s->dyn.map.type,
-					       s->dyn.map.ksize,
-					       s->dyn.map.vsize,
-					       s->dyn.map.nelem);
-		if (s->dyn.map.fd <= 0) {
+		s->map->fd = bpf_map_create(s->map->type, s->map->ksize,
+					    s->map->vsize, s->map->nelem);
+		if (s->map->fd <= 0) {
 			_eno("%s", s->name);
-			return s->dyn.map.fd;
+			return s->map->fd;
 		}
 	}
 
@@ -311,13 +316,14 @@ int map_teardown(node_t *script)
 		return 0;
 
 	sym_foreach(s, script->dyn->script.st->syms) {
-		if (s->type != TYPE_MAP)
+		if (s->type != TYPE_MAP || s->map->fd == -1)
 			continue;
 
 		if (s->name[0] == '@')
-			dump_map(s->map.map);
+			dump_map(s->map->map);
 
-		close(s->dyn.map.fd);
+		close(s->map->fd);
+		s->map->fd = -1;
 	}
 
 	return 0;
