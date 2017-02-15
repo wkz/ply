@@ -585,14 +585,14 @@ int emit_binop(prog_t *prog, node_t *binop)
 	if (binop->binop.op & OP_JMP) {
 		int op = binop->binop.op & ~OP_JMP;
 
-		emit(prog, MOV_IMM(dst->reg, 1));
-
 		if (imm)
-			emit(prog, JMP_IMM(op, dst->reg, r->integer, 1));
+			emit(prog, JMP_IMM(op, dst->reg, r->integer, 2));
 		else
-			emit(prog, JMP(op, dst->reg, operand->reg, 1));
+			emit(prog, JMP(op, dst->reg, operand->reg, 2));
 
 		emit(prog, MOV_IMM(dst->reg, 0));
+		emit(prog, JMP_IMM(BPF_JA, 0, 0, 1));
+		emit(prog, MOV_IMM(dst->reg, 1));
 	} else {
 		if (imm)
 			emit(prog, ALU_IMM(binop->binop.op, dst->reg, r->integer));
