@@ -104,6 +104,30 @@ static int common_cpu_compile(node_t *call, prog_t *prog)
 COMMON_SIMPLE_FUNC(cpu);
 
 
+static int common_comm_compile(node_t *call, prog_t *prog)
+{
+	emit_stack_zero(prog, call);
+
+	emit(prog, MOV(BPF_REG_1, BPF_REG_10));
+	emit(prog, ALU_IMM(BPF_ADD, BPF_REG_1, call->dyn->addr));
+	emit(prog, MOV_IMM(BPF_REG_2, call->dyn->size));
+	emit(prog, CALL(BPF_FUNC_get_current_comm));
+	return 0;
+}
+
+static int common_comm_annotate(node_t *call)
+{
+	if (call->call.vargs)
+		return -EINVAL;
+
+	call->dyn->type = TYPE_STR;
+	call->dyn->size = 16;
+	return 0;
+}
+MODULE_FUNC(common, comm);
+MODULE_FUNC_ALIAS(common, execname, comm);
+
+
 static int common_log2_compile(node_t *call, prog_t *prog)
 {
 	node_t *num = call->call.vargs;
@@ -401,6 +425,8 @@ static const func_t *common_funcs[] = {
 	&common_secs_func,
 	&common_cpu_func,
 
+	&common_comm_func,
+	&common_execname_func,
 	&common_log2_func,
 	&common_mem_func,
 	&common_sizeof_func,

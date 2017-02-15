@@ -13,30 +13,6 @@
 #include <ply/ply.h>
 #include <ply/symtable.h>
 
-static int probe_comm_compile(node_t *call, prog_t *prog)
-{
-	emit_stack_zero(prog, call);
-
-	emit(prog, MOV(BPF_REG_1, BPF_REG_10));
-	emit(prog, ALU_IMM(BPF_ADD, BPF_REG_1, call->dyn->addr));
-	emit(prog, MOV_IMM(BPF_REG_2, call->dyn->size));
-	emit(prog, CALL(BPF_FUNC_get_current_comm));
-	return 0;
-}
-
-static int probe_comm_annotate(node_t *call)
-{
-	if (call->call.vargs)
-		return -EINVAL;
-
-	call->dyn->type = TYPE_STR;
-	call->dyn->size = 16;
-	return 0;
-}
-MODULE_FUNC(probe, comm);
-MODULE_FUNC_ALIAS(probe, execname, comm);
-
-
 static int probe_reg_compile(node_t *call, prog_t *prog)
 {
 	node_t *arg = call->call.vargs;
@@ -245,10 +221,9 @@ MODULE_FUNC_LOC(kretprobe, retval);
 
 
 static const func_t *kprobe_funcs[] = {
-	&probe_comm_func,
-	&probe_execname_func,
 	&probe_reg_func,
 	&probe_func_func,
+	&probe_probefunc_func,
 #ifdef LINUX_HAS_STACKMAP
 	&probe_stack_func,
 #endif
@@ -269,11 +244,7 @@ module_t kprobe_module = {
 };
 
 static const func_t *kretprobe_funcs[] = {
-	&probe_comm_func,
-	&probe_execname_func,
 	&probe_reg_func,
-	&probe_func_func,
-	&probe_probefunc_func,
 #ifdef LINUX_HAS_STACKMAP
 	&probe_stack_func,
 #endif
