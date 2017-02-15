@@ -1,3 +1,4 @@
+#include <ply/bpf-syscall.h>
 #include <ply/ply.h>
 #include <ply/symtable.h>
 
@@ -10,6 +11,9 @@ int sym_fdump(sym_t *s, FILE *fp)
 	if (s->type != TYPE_MAP && s->type != TYPE_VAR) {
 		_d("corrupt sym (%s)", type_str(s->type));
 		return -EINVAL;
+	} else if (s->type == TYPE_MAP && !strcmp(s->name, "stack")) {
+		fprintf(fp, "%s\n", s->name);
+		return 0;
 	}
 
 	fprintf(fp, "%s(%s)%n", s->name, s->probe->string, &w);
@@ -97,48 +101,53 @@ int symtable_fdump(symtable_t *st, FILE *fp)
 	return 0;
 }
 
-/* #ifdef LINUX_HAS_STACKMAP */
-/* sym_t *symtable_get_stack(symtable_t *st) */
-/* { */
-/* 	sym_t *s; */
+#ifdef LINUX_HAS_STACKMAP
+sym_t *symtable_get_stack(symtable_t *st)
+{
+	sym_t *s;
 
-/* 	sym_foreach(s, st->syms) { */
-/* 		if (s->type == TYPE_MAP && !strcmp(s->name, "stack")) */
-/* 			return s; */
-/* 	} */
+	sym_foreach(s, st->syms) {
+		if (s->type == TYPE_MAP && !strcmp(s->name, "stack"))
+			return s;
+	}
 
-/* 	return NULL; */
-/* } */
+	return NULL;
+}
 
-/* int symtable_ref_stack(symtable_t *st) */
-/* { */
-/* 	sym_t *s; */
+int symtable_ref_stack(symtable_t *st)
+{
+	sym_t *s;
 
-/* 	s = symtable_get_stack(st); */
-/* 	if (s) */
-/* 		return 0; */
+	s = symtable_get_stack(st);
+	if (s)
+		return 0;
 
-/* 	s = calloc(1, sizeof(*s)); */
-/* 	assert(s); */
+	s = calloc(1, sizeof(*s));
+	assert(s);
 
-/* 	s->type = TYPE_MAP; */
-/* 	s->name = strdup("stack"); /\* user maps start with @ => no conflict *\/ */
-/* 	s->dyn.map.type  = BPF_MAP_TYPE_STACK_TRACE; */
-/* 	s->dyn.map.ksize = sizeof(uint32_t); */
-/* 	s->dyn.map.vsize = sizeof(uint64_t) * 0x10; /\* save 16 frames *\/ */
-/* 	s->dyn.map.nelem = G.map_nelem; */
+	s->type = TYPE_MAP;
+	s->name = strdup("stack"); /* user maps start with @ => no conflict */
 
-/* 	if (st->syms) */
-/* 		insque_tail(s, st->syms); */
-/* 	else */
-/* 		st->syms = s; */
+	s->map = calloc(1, sizeof(*s->map));
+	assert(s->map);
 
-/* 	return 0; */
-/* } */
-/* #else */
+	s->map->type  = BPF_MAP_TYPE_STACK_TRACE;
+	s->map->ksize = sizeof(uint32_t);
+	s->map->vsize = sizeof(uint64_t) * 0x10; /* save 16 frames */
+	s->map->nelem = G.map_nelem;
+	s->map->fd    = -1;
+
+	if (st->syms)
+		insque_tail(s, st->syms);
+	else
+		st->syms = s;
+
+	return 0;
+}
+#else
 sym_t *symtable_get_stack(symtable_t *st) { return NULL; }
-int    symtable_ref_stack(symtable_t *st) { return -ENOSYS; }
-/* #endif	/\* LINUX_HAS_STACKMAP *\/ */
+int    symtable_ref_stack(symtable_t *st) { _d(""); return -ENOSYS; }
+#endif	/* LINUX_HAS_STACKMAP */
 
 static sym_t *symtable_get(symtable_t *st, node_t *n)
 {
