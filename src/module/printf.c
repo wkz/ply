@@ -27,52 +27,44 @@
 #include <ply/bpf-syscall.h>
 #include <ply/compile.h>
 #include <ply/evpipe.h>
+#include <ply/map.h>
 #include <ply/module.h>
 #include <ply/ply.h>
 
-static void printf_spec(const char *spec, const char *term, void *data)
+static void printf_spec(const char *spec, const char *term, void *data,
+			node_t *arg)
 {
 	int64_t *num = data;
-	char strfmt[16];
 	size_t fmt_len;
+	char *fmt;
+
+	fmt_len = term - spec + 1;
+	fmt = strndup(spec, fmt_len);
+
 	/* TODO: flags/length/precision is only handled on strings for
 	 * now */
+#pragma GCC diagnostic ignored "-Wformat-security"
 	switch (*term) {
 	case 's':
-		fmt_len = term - spec + 1;
-		if (fmt_len >= sizeof(strfmt)) {
-			printf("%s", (char *)data);
-			break;
-		}
-		strncpy(strfmt, spec, fmt_len);
-		strfmt[fmt_len] = '\0';
-#pragma GCC diagnostic ignored "-Wformat-security"
-		printf(strfmt, (char *)data);
-#pragma GCC diagnostic pop
+		printf(fmt, (char *)data);
+		break;
+	case 'v':
+		dump_node(stdout, arg, data);
 		break;
 	case 'c':
-		printf("%c", (char)*num);
-		break;
 	case 'i':
 	case 'd':
-		printf("%" PRId64, *num);
-		break;
 	case 'o':
-		printf("%" PRIo64, *num);
-		break;
 	case 'p':
-		printf("<%" PRIx64 ">", *num);
-		break;
 	case 'u':
-		printf("%" PRIu64, *num);
-		break;
 	case 'x':
-		printf("%" PRIx64, *num);
-		break;
 	case 'X':
-		printf("%" PRIX64, *num);
+		printf(fmt, *num);
 		break;
 	}
+#pragma GCC diagnostic pop
+
+	free(fmt);
 }
 
 static int printf_event(event_t *ev, void *_call)
@@ -85,11 +77,11 @@ static int printf_event(event_t *ev, void *_call)
 	for (fmt = call->call.vargs->string; *fmt; fmt++) {
 		if (*fmt == '%' && arg) {
 			spec = fmt;
-			fmt = strpbrk(spec, "cdiopsuxX");
+			fmt = strpbrk(spec, "cdiopsuvxX");
 			if (!fmt)
 				break;
 
-			printf_spec(spec, fmt, data);
+			printf_spec(spec, fmt, data, arg);
 			data += arg->dyn->size;
 			arg = arg->next;
 		} else {

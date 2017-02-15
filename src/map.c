@@ -32,8 +32,6 @@
 
 #define PTR_W ((int)(sizeof(uintptr_t) * 2))
 
-static void dump_node(FILE *fp, node_t *n, void *data);
-
 void dump_sym(FILE *fp, node_t *integer, void *data)
 {
 	uintptr_t pc = *((uint64_t *)data);
@@ -131,7 +129,7 @@ void dump_rec(FILE *fp, node_t *rec, void *data, int len)
 		fputs(" ]", fp);
 }
 
-static void dump_node(FILE *fp, node_t *n, void *data)
+void dump_node(FILE *fp, node_t *n, void *data)
 {
 	if (n->dump) {
 		n->dump(fp, n, data);
