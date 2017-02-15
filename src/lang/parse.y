@@ -63,8 +63,8 @@ typedef struct node node_t;
 %token <string> PSPEC IDENT MAP STRING
 %token <integer> INT
 
-%type <node> script probes probe stmts stmt assign block expr
-%type <node> iff unroll binop var map record call mcall vargs
+%type <node> script probes probe oblock block stmts stmt assign
+%type <node> expr iff unroll binop var map record call mcall vargs
 %type <node> stmtb iffb unrollb
 
 /* C operator precedence */
@@ -95,8 +95,12 @@ probes: probe
       | probe probes { $$ = insque_head($1, $2); }
 ;
 
-probe: PSPEC block              { $$ = node_probe_new($1, NULL, $2); }
-     | PSPEC '/' expr '/' block { $$ = node_probe_new($1,   $3, $5); }
+probe: PSPEC oblock              { $$ = node_probe_new($1, NULL, $2); }
+     | PSPEC '/' expr '/' oblock { $$ = node_probe_new($1,   $3, $5); }
+;
+
+oblock: %empty { $$ = NULL; }
+      | block
 ;
 
 block: '{' stmts '}' { $$ = $2; }

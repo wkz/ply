@@ -289,6 +289,31 @@ const module_t *kprobe_modules[] = {
 	NULL
 };
 
+int kprobe_default(node_t *probe, node_t **stmts)
+{
+	node_t *c, *vargs;
+	char *fmt;
+
+	asprintf(&fmt, "%s:  pid:%%-5d  comm:%%v  func:%%v\n", probe->string);
+	vargs = node_str_new(fmt);
+
+	c = node_call_new(strdup("common"), strdup("pid"), NULL);
+	insque_tail(c, vargs);
+
+	c = node_call_new(strdup("common"), strdup("comm"), NULL);
+	insque_tail(c, vargs);
+
+	c = node_call_new(strdup("kprobe"), strdup("func"), NULL);
+	insque_tail(c, vargs);
+
+	*stmts = node_call_new(strdup("common"), strdup("printf"), vargs);
+
+	node_foreach(c, *stmts)
+		c->parent = probe;
+
+	return 0;
+}
+
 static int kprobe_resolve(node_t *call, const func_t **f)
 {
 	return modules_get_func(kprobe_modules, call, f);
@@ -302,6 +327,7 @@ static int kprobe_setup(node_t *probe, prog_t *prog)
 pvdr_t kprobe_pvdr = {
 	.name = "kprobe",
 
+	.dflt    = kprobe_default,
 	.resolve = kprobe_resolve,
 
 	.setup      = kprobe_setup,
@@ -318,6 +344,31 @@ const module_t *kretprobe_modules[] = {
 	NULL
 };
 
+int kretprobe_default(node_t *probe, node_t **stmts)
+{
+	node_t *c, *vargs;
+	char *fmt;
+
+	asprintf(&fmt, "%s:  pid:%%-5d  comm:%%v  retval:%%d\n", probe->string);
+	vargs = node_str_new(fmt);
+
+	c = node_call_new(strdup("common"), strdup("pid"), NULL);
+	insque_tail(c, vargs);
+
+	c = node_call_new(strdup("common"), strdup("comm"), NULL);
+	insque_tail(c, vargs);
+
+	c = node_call_new(strdup("kretprobe"), strdup("retval"), NULL);
+	insque_tail(c, vargs);
+
+	*stmts = node_call_new(strdup("common"), strdup("printf"), vargs);
+
+	node_foreach(c, *stmts)
+		c->parent = probe;
+
+	return 0;
+}
+
 static int kretprobe_resolve(node_t *call, const func_t **f)
 {
 	return modules_get_func(kretprobe_modules, call, f);
@@ -331,6 +382,7 @@ static int kretprobe_setup(node_t *probe, prog_t *prog)
 pvdr_t kretprobe_pvdr = {
 	.name = "kretprobe",
 
+	.dflt    = kretprobe_default,
 	.resolve = kretprobe_resolve,
 
 	.setup      = kretprobe_setup,

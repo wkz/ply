@@ -74,6 +74,18 @@ int pvdr_resolve(node_t *script)
 			return -ENOENT;
 		}
 
+		if (!probe->probe.stmts) {
+			if (!pvdr->dflt) {
+				_e("no default probe available for '%s'\n",
+				   probe->string);
+				return -EINVAL;
+			}
+
+			err = pvdr->dflt(probe, &probe->probe.stmts);
+			if (err)
+				return err;
+		}
+
 		probe->dyn->probe.pvdr = pvdr;
 		err = node_walk(probe, pvdr_resolve_call, NULL, probe);
 		if (err)

@@ -31,6 +31,7 @@ typedef struct pvdr {
 
 	const char *name;
 
+	int    (*dflt)(node_t *probe, node_t **stmts);
 	int (*resolve)(node_t *call, const func_t **f);
 
   	int    (*setup)(node_t *probe, prog_t *prog);
