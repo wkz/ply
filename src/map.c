@@ -48,7 +48,12 @@ void dump_sym(FILE *fp, node_t *integer, void *data)
 
 static void dump_int(FILE *fp, node_t *integer, void *data)
 {
-	fprintf(fp, "%8" PRId64, *((int64_t *)data));
+	int64_t num;
+
+	/* copy, don't cast. we could be on a platform that does not
+	 * handle unaligned accesses */
+	memcpy(&num, data, sizeof(num));
+	fprintf(fp, "%8" PRId64, num);
 }
 
 static void dump_str(FILE *fp, node_t *str, void *data)
@@ -92,11 +97,11 @@ static void dump_stack(FILE *fp, node_t *stack, void *data)
 			if (!ips[i])
 				continue;
 
-			fprintf(fp, "+%#x", (unsigned int)ips[i]);
+			fprintf(fp, "+%#"PRIxPTR, (uintptr_t)ips[i]);
 			continue;
 		}
 
-		fprintf(fp, "\n\t<%*.*" PRIxPTR ">", PTR_W, PTR_W, ips[i]);
+		fprintf(fp, "\n\t<%*.*" PRIxPTR ">", PTR_W, PTR_W, (uintptr_t)ips[i]);
 	}
 }
 

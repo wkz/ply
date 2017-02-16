@@ -31,19 +31,50 @@
 #include <ply/module.h>
 #include <ply/ply.h>
 
+static void printf_num(const char *fmt, const char *term, int64_t num)
+{
+	switch (*(term - 1)) {
+	case 'h':
+		if (*(term - 2) == 'h')
+			printf(fmt, (char)num);
+		else
+			printf(fmt, (short)num);
+		break;
+	case 'j':
+		printf(fmt, (intmax_t)num);
+		break;
+	case 'l':
+		if (*(term - 2) == 'l')
+			printf(fmt, (long long int)num);
+		else
+			printf(fmt, (long int)num);
+		break;
+	case 't':
+		printf(fmt, (ptrdiff_t)num);
+		break;
+	case 'z':
+		printf(fmt, (size_t)num);
+		break;
+	default:
+		printf(fmt, (int)num);
+		break;
+	}
+}
+
 static void printf_spec(const char *spec, const char *term, void *data,
 			node_t *arg)
 {
-	int64_t *num = data;
+	int64_t num;
 	size_t fmt_len;
 	char *fmt;
+
+	/* copy, don't cast. we could be on a platform that does not
+	 * handle unaligned accesses */
+	memcpy(&num, data, sizeof(num));
 
 	fmt_len = term - spec + 1;
 	fmt = strndup(spec, fmt_len);
 
-	/* TODO: flags/length/precision is only handled on strings for
-	 * now */
-#pragma GCC diagnostic ignored "-Wformat-security"
 	switch (*term) {
 	case 's':
 		printf(fmt, (char *)data);
@@ -52,17 +83,20 @@ static void printf_spec(const char *spec, const char *term, void *data,
 		dump_node(stdout, arg, data);
 		break;
 	case 'c':
+		printf(fmt, (char)num);
+		break;
+	case 'p':
+		printf(fmt, (uintptr_t)num);
+		break;
 	case 'i':
 	case 'd':
 	case 'o':
-	case 'p':
 	case 'u':
 	case 'x':
 	case 'X':
-		printf(fmt, *num);
+		printf_num(fmt, term, num);
 		break;
 	}
-#pragma GCC diagnostic pop
 
 	free(fmt);
 }
