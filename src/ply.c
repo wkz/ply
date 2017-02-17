@@ -181,8 +181,10 @@ static void memlock_uncap(void)
 	_d("unlimited memlock");
 }
 
-static void sigint(int sigint)
+static int term_sig = 0;
+static void term(int sig)
 {
+	term_sig = sig;
 	return;
 }
 
@@ -260,12 +262,12 @@ int main(int argc, char **argv)
 
 	if (G.timeout) {
 		siginterrupt(SIGALRM, 1);
-		signal(SIGALRM, sigint);
+		signal(SIGALRM, term);
 		alarm(G.timeout);
 	}
 
 	siginterrupt(SIGINT, 1);
-	signal(SIGINT, sigint);
+	signal(SIGINT, term);
 	
 	enable = fopen("/sys/kernel/debug/tracing/events/enable", "w");
 	if (!enable) {
@@ -279,7 +281,7 @@ int main(int argc, char **argv)
 	rewind(enable);
 
 	fprintf(stderr, "%d probe%s active\n", total, (total == 1) ? "" : "s");
-	err = evpipe_loop(evp, 0);
+	err = evpipe_loop(evp, &term_sig, 0);
 	fprintf(stderr, "de-activating probes\n");
 
 	fputs("0\n", enable);

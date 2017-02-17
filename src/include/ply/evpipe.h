@@ -36,7 +36,7 @@ typedef struct evpipe {
 
 void evhandler_register(evhandler_t *evh);
 
-int evpipe_loop(evpipe_t *evp, int strict);
+int evpipe_loop(evpipe_t *evp, int *sig, int strict);
 int evpipe_init(evpipe_t *evp, size_t qsize);
 
 #endif	/* _PLY_EVPIPE_H */

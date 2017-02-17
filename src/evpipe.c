@@ -87,7 +87,7 @@ int evqueue_drain(struct evqueue *q, int strict)
 	base = (uint8_t *)q->mem + offs;
 
 	for (head = __get_head(q->mem); q->mem->data_tail != head;
-	     head = __get_head(q->mem)) {
+	     __set_tail(q->mem, q->mem->data_tail + ev->hdr.size)) {
 		tail = q->mem->data_tail;
 
 		this = base + (tail % size);
@@ -127,8 +127,6 @@ int evqueue_drain(struct evqueue *q, int strict)
 
 		if (err)
 			break;
-
-		__set_tail(q->mem, q->mem->data_tail + ev->hdr.size);
 	}
 
 	return err;
@@ -169,14 +167,14 @@ int evqueue_init(evpipe_t *evp, uint32_t cpu, size_t size)
 	return 0;
 }
 
-int evpipe_loop(evpipe_t *evp, int strict)
+int evpipe_loop(evpipe_t *evp, int *sig, int strict)
 {
 	int cpu, err, ready;
-	
-	for (;;) {
+
+	for (;!(*sig);) {
 		ready = poll(evp->poll, evp->ncpus, -1);
 		if (ready <= 0)
-			return ready ? : -EAGAIN;
+			return ready ? : 0;
 
 		for (cpu = 0; ready && (cpu < evp->ncpus); cpu++) {
 			if (!(evp->poll[cpu].revents & POLLIN))
@@ -189,6 +187,8 @@ int evpipe_loop(evpipe_t *evp, int strict)
 			ready--;
 		}
 	}
+
+	return 0;
 }
 
 int evpipe_init(evpipe_t *evp, size_t qsize)
