@@ -43,4 +43,4 @@ distclean-local:
 endif
 
 clean-local:
-	rm lang/lex.[ch] lang/parse.[ch]
+	rm -f lang/lex.[ch] lang/parse.[ch]
