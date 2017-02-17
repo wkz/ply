@@ -342,6 +342,41 @@ static int emit_xfer_reg(prog_t *prog, const dyn_t *to, int from)
 	return -EINVAL;
 }
 
+static int __emit_xfer_stack(prog_t *prog, ssize_t to, ssize_t from,
+			     size_t size)
+{
+	while (size >= 8) {
+		emit(prog, LDXDW(BPF_REG_0,  from, BPF_REG_10));
+		emit(prog, STXDW(BPF_REG_10, to,   BPF_REG_0));
+		to += 8;
+		from += 8;
+		size -= 8;
+	}
+
+	if (size >= 4) {
+		emit(prog, LDXW(BPF_REG_0,  from, BPF_REG_10));
+		emit(prog, STXW(BPF_REG_10, to,   BPF_REG_0));
+		to += 4;
+		from += 4;
+		size -= 4;
+	}
+
+	if (size >= 2) {
+		emit(prog, LDXH(BPF_REG_0,  from, BPF_REG_10));
+		emit(prog, STXH(BPF_REG_10, to,   BPF_REG_0));
+		to += 2;
+		from += 2;
+		size -= 2;
+	}
+
+	if (size) {
+		emit(prog, LDXB(BPF_REG_0,  from, BPF_REG_10));
+		emit(prog, STXB(BPF_REG_10, to,   BPF_REG_0));
+	}
+
+	return 0;
+}
+
 static int emit_xfer_stack(prog_t *prog, const dyn_t *to, ssize_t from)
 {
 	switch (to->loc) {
@@ -358,8 +393,7 @@ static int emit_xfer_stack(prog_t *prog, const dyn_t *to, ssize_t from)
 		if (to->addr == from)
 			return 0;
 
-		_e("stack<->stack transfer not implemented");
-		return -ENOSYS;
+		return __emit_xfer_stack(prog, to->addr, from, to->size);
 	}
 
 	return -EINVAL;

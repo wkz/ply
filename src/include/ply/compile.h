@@ -46,9 +46,14 @@
 #define ALU_IMM(_op, _dst, _imm) INSN(BPF_ALU64 | BPF_OP((_op)) | BPF_K, _dst, 0, 0, _imm)
 
 #define STW_IMM(_dst, _off, _imm) INSN(BPF_ST  | BPF_SIZE(BPF_W)  | BPF_MEM, _dst, 0, _off, _imm)
+#define STXB(_dst, _off, _src)   INSN(BPF_STX | BPF_SIZE(BPF_B) | BPF_MEM, _dst, _src, _off, 0)
+#define STXH(_dst, _off, _src)   INSN(BPF_STX | BPF_SIZE(BPF_H) | BPF_MEM, _dst, _src, _off, 0)
+#define STXW(_dst, _off, _src)   INSN(BPF_STX | BPF_SIZE(BPF_W) | BPF_MEM, _dst, _src, _off, 0)
 #define STXDW(_dst, _off, _src)   INSN(BPF_STX | BPF_SIZE(BPF_DW) | BPF_MEM, _dst, _src, _off, 0)
 
 #define LDXB(_dst, _off, _src)  INSN(BPF_LDX | BPF_SIZE(BPF_B)  | BPF_MEM, _dst, _src, _off, 0)
+#define LDXH(_dst, _off, _src)  INSN(BPF_LDX | BPF_SIZE(BPF_H)  | BPF_MEM, _dst, _src, _off, 0)
+#define LDXW(_dst, _off, _src)  INSN(BPF_LDX | BPF_SIZE(BPF_W)  | BPF_MEM, _dst, _src, _off, 0)
 #define LDXDW(_dst, _off, _src) INSN(BPF_LDX | BPF_SIZE(BPF_DW) | BPF_MEM, _dst, _src, _off, 0)
 
 typedef struct prog {
