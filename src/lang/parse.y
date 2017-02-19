@@ -181,6 +181,7 @@ var: IDENT { $$ = node_var_new($1); }
 ;
 
 map: MAP record { $$ = node_map_new($1, $2); }
+   | MAP        { $$ = node_map_new($1, NULL); }
 ;
 
 record: '[' vargs ']' { $$ = node_rec_new($2); }

@@ -345,6 +345,9 @@ node_t *node_map_new(char *name, node_t *rec)
 {
 	node_t *n = node_new(TYPE_MAP);
 
+	if (!rec)
+		rec = node_rec_new(node_str_new(strdup("")));
+
 	n->string  = name;
 	n->map.rec = rec;
 
