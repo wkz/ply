@@ -282,11 +282,13 @@ int main(int argc, char **argv)
 
 	fprintf(stderr, "%d probe%s active\n", total, (total == 1) ? "" : "s");
 	err = evpipe_loop(evp, &term_sig, 0);
-	fprintf(stderr, "de-activating probes\n");
 
+	fprintf(stderr, "de-activating probes\n");
 	fputs("0\n", enable);
 	fflush(enable);
 	fclose(enable);
+
+	map_teardown(script);
 
 	node_foreach(probe, script->script.probes) {
 		pvdr = node_get_pvdr(probe);
@@ -295,9 +297,8 @@ int main(int argc, char **argv)
 			break;
 	}
 
+	/* disable all kprobe events */
 	fclose(fopen("/sys/kernel/debug/tracing/kprobe_events", "w"));
-
-	map_teardown(script);
 done:
 err:
 	if (prog)
