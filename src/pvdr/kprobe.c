@@ -72,7 +72,7 @@ static int probe_event_id(kprobe_t *kp, const char *path)
 static int probe_attach(kprobe_t *kp, int id)
 {
 	struct perf_event_attr attr = {};
-	int efd, i;
+	int efd, gfd;
 
 	attr.type = PERF_TYPE_TRACEPOINT;
 	attr.sample_type = PERF_SAMPLE_RAW;
@@ -80,32 +80,32 @@ static int probe_attach(kprobe_t *kp, int id)
 	attr.wakeup_events = 1;
 	attr.config = id;
 
-	for (i = 0; i < /* sysconf(_SC_NPROCESSORS_ONLN) */ 1; i++) {
-		efd = perf_event_open(&attr, -1/*pid*/, i/*cpu*/, -1/*group_fd*/, 0);
-		if (efd < 0) {
-			return -errno;
-		}
-
-		if (ioctl(efd, PERF_EVENT_IOC_ENABLE, 0)) {
-			close(efd);
-			return -errno;
-		}
-
-		if (!i && ioctl(efd, PERF_EVENT_IOC_SET_BPF, kp->bfd)) {
-			close(efd);
-			return -errno;
-		}
-
-		if (kp->efds.len == kp->efds.cap) {
-			size_t sz = kp->efds.cap * sizeof(*kp->efds.fds);
-
-			kp->efds.fds = realloc(kp->efds.fds, sz << 1);
-			assert(kp->efds.fds);
-			kp->efds.cap <<= 1;
-		}
-
-		kp->efds.fds[kp->efds.len++] = efd;
+	gfd = kp->efds.len ? kp->efds.fds[0] : -1;
+	efd = perf_event_open(&attr, -1, 0, gfd, 0);
+	if (efd < 0) {
+		return -errno;
 	}
+
+	if (ioctl(efd, PERF_EVENT_IOC_ENABLE, 0)) {
+		close(efd);
+		return -errno;
+	}
+
+	if (ioctl(efd, PERF_EVENT_IOC_SET_BPF, kp->bfd)) {
+		close(efd);
+		return -errno;
+	}
+
+	if (kp->efds.len == kp->efds.cap) {
+		size_t sz = kp->efds.cap * sizeof(*kp->efds.fds);
+
+		kp->efds.fds = realloc(kp->efds.fds, sz << 1);
+		assert(kp->efds.fds);
+		kp->efds.cap <<= 1;
+	}
+
+	kp->efds.fds[kp->efds.len++] = efd;
+
 	return 1;
 }
 
