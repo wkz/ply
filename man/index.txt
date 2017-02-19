@@ -2,3 +2,4 @@ ply(1)     ply.1.ronn
 
 awk(1)     http://man7.org/linux/man-pages/man1/gawk.1.html
 dtrace(1)  https://docs.oracle.com/cd/E23823_01/html/816-5166/dtrace-1m.html
+bpf(2)     http://man7.org/linux/man-pages/man2/bpf.2.html
