@@ -87,17 +87,16 @@ sys_read            	   32168
 ```
 kretprobe:SyS_read
 {
-	@[""].quantize(retval());
+	@.quantize(retval());
 }
 ```
 
 This example shows a very simple script that instruments the return of
 the `read(2)` syscall and records the distribution of the return
-argument. Due to a quirk in the language, a key must be supplied, so
-the empty string is used as a dummy.
+argument.
 
 ```
-wkz@wkz-x260:~$ sudo ply -c 'kretprobe:SyS_read{ @[""].quantize(retval()); }'
+wkz@wkz-x260:~$ sudo ply -c 'kretprobe:SyS_read{ @.quantize(retval()); }'
 1 probe active
 ^Cde-activating probes
 
@@ -123,6 +122,44 @@ wkz@wkz-x260:~$ sudo ply -c 'kretprobe:SyS_read{ @[""].quantize(retval()); }'
 	[ 32k,  64k)	      20 ┤                                │
 ```
 
+### Stack Traces
+
+```
+kprobe:i2c_transfer
+{
+	printf("%v\n", stack())
+}
+```
+
+Sometimes it can be useful to know how a particular location is
+reached. kprobes can get the current stack trace via the `stack()`
+function. In this example, the stack trace is simply printed to
+stdout, but it can also be used as a map key in an
+aggregation. I.e. it is possible to do frequency counting based on how
+a function was reached.
+
+```
+root@chaos:~ $ ply -c 'kprobe:i2c_transfer { printf("%v\n", stack()) }' &
+root@chaos:~ $ 1 probe active
+
+root@chaos:~ $ hwclock -r
+
+	i2c_transfer
+	i2c_smbus_read_i2c_block_data+0x58
+	ds1307_native_smbus_read_block_data+0x88
+	ds1307_get_time+0x38
+	__rtc_read_time+0x54
+	rtc_read_time+0x3c
+	rtc_dev_ioctl+0x318
+	do_vfs_ioctl+0xa0
+	sys_ioctl+0x44
+	__sys_trace_return
+Mon Feb 20 18:33:33 2017  0.000000 seconds
+root@chaos:~ $ fg
+ply -c "kprobe:i2c_transfer { printf(\"%v\n\", stack()) }"
+^Cde-activating probes
+root@chaos:~ $
+```
 
 ### Opensnoop
 

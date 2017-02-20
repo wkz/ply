@@ -354,7 +354,7 @@ Record the distribution of the return value of read(2):
 
     kretprobe:SyS_read
     {
-        @[""].quantize(retval())
+        @.quantize(retval())
     }
 
 
@@ -388,7 +388,7 @@ _netif_receive_ to _ip_rcv_:
 
     kprobe:ip_rcv / @rx[arg(0)] /
     {
-        @[""].quantize(nsecs() - @rx[arg(0)]);
+        @diff.quantize(nsecs() - @rx[arg(0)]);
         @rx[arg(0)] = nil;
     }
 
