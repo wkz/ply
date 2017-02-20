@@ -2,39 +2,36 @@
 
 Some sample one-liners using ply: a Linux dynamic tracer using BPF.
 
-**Syscall read() request size, summarized as a power-of-2 histogram:**
+### Syscall Tracing
+
+**`read()` return size, summarized as a power-of-2 histogram:**
 ```
-ply -c 'kprobe:SyS_read { $bytes.quantize(arg(2)); }'
+ply -c 'kretprobe:SyS_read { @.quantize(retval()) }'
 ```
 
-**Syscall read() request size, as a power-of-2 histogram, for reads > 1024 bytes:**
+**`read()` request size, as a power-of-2 histogram, for reads > 1 kB, grouped by pid:**
 ```
-ply -c 'kprobe:SyS_read /arg(2) > 1024/ { $bytes.quantize(arg(2)); }'
-```
-
-**Syscall read() requests larger than 100 Kbytes, as per-event output with timestamp, process name, and size:**
-```
-ply -c 'kprobe:SyS_read /arg(2) > 102400/ { printf("%d %s requested %d bytes\n", nsecs, execname, arg(2)); }'
+ply -c 'kprobe:SyS_read / (arg(2) > 1024) / { @[pid()].quantize(arg(2)); }'
 ```
 
-**Count syscall read() by CPU ID:**
+**`open()` Print process name, pid and the file that was opened:**
 ```
-ply -c 'kprobe:SyS_read { $reads[cpu].count() }'
+ply -c 'kprobe:SyS_open { printf("%16s(%5d): %s\n", comm(), pid(), mem(arg(0), "128s")) }'
 ```
 
 **Count all system calls by syscall type:**
 ```
-ply -c 'kprobe:SyS_* { $syscalls[func].count() }'
+ply -c 'kprobe:SyS_* { @[func()].count() }'
 ```
 
-**Count all system calls by process name:**
+**Count all system calls by process name and pid:**
 ```
-ply -c 'kprobe:SyS_* { $syscalls[execname].count() }'
-```
-
-**Syscall read() request size, as a power-of-2 histogram, measured for 5 seconds:**
-```
-ply -t 5 -c 'kprobe:SyS_read { $bytes.quantize(arg(2)); }'
+ply -c 'kprobe:SyS_* { @[comm(), pid()].count() }'
 ```
 
-Apart from one-liners, ply can also execute scripts. For more about ply, see: https://github.com/iovisor/ply
+### Stack Traces
+
+**Frequency count all different paths to `schedule`:**
+```
+ply -c 'kprobe:schedule { @[stack()].count() }'
+```

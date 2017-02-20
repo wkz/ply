@@ -168,72 +168,57 @@ root@chaos:~ $
 
 kprobe:SyS_open
 {
-	printf("%s: %s\n", comm(), mem(arg(0), "128s"));
+	printf("%16s(%5d): %s\n", comm(), pid(), mem(arg(0), "128s"));
 }
 ```
 
 Every time a process calls `open` print the calling process's `comm`,
-i.e. executable name, and the filename by extracting a 128-byte string
-from the address of the first argument.
+i.e. executable name, PID and the filename by extracting a 128-byte
+string from the address of the first argument.
 
 ```
 wkz@wkz-x260:~$ sudo ./opensoop.ply
 1 probe active
-ply: /sys/kernel/debug/tracing/events/enable
-BrowserBlocking: /home/wkz/.config/google-chrome/Default/Cookies-journal
-BrowserBlocking: /var/tmp/etilqs_802095c1ff1111c4
-BrowserBlocking: /home/wkz/.config/google-chrome/Default
-irqbalance: /proc/interrupts
-irqbalance: /proc/stat
-irqbalance: /proc/irq/18/smp_affinity
-irqbalance: /proc/irq/122/smp_affinity
-irqbalance: /proc/irq/11/smp_affinity
-irqbalance: /proc/irq/123/smp_affinity
-irqbalance: /proc/irq/16/smp_affinity
-irqbalance: /proc/irq/1/smp_affinity
-irqbalance: /proc/irq/8/smp_affinity
-irqbalance: /proc/irq/9/smp_affinity
-irqbalance: /proc/irq/12/smp_affinity
-irqbalance: /proc/irq/120/smp_affinity
-irqbalance: /proc/irq/121/smp_affinity
-systemd-timesyn: /var/lib/systemd/clock
-chrome: /proc/self/status
-chrome: /proc/self/status
-Chrome_IOThread: /dev/shm/.com.google.Chrome.3Y4k6r
-CompositorTileW: /dev/shm/.com.google.Chrome.RXT4wj
-CompositorTileW: /dev/shm/.com.google.Chrome.n3cWXa
-Chrome_IOThread: /dev/shm/.com.google.Chrome.phCOo2
-Chrome_IOThread: /dev/shm/.com.google.Chrome.D90KPT
-Chrome_IOThread: /dev/shm/.com.google.Chrome.RUgLgL
-Chrome_IOThread: /dev/shm/.com.google.Chrome.3VxUHC
-chrome: /proc/self/status
-chrome: /proc/self/status
-chrome: /proc/self/status
-chrome: /proc/self/status
-chrome: /proc/self/status
-chrome: /proc/self/status
-chrome: /proc/self/status
-chrome: /proc/self/status
-SimpleCacheWork: /home/wkz/.cache/google-chrome/Default/Cache/ad851e438fd4ed16_0
-SimpleCacheWork: /home/wkz/.cache/google-chrome/Default/Cache/ad851e438fd4ed16_1
-SimpleCacheWork: /home/wkz/.cache/google-chrome/Default/Cache/ad851e438fd4ed16_s
-SimpleCacheWork: /home/wkz/.cache/google-chrome/Default/Cache/88c6f731c72489c0_0
-SimpleCacheWork: /home/wkz/.cache/google-chrome/Default/Cache/88c6f731c72489c0_1
-SimpleCacheWork: /home/wkz/.cache/google-chrome/Default/Cache/88c6f731c72489c0_s
-Chrome_FileUser: /proc/19152/task
-Chrome_FileUser: /proc/19152/task/19152/status
-Chrome_FileUser: /proc/19152/task/19153/status
-Chrome_FileUser: /proc/19152/task/19154/status
-Chrome_FileUser: /proc/19152/task
-Chrome_FileUser: /proc/19152/task/19152/status
-Chrome_FileUser: /proc/19152/task/19153/status
-Chrome_FileUser: /proc/19152/task
-Chrome_FileUser: /proc/19152/task/19152/status
-Chrome_FileUser: /proc/19152/task/19153/status
-WRN evqueue_drain       : lost 6 events
-Chrome_IOThread: /dev/shm/.com.google.Chrome.RBxACy
-Chrome_IOThread: /dev/shm/.com.google.Chrome.l8blxu
-Chrome_IOThread: /dev/shm/.com.google.Chrome.HYebsq
+             ply(28836): /sys/kernel/debug/tracing/events/enable
+ SimpleCacheWork( 5818): /home/wkz/.cache/google-chrome/Default/Cache/37586f4b9464a393_0
+      irqbalance( 1083): /proc/interrupts
+      irqbalance( 1083): /proc/stat
+      irqbalance( 1083): /proc/irq/18/smp_affinity
+      irqbalance( 1083): /proc/irq/126/smp_affinity
+      irqbalance( 1083): /proc/irq/128/smp_affinity
+      irqbalance( 1083): /proc/irq/122/smp_affinity
+      irqbalance( 1083): /proc/irq/11/smp_affinity
+      irqbalance( 1083): /proc/irq/124/smp_affinity
+      irqbalance( 1083): /proc/irq/16/smp_affinity
+      irqbalance( 1083): /proc/irq/1/smp_affinity
+      irqbalance( 1083): /proc/irq/8/smp_affinity
+      irqbalance( 1083): /proc/irq/9/smp_affinity
+      irqbalance( 1083): /proc/irq/12/smp_affinity
+      irqbalance( 1083): /proc/irq/120/smp_affinity
+      irqbalance( 1083): /proc/irq/121/smp_affinity
+ Chrome_IOThread( 5361): /dev/shm/.org.chromium.Chromium.59XkZF
+ SimpleCacheWork( 5818): /home/wkz/.cache/google-chrome/Default/Cache/37586f4b9464a393_0
+     Core Thread( 5368): /home/wkz/.config/spotify/Users/wkz-user/pending-messages.tmp
+     Core Thread( 5368): /home/wkz/.config/spotify/Users/wkz-user/pending-messages.tmp
+ SimpleCacheWork( 5818): /home/wkz/.cache/google-chrome/Default/Cache/37586f4b9464a393_0
+ SimpleCacheWork( 5818): /home/wkz/.cache/google-chrome/Default/Cache/37586f4b9464a393_0
+      irqbalance( 1083): /proc/interrupts
+      irqbalance( 1083): /proc/stat
+      irqbalance( 1083): /proc/irq/18/smp_affinity
+      irqbalance( 1083): /proc/irq/126/smp_affinity
+      irqbalance( 1083): /proc/irq/128/smp_affinity
+      irqbalance( 1083): /proc/irq/122/smp_affinity
+      irqbalance( 1083): /proc/irq/11/smp_affinity
+      irqbalance( 1083): /proc/irq/124/smp_affinity
+      irqbalance( 1083): /proc/irq/16/smp_affinity
+      irqbalance( 1083): /proc/irq/1/smp_affinity
+      irqbalance( 1083): /proc/irq/8/smp_affinity
+      irqbalance( 1083): /proc/irq/9/smp_affinity
+      irqbalance( 1083): /proc/irq/12/smp_affinity
+      irqbalance( 1083): /proc/irq/120/smp_affinity
+      irqbalance( 1083): /proc/irq/121/smp_affinity
+ SimpleCacheWork( 5818): /home/wkz/.cache/google-chrome/Default/Cache/37586f4b9464a393_0
+ SimpleCacheWork( 5740): /home/wkz/.cache/google-chrome/Default/Cache/37586f4b9464a393_0
 ^Cde-activating probes
 ```
 
