@@ -213,11 +213,27 @@ pvdr_t trace_pvdr = {
 static int kprobe_event_id(kprobe_t *kp, const char *func)
 {
 	char ev_name[0x100];
+	const char *offstr;
+	ptrdiff_t funclen;
+	long offs = 0;
 
-	fprintf(kp->ctrl, "%s %s\n", kp->type, func);
+	offstr = strchrnul(func, '+');
+	if (*offstr) {
+		offs = strtol(offstr, NULL, 0);
+		if (offs < 0) {
+			_e("unknown offset in probe '%s'", func);
+			return -EINVAL;
+		}
+	}
+
+	funclen = offstr - func;
+
+	fprintf(kp->ctrl, "%s %*.*s+%ld\n", kp->type, funclen, funclen, func, offs);
 	fflush(kp->ctrl);
 
-	snprintf(ev_name, sizeof(ev_name), "kprobes/%s_%s_0", kp->type, func);
+	snprintf(ev_name, sizeof(ev_name), "kprobes/%s_%*.*s_%ld", kp->type,
+		 funclen, funclen, func, offs);
+
 	return probe_event_id(kp, ev_name);
 }
 

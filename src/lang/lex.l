@@ -48,7 +48,7 @@ uazd		[_a-zA-Z0-9]
 
 ident		{uaz}{uazd}*
 map		@{ident}*
-pspec		{ident}:[*?:_.,/a-zA-Z0-9]*
+pspec		{ident}:[*?+@!:_.,/a-zA-Z0-9]*
 
 %%
 "/*"			comment(yyscanner);
