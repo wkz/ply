@@ -39,7 +39,7 @@ void dump_sym(FILE *fp, node_t *integer, void *data)
 
 	k = G.ksyms ? ksym_get(G.ksyms, pc) : NULL;
 	if (k) {
-		fprintf(fp, "%-20.20s", k->sym);
+		fprintf(fp, "%-20s", k->sym);
 		return;
 	}
 
