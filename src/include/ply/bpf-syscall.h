@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2016 Tobias Waldekranz <tobias@waldekranz.com>
+ * Copyright 2015-2017 Tobias Waldekranz <tobias@waldekranz.com>
  *
  * This file is part of ply.
  *
