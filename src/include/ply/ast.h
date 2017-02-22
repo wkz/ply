@@ -17,7 +17,8 @@
  * along with ply.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#ifndef _PLY_AST_H
+#define _PLY_AST_H
 
 #include <assert.h>
 #include <errno.h>
@@ -302,3 +303,5 @@ void node_free(node_t *n);
 int  node_walk(node_t *n,
 	       int  (*pre)(node_t *n, void *ctx),
 	       int (*post)(node_t *n, void *ctx), void *ctx);
+
+#endif	/* _PLY_AST_H */

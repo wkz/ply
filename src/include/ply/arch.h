@@ -17,10 +17,13 @@
  * along with ply.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#ifndef _PLY_ARCH_H
+#define _PLY_ARCH_H
 
 int arch_reg_width (void);
 int arch_reg_atoi  (const char *name);
 int arch_reg_arg   (int num);
 int arch_reg_func  (void);
 int arch_reg_retval(void);
+
+#endif	/* _PLY_ARCH_H */

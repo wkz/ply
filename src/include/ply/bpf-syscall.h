@@ -17,7 +17,8 @@
  * along with ply.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#ifndef _PLY_BPF_SYSCALL_H
+#define _PLY_BPF_SYSCALL_H
 
 #include <unistd.h>
 
@@ -48,3 +49,5 @@ long perf_event_open(struct perf_event_attr *hw_event, pid_t pid,
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0))
 #define LINUX_HAS_TRACEPOINT
 #endif
+
+#endif	/* _PLY_BPF_SYSCALL_H */

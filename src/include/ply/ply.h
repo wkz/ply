@@ -17,7 +17,8 @@
  * along with ply.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#ifndef _PLY_H
+#define _PLY_H
 
 #include <errno.h>
 #include <stdarg.h>
@@ -79,3 +80,5 @@ static inline FILE *fopenf(const char *mode, const char *fmt, ...)
 
 	return fopen(path, mode);
 }
+
+#endif	/* _PLY_H */

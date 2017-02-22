@@ -17,7 +17,8 @@
  * along with ply.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#ifndef _PLY_COMPILE_H
+#define _PLY_COMPILE_H
 
 #include <stdint.h>
 
@@ -84,3 +85,5 @@ int emit_map_update_raw(prog_t *prog, int fd, ssize_t key, ssize_t val);
 int emit_map_lookup_raw(prog_t *prog, int fd, ssize_t addr);
 
 prog_t *compile_probe(node_t *probe);
+
+#endif	/* _PLY_COMPILE_H */

@@ -17,7 +17,8 @@
  * along with ply.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#ifndef _PLY_MAP_H
+#define _PLY_MAP_H
 
 #include <ply/ast.h>
 
@@ -29,3 +30,5 @@ int  cmp_node(node_t *n, const void *a, const void *b);
 
 int map_setup   (node_t *script);
 int map_teardown(node_t *script);
+
+#endif	/* _PLY_MAP_H */
