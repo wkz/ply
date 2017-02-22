@@ -180,23 +180,23 @@ all providers inherits a set of common functions:
 
     Copy from _address_, using the _format_ specifier to determine the
     desired size and type. The format specifier takes inspiration from
-    python(1)'s `struct` module:
+    python(1)'s _struct_ module:
 
     [repeat]type[[<repeat>]<type> ...]
 
     _repeat_ is an optional number, indicating that this member is an
     array of the following type. The recognized types are:
 
-    `b`/`B`: Signed/unsigned  8-bit integer. <br>
-    `h`/`H`: Signed/unsigned 16-bit integer. <br>
-    `w`/`W`: Signed/unsigned 32-bit integer. <br>
-    `q`/`Q`: Signed/unsigned 64-bit integer. <br>
-    `i`/`I`: Signed/unsigned    int integer. <br>
-    `l`/`L`: Signed/unsigned   long integer. <br>
-    `s`: String. _repeat_ means maximum length. <br>
-    `p`: Pointer.
+    _b_/_B_: Signed/unsigned  8-bit integer. <br>
+    _h_/_H_: Signed/unsigned 16-bit integer. <br>
+    _w_/_W_: Signed/unsigned 32-bit integer. <br>
+    _q_/_Q_: Signed/unsigned 64-bit integer. <br>
+    _i_/_I_: Signed/unsigned    int integer. <br>
+    _l_/_L_: Signed/unsigned   long integer. <br>
+    _s_: String. _repeat_ means maximum length. <br>
+    _p_: Pointer.
 
-    If more than one type is specified, `mem()`'s output will be
+    If more than one type is specified, _mem()_'s output will be
     of record type.
 
   * `nsecs()` => number:
@@ -226,7 +226,7 @@ all providers inherits a set of common functions:
 
   * `sizeof(format)` => number:
     Returns the number of bytes required to store an object specified
-    in _format_. See `mem()` for the interpretation of the format
+    in _format_. See _mem()_ for the interpretation of the format
     specifier.
 
   * `strcmp(string-expression, string-expression)` => number:
@@ -247,7 +247,7 @@ These providers use the corresponding kernel features to instrument
 arbitrary instructions in the kernel. The _probe-definition_ may be
 either an address or a symbol name. When using a symbol name, glob
 expansion is performed allowing a single probe to be inserted at
-multiple locations. E.g. `kprobe:SyS_*`, would match every syscall.
+multiple locations. E.g. _kprobe:SyS\_*_, would match every syscall.
 
 Shared functions:
 
@@ -263,7 +263,7 @@ Shared functions:
     index into a separate map containing the actual instruction
     pointers. As a user though, you can think of this function as
     returning a string containing the stack trace at the current
-    location. Indeed `printf("%v\n", stack())` will produce exactly
+    location. Indeed _printf("%v\n", stack())_ will produce exactly
     that.
 
 _kprobe_ specific functions:
@@ -273,7 +273,7 @@ _kprobe_ specific functions:
     which the probe was attached, zero-indexed. I.e. arg(0) is the 1st
     argument, arg(1) is the 2nd, and so on.
 
-    CAUTION: This is just syntactic sugar on top of `reg()`, using the
+    CAUTION: This is just syntactic sugar on top of _reg()_, using the
     relevant architecture's calling convention as a mapping. If your
     compiler decides to optimize out arguments or do other sneaky
     things, ply will be utterly oblivious to that.
@@ -281,9 +281,9 @@ _kprobe_ specific functions:
   * `func()`, `probefunc()` => number:
     Returns the kernel address of the _function_ to which the probe
     was attached. It also marks it as being a symbol, which means that
-    `printf()` will know to print it as a symbol if possible.
+    _printf()_ will know to print it as a symbol if possible.
 
-    This is also just syntactic sugar on top of `reg()` mapping to the
+    This is also just syntactic sugar on top of _reg()_ mapping to the
     architecture's instruction pointer register.
 
 _kretprobe_ specific function:
@@ -294,15 +294,15 @@ _kretprobe_ specific function:
 
 ### trace
 
-The `trace` provider allows you to attach probes to the kernel's
-`tracepoint` infrastructure. The _probe-definition_ is matched against
-the `debugfs` path located at
-`/sys/kernel/debug/tracing/events`. E.g. `trace:sched/sched_switch`
+The _trace_ provider allows you to attach probes to the kernel's
+_tracepoint_ infrastructure. The _probe-definition_ is matched against
+the _debugfs_ path located at
+_/sys/kernel/debug/tracing/events_. E.g. _trace:sched/sched_switch_
 would run the probe every time the kernel schedules a new task.
 
-A tracepoint's data is defined in its `format` file,
-e.g. `/sys/kernel/debug/tracing/events/sched/sched_switch/format`. The
-trace provider will export each field as a function. Say the `format`
+A tracepoint's data is defined in its _format_ file,
+e.g. _/sys/kernel/debug/tracing/events/sched/sched_switch/format_. The
+trace provider will export each field as a function. Say the _format_
 file has the following content:
 
     name: sched_switch
