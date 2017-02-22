@@ -2,380 +2,304 @@
 <html lang="en">
 
 <head>
-
     <meta charset="utf-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="">
-    <meta name="author" content="">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 
     <title>ply</title>
 
-    <!-- Bootstrap Core CSS - Uses Bootswatch Flatly Theme: http://bootswatch.com/flatly/ -->
-    <link href="css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/css/bootstrap.min.css" integrity="sha384-rwoIResjU2yc3z8GV/NPeZWAv56rSmLldC3R/AZzGRnGxQQKnKkoFVhFQhNUwEyJ" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto+Mono:100,400,400i,700">
 
-    <!-- Custom CSS -->
-    <link href="css/freelancer.css" rel="stylesheet">
-
-    <!-- Custom Fonts -->
-    <link href="font-awesome/css/font-awesome.min.css" rel="stylesheet" type="text/css">
-    <link href="http://fonts.googleapis.com/css?family=Montserrat:400,700" rel="stylesheet" type="text/css">
-    <link href="http://fonts.googleapis.com/css?family=Lato:400,700,400italic,700italic" rel="stylesheet" type="text/css">
-
-    <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
-    <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
-    <!--[if lt IE 9]>
-        <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
-        <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
-    <![endif]-->
-
+    <link rel="stylesheet" href="css/style.css">
 </head>
 
-<body id="page-top" class="index">
-    <header>
-        <div class="container">
-            <div class="row">
-                <div class="col-lg-12">
-                    <img class="img-responsive" src="img/profile.png" alt="">
-                    <div class="intro-text">
-                        <span class="name">ply</span>
-                        <hr class="star-light">
-                        <span class="skills">Light-Weight Dynamic Tracing for Linux</span>
-                    </div>
-                </div>
-            </div>
-	    <div class="row">
-                <div class="col-lg-3 col-lg-offset-3 text-center">
-                    <a href="https://github.com/wkz/ply" class="btn btn-lg btn-outline">
-                        <i class="fa fa-github"></i> Fork on Github
-                    </a>
-                </div>
-                <div class="col-lg-3 text-center">
-                    <a href="ply.1.html" class="btn btn-lg btn-outline">
-                        <i class="fa fa-book"></i> Read the Manual
-                    </a>
-                </div>
-            </div>
-        </div>
-    </header>
+<body>
+  <div class="jumbotron d-flex align-items-end">
+    <div class="container">
+      <div class="row d-flex align-items-end">
 
-    <section id="Highlights">
-        <div class="container">
-            <div class="row">
-                <div class="col-sm-4 text-center">
-		  <i class="fa fa-heart fa-3x"></i>
-		  <h3>Approachable</h3>
-		  <p class="text-justify">
-		    The syntax is inspired by UNIX's "little
-		    languages" of yore, such as awk. Thus, people who
-		    have written an awk script should be able to
-		    effortlessly write ply scripts. Variables are
-		    declared and their types inferred automatically,
-		    making iterating on scripts fast and easy.
-		  </p>
-                </div>
-                <div class="col-sm-4 text-center">
-		  <i class="fa fa-terminal fa-3x"></i>
-		  <h3>Light-Weight</h3>
-		  <p class="text-justify">
-		    Designed with embedded systems in mind. Written in
-		    C, all ply needs to run is libc and a modern
-		    kernel with Linux BPF support. No external kernel
-		    modules, no LLVM compiler, no python
-		    inerpreter. It is also very easy to add support
-		    for new architectures.
-		  </p>
-                </div>
-                <div class="col-sm-4 text-center">
-		  <i class="fa fa-rocket fa-3x"></i>
-		  <h3>Efficient</h3>
-		  <p class="text-justify">
-		    All data gathering and aggregation is done in the
-		    kernel using Linux BPF programs that are JIT
-		    compiled to native instructions on most common
-		    architectures. This means that ply runs with very
-		    low overhead, allowing it to probe even the
-		    hottest code paths.
-		  </p>
-                </div>
-	    </div>
-        </div>
-    </section>
+	<div class="col-md-6">
+	  <h1>ply</h1>
+	  <p>/* a dynamic tracer for Linux */</p>
+	</div>
 
-    <section class="success" id="examples">
-      <div class="container">
-        <div class="row">
-          <div class="col-lg-12 text-center">
-            <h2>What Can You Do With it?</h2>
-            <hr class="star-light">
-          </div>
-        </div>
+	<div class="col-md-3 d-flex justify-content-end">
+	  <p><a href="ply.1.html">[read the manual]</a></p>
+	</div>
+
+	<div class="col-md-3 d-flex justify-content-end">
+	  <p><a href="https://github.com/iovisor/ply">[fork on github]</a></p>
+	</div>
+
       </div>
-    </section>
+    </div>
+  </div>
 
-    <section class="" id="examples">
-        <div class="container">
-	    <div class="row text-center">
-	      <h3>Counting Syscalls</h3>
-	    </div>
-            <div class="row text-justify">
-              <div class="col-lg-4 col-lg-offset-2">
-		<pre>#!/usr/bin/env ply
+  <div class="container">
+    <div class="row">
+      <div class="col-md-4">
+        <h3>$_ flexible</h2>
+        <p class="text-justify">
+	  Type inference in combination with a compact C-like syntax
+	  means scripts can be written and edited in seconds, often
+	  straight from the commandline. The language is heavily
+	  inspired by, though not nearly as powerful as, awk(1) and
+	  dtrace(1).
+	</p>
+      </div>
+      <div class="col-md-4">
+        <h3>&gt;&lt; small</h2>
+        <p class="text-justify">
+	  Designed with embedded systems in mind. Written in C, all
+	  ply needs to run is libc and a modern kernel with Linux
+	  BPF support. No external kernel modules, no LLVM, no
+	  python. Works on x86_64 and arm today, adding more
+	  architectures is easy.
+	</p>
+      </div>
+      <div class="col-md-4">
+        <h3>&lt;3 efficient</h2>
+        <p class="text-justify">
+	  Data gathering and aggregation is done in the kernel using
+	  Linux BPF programs that are JIT compiled to native
+	  instructions on most common architectures. Thus, ply runs
+	  with very low overhead, allowing it to probe even the
+	  hottest code paths.
+	</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="row">
+      <p>&nbsp;"yeah yeah whatever, so what can I actually do with it?!"</p>
+      <p>- well I'm glad you asked, dear reader, here are a few examples</p>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="row">
+      <div class="col-md-10">
+	<h4>count syscalls, system-wide</h4>
+      </div>
+    </div>
+    <div class="row text-justify">
+      <div class="col-md-5">
+	<pre>#!/usr/sbin/ply
 
 kprobe:SyS_*
 {
-    $syscalls[func].count()
+    @syscalls[func()].count()
 }</pre>
-                <p>
-		  This probe will be attached to all functions whose
-		  name starts with <code>SYS_</code>, i.e. all
-		  syscalls. On each syscall, the probe will fire and
-		  index into the user-defined
-		  map <code>$syscalls</code> using the built-in
-		  variable <code>func</code> as the key and bump a
-		  counter.
-		</p>
-		<p>
-		  ply will compile the script, attach it to the
-		  matching probes and start collecting data. On exit,
-		  ply will dump the values of all user-defined
-		  variables and maps.
-		</p>
-              </div>
-              <div class="col-lg-4">
-		<pre>wkz@wkz-box:~$ sudo ./syscall-count.ply
-331 probes active
+        <p>
+	  This probe will be attached to all functions whose name
+	  starts with <code>SyS_</code>, i.e. all syscalls. On each
+	  syscall, the probe will fire and index into the user-defined
+	  map <code>@syscalls</code> using the
+	  function <code>func()</code> as the key and bump a counter.
+	</p>
+	<p>
+	  ply will compile the script, attach it to the matching
+	  probes and start collecting data. On exit, ply will dump the
+	  values of all user-defined maps.
+	</p>
+      </div>
+      <div class="col-md-5">
+	<pre>wkz@wkz-x260:~$ sudo ./n-syscalls.ply
+341 probes active
 ^Cde-activating probes
 
-$syscalls:
-sys_mprotect                   1
-sys_readv                      1
-sys_newlstat                   1
-sys_access                     2
-sys_bind                       3
-sys_getsockname                3
-sys_rt_sigaction               4
-sys_ftruncate                  4
-sys_unlink                     4
-sys_pselect6                   4
-sys_timerfd_settime            4
-sys_dup                        5
-sys_fdatasync                  5
-sys_lseek                     17
-sys_inotify_add_watch         21
+@syscalls:
+sys_tgkill          	       1
+sys_mprotect        	       1
+sys_lseek           	       1
+sys_readv           	       1
+sys_rename          	       1
+sys_statfs          	       1
+sys_bind            	       2
+sys_access          	       4
+sys_fdatasync       	       5
+sys_times           	       6
+[REDACTED LINES]
+sys_epoll_wait      	    7211
+sys_ppoll           	    9836
+sys_poll            	   13446
+sys_futex           	   20034
+sys_ioctl           	   23806
+sys_recvmsg         	   23989
+sys_write           	   24791
+sys_read            	   32168</pre>
+      </div>
+    </div>
+  </div>
 
-[ ... output redacted for clarity ... ]
+  <div class="container">
+    <div class="row">
+      <div class="col-md-10 offset-md-2">
+	<h4>read(2) return distribution</h4>
+      </div>
+    </div>
+    <div class="row text-justify">
+      <div class="col-md-5 offset-md-2">
+	<pre>#!/usr/sbin/ply
 
-sys_select                 14624
-sys_munmap                 14778
-sys_mmap_pgoff             14887
-sys_epoll_wait             14898
-sys_writev                 19516
-sys_write                  22644
-sys_read                   28700
-sys_poll                   53401
-sys_futex                  78401
-sys_ioctl                 146141
-sys_recvmsg               181933</pre>
-              </div>
-	    </div>
-	    <div class="row text-center">
-	      <h3>Read Size Distribution</h3>
-	    </div>
-            <div class="row text-justify">
-              <div class="col-lg-4 col-lg-offset-2">
-		<pre>#!/usr/bin/env ply
-
-kprobe:SyS_read
+kretprobe:SyS_read
 {
-    $sizes.quantize(arg(2))
+    @.quantize(retval());
 }</pre>
-                <p>
-		  This example shows a very simple script that
-		  instruments the <code>read(2)</code> syscall and
-		  records the distribution of the <code>size</code>
-		  argument, i.e. argument 2 (zero indexed), into the
-		  user-defined variable <code>$sizes</code>.
-		</p>
-              </div>
-              <div class="col-lg-4">
-		<pre>wkz@wkz-box:~$ sudo ./read-dist.ply
+        <p>
+	  This example shows a very simple script that instruments the
+	  return of the <code>read(2)</code> syscall and records the
+	  distribution of the return argument.
+	</p>
+	<p>
+	  User-defined maps in ply always start with <code>@</code>.
+	  When writing small scripts, only using one map, it is common
+	  and convenient to simply call it <code>@</code>.
+	</p>
+      </div>
+      <div class="col-md-5">
+	<pre>wkz@wkz-x260:~$ sudo ./read-dist.ply
 1 probe active
 ^Cde-activating probes
 
-$sizes:
-[   0,    1]        2089
-[   2,    4)         434
-[   4,    8)        6334
-[   8,   16)        9738
-[  16,   32)        1645
-[  32,   64)          16
-[  64,  128)          24
-[ 128,  256)          63
-[ 256,  512)         102
-[ 512,   1k)         200
-[  1k,   2k)         433
-[  2k,   4k)         750
-[  4k,   8k)        1492
-[  8k,  16k)        1157
-[ 16k,  32k)        5703
-[ 32k,  64k)          26
-[ 64k, 128k)          48</pre>
-              </div>
-	    </div>
-	    <div class="row text-center">
-	      <h3>Socket Buffer tracking</h3>
-	    </div>
-            <div class="row text-justify">
-              <div class="col-lg-4 col-lg-offset-2">
-		<pre>#!/usr/bin/env ply
+@:
 
-kprobe:__netif_receive_skb_core
-{
-	$rx[arg(0)] = nsecs;
-}
+             < 0        8869 ┤███████           │
+               0         565 ┤▌                 │
+               1       13460 ┤██████████▋       │
+    [   2,    3]        1915 ┤█▌                │
+    [   4,    7]        1736 ┤█▍                │
+    [   8,   15]       10054 ┤████████          │
+    [  16,   31]        2583 ┤██                │
+    [  32,   63]         769 ┤▋                 │
+    [  64,  127]          55 ┤                  │
+    [ 128,  255]           5 ┤                  │
+    [ 256,  511]         202 ┤▏                 │
+    [ 512,   1k)          27 ┤                  │
+    [  1k,   2k)         157 ┤▏                 │
+    [  2k,   4k)           4 ┤                  │
+    [  4k,   8k)          20 ┤                  │
+    [  8k,  16k)           6 ┤                  │
+    [ 16k,  32k)          23 ┤                  │
+    [ 32k,  64k)          20 ┤                  │</pre>
+      </div>
+    </div>
+  </div>
 
-kprobe:ip_rcv / $rx[arg(0)] /
+  <div class="container">
+    <div class="row">
+      <div class="col-md-10">
+	<h4>capture stack traces</h4>
+      </div>
+    </div>
+    <div class="row text-justify">
+      <div class="col-md-5">
+	<pre>#!/usr/sbin/ply
+
+kprobe:i2c_transfer
 {
-	$t.quantize(nsecs - $rx[arg(0)]);
-	$rx[arg(0)] = nil;
-}
-</pre>
-                <p>
-		  Record the distribution of the time it takes
-		  an <code>skb</code> to move
-		  from <code>__netif_receive_skb_core</code>
-		  to <code>ip_rcv</code>.
-		</p>
-		<p>
-		  In the first probe, a
-		  timestamp is stored in <code>$rx</code> using
-		  the <code>skb</code> pointer as the key. The second
-		  probe is then allowed to run if
-		  that <code>skb</code> is a valid key
-		  in <code>$rx</code>.
-		</p>
-		<p>
-		  Then the difference with the current timestamp is
-		  calculated and its distribution stored
-		  in <code>$t</code>. As a final step, the original
-		  timestamp is removed so that the map will not fill
-		  up with useless entries.
-		</p>
-		<p>
-		  Notice that the unit here is nanoseconds. For
-		  example, the median time in this case lays somewhere
-		  between 1 and 2 microseconds (1-2k nanoseconds).
-		</p>
-              </div>
-              <div class="col-lg-4">
-		<pre>wkz@wkz-box:~$ sudo ./skb-track.ply
-2 probes active
+    printf("%v\n", stack())
+}</pre>
+        <p>
+	  Sometimes it can be useful to know how a particular location
+	  is reached. <code>kprobes</code> can get the current stack
+	  trace via the <code>stack()</code> function. Using the
+	  format specifier <code>%v</code> tells ply to use the
+	  default format of the inferred type of the argument.
+	</p>
+	<p>
+	  In this example, the stack trace is simply printed to
+	  <code>stdout</code>, but it can also be used as a map key in
+	  an aggregation. I.e. it is possible to do frequency counting
+	  based on how a function was reached.
+	</p>
+      </div>
+      <div class="col-md-5">
+	<pre>root@chaos:~ $ ply ./i2c-stack.ply &
+root@chaos:~ $ 1 probe active
+
+root@chaos:~ $ hwclock -r
+
+    i2c_transfer
+    i2c_smbus_read_i2c_block_data+0x58
+    ds1307_native_smbus_read_block_data+0x88
+    ds1307_get_time+0x38
+    __rtc_read_time+0x54
+    rtc_read_time+0x3c
+    rtc_dev_ioctl+0x318
+    do_vfs_ioctl+0xa0
+    sys_ioctl+0x44
+    __sys_trace_return
+Mon Feb 20 18:33:33 2017  0.000000 seconds
+root@chaos:~ $ fg
+ply ./i2c_stack.ply
 ^Cde-activating probes
-
-$rx:
-
-$t:
-[ 512,   1k)	    1041
-[  1k,   2k)	    5972
-[  2k,   4k)	    3439
-[  4k,   8k)	     655
-[  8k,  16k)	      39
-[ 16k,  32k)	       2
-[ 32k,  64k)	      10
-[ 64k, 128k)	       1
-[  1M,   2M)	       1
-</pre>
-              </div>
-	    </div>
-     </section>
-
-    <section class="success" id="examples">
-      <div class="container">
-        <div class="row">
-          <div class="col-lg-12 text-center">
-            <h2>What Can't You Do With it?</h2>
-            <hr class="star-light">
-          </div>
-        </div>
+root@chaos:~ $</pre>
       </div>
-    </section>
+    </div>
+  </div>
 
-    <section class="" id="examples">
-      <div class="container">
-        <div class="col-lg-4 col-lg-offset-2">
-          <p>
-	    At the moment, any data that is not available as a
-	    built-in function in ply, or in a CPU register is out of
-	    reach. That means no stack variables, no pointer
-	    de-referencing, no type-casting.
-	  </p>
-          <p>
-	    ply is intended to be a light-weight tool, useful for
-	    exploratory probing. It is a very young project and
-	    by <em>no</em> means a complete tracer.
-	  </p>
-        </div>
-        <div class="col-lg-4">
-          <p>
-	    For more explicit control of instrumentation, data
-	    processing, and presentation have a look at the bcc
-	    project.
-	  </p>
-	  <p>
-	    It uses an LLVM based C back-end and a Python
-	    front-end. With it you can write kprobe tracepoints, tc
-	    filters and much more.
-	  </p>
-	  <p>
-	    <a href="https://github.com/iovisor/bcc" class="btn btn-lg btn-outline-success">
-              <i class="fa fa-github"></i> bcc on Github
-            </a>
-	  </p>
-        </div>
+  <div class="container">
+    <div class="row">
+      <div class="col-md-10 offset-md-2">
+	<h4>opensnoop</h4>
       </div>
-    </section>	
+    </div>
+    <div class="row text-justify">
+      <div class="col-md-5 offset-md-2">
+	<pre>#!/usr/sbin/ply
 
-    <!-- Footer -->
-    <footer class="text-center">
-        <div class="footer-below">
-            <div class="container">
-                <div class="row">
-                    <div class="col-lg-12">
-                      <p>
-			<small>
-			  Copyright &copy; Tobias Waldekranz 2016
-			</small>
-		      </p>
-		      <p>
-			<small>
-			  The Linux BPF Pony was created by Deirdré
-			  Straughan using General Zoi's pony creator.
-			</small>
-		      </p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </footer>
+kprobe:SyS_open
+{
+    printf("%16s(%5d): %s\n",
+           comm(), pid(), mem(arg(0), "128s"));
+}</pre>
+        <p>
+	  Every time a process calls <code>open(2)</code> print the calling process's
+	  <code>comm</code>, i.e. executable name, PID and the
+	  filename by extracting a 128-byte string from the address of
+	  the first argument using the <code>mem()</code> function.
+	</p>
+      </div>
+      <div class="col-md-5">
+	<pre>wkz@wkz-x260:~$ sudo ./opensoop.ply
+1 probe active
+             ply(28836): /sys/kernel/debug/tracing/events/enable
+ SimpleCacheWork( 5818): /home/wkz/.cache/google-chrome/Default/Cache/37586f4b9464a393_0
+      irqbalance( 1083): /proc/interrupts
+      irqbalance( 1083): /proc/stat
+      irqbalance( 1083): /proc/irq/18/smp_affinity
+      irqbalance( 1083): /proc/irq/126/smp_affinity
+      irqbalance( 1083): /proc/irq/128/smp_affinity
+      irqbalance( 1083): /proc/irq/122/smp_affinity
+      irqbalance( 1083): /proc/irq/11/smp_affinity
+      irqbalance( 1083): /proc/irq/124/smp_affinity
+      irqbalance( 1083): /proc/irq/16/smp_affinity
+      irqbalance( 1083): /proc/irq/1/smp_affinity
+      irqbalance( 1083): /proc/irq/8/smp_affinity
+      irqbalance( 1083): /proc/irq/9/smp_affinity
+      irqbalance( 1083): /proc/irq/12/smp_affinity
+      irqbalance( 1083): /proc/irq/120/smp_affinity
+      irqbalance( 1083): /proc/irq/121/smp_affinity
+ Chrome_IOThread( 5361): /dev/shm/.org.chromium.Chromium.59XkZF
+ SimpleCacheWork( 5818): /home/wkz/.cache/google-chrome/Default/Cache/37586f4b9464a393_0
+     Core Thread( 5368): /home/wkz/.config/spotify/Users/wkz-user/pending-messages.tmp
+     Core Thread( 5368): /home/wkz/.config/spotify/Users/wkz-user/pending-messages.tmp
+^Cde-activating probes</pre>
+      </div>
+    </div>
+  </div>
 
-    <!-- jQuery -->
-    <script src="js/jquery.js"></script>
-
-    <!-- Bootstrap Core JavaScript -->
-    <script src="js/bootstrap.min.js"></script>
-
-    <!-- Plugin JavaScript -->
-    <script src="http://cdnjs.cloudflare.com/ajax/libs/jquery-easing/1.3/jquery.easing.min.js"></script>
-    <script src="js/classie.js"></script>
-    <script src="js/cbpAnimatedHeader.js"></script>
-
-    <!-- Contact Form JavaScript -->
-    <script src="js/jqBootstrapValidation.js"></script>
-    <script src="js/contact_me.js"></script>
-
-    <!-- Custom Theme JavaScript -->
-    <script src="js/freelancer.js"></script>
+  <div class="header">
+    <div class="container">
+      <footer>
+	<p>
+	  &copy; 2017 Tobias Waldekranz
+	</p>
+      </footer>
+    </div>
+  </div>
 
 </body>
 

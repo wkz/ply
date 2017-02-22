@@ -47,6 +47,19 @@
   .man-navigation a,.man-navigation a:hover,.man-navigation a:link,.man-navigation a:visited {display:block;margin:0;padding:5px 2px 5px 30px;color:#999;text-decoration:none}
   .man-navigation a:hover {color:#111;text-decoration:underline}
   </style>
+  <style type='text/css' media='all'>
+  /* style: style */
+  body,.mp {background-color: #fdf6e3;color: #839496}
+  .mp h1,.mp h2,.mp h3,.mp h4 {color: #586e75}
+  .mp code,.mp strong,.mp b {color: #586e75}
+  .mp em,.mp var {color: #586e75}
+  .mp pre code {color: #586e75}
+  .mp a,.mp a:link,.mp a:hover,.mp a code,.mp a pre,.mp a tt,.mp a kbd,.mp a samp {color: #268bd2}
+  .mp a:visited {color: #268bd2}
+   
+  .man-navigation {color: #93a1a1;border-left: 1px solid #93a1a1;background-color: #eee8d5}
+  .mp .man-navigation a {color: #93a1a1}
+  </style>
 </head>
 <!--
   The following styles are deprecated and will be removed at some point:
@@ -64,7 +77,7 @@
     <a href="#DESCRIPTION">DESCRIPTION</a>
     <a href="#OPTIONS">OPTIONS</a>
     <a href="#SYNTAX">SYNTAX</a>
-    <a href="#BUILT-INS">BUILT-INS</a>
+    <a href="#PROVIDERS">PROVIDERS</a>
     <a href="#EXAMPLE">EXAMPLE</a>
     <a href="#RETURN-VALUE">RETURN VALUE</a>
     <a href="#AUTHORS">AUTHORS</a>
@@ -74,7 +87,7 @@
 
   <ol class='man-decor man-head man head'>
     <li class='tl'>ply(1)</li>
-    <li class='tc'>ply Manual</li>
+    <li class='tc'></li>
     <li class='tr'>ply(1)</li>
   </ol>
 
@@ -92,58 +105,82 @@
 
 <p>ply dynamically instruments the running kernel to aggregate and
 extract user-defined data. It compiles an input program to one or more
-Linux BPF binaries and attaches them to arbitrary points in the kernel
-using kprobes.</p>
+Linux <a class="man-ref" href="http://man7.org/linux/man-pages/man2/bpf.2.html">bpf<span class="s">(2)</span></a> binaries and attaches them to arbitrary points in the kernel
+using kprobes and tracepoints.</p>
 
 <h2 id="OPTIONS">OPTIONS</h2>
 
 <dl>
+<dt><code>-A</code>, <code>--ascii</code></dt><dd><p>Restrict output to ASCII, no Unicode runes.</p></dd>
 <dt><code>-c</code>, <code>--command</code></dt><dd><p>The program is supplied as an argument, rather than in a file.</p></dd>
 <dt><code>-d</code>, <code>--debug</code></dt><dd><p>Enable debugging output.</p></dd>
 <dt><code>-D</code>, <code>--dump</code></dt><dd><p>Do not execute the program, instead dump the generated Linux BPF
 instructions.</p></dd>
+<dt><code>-h</code>, <code>--help</code></dt><dd><p>Print usage message.</p></dd>
 <dt><code>-t</code>, <code>--timeout</code>=<var>seconds</var></dt><dd><p>Terminate the program after the specified time.</p></dd>
+<dt><code>-v</code>, <code>--version</code></dt><dd><p>Print version information.</p></dd>
 </dl>
 
 
 <h2 id="SYNTAX">SYNTAX</h2>
 
-<p>The syntax is C-like in general, taking its inspiration from <a class="man-ref" href="http://man7.org/linux/man-pages/man1/gawk.1.html">awk<span class="s">(1)</span></a>.</p>
+<p>The syntax is C-like in general, taking its inspiration <a class="man-ref" href="https://docs.oracle.com/cd/E23823_01/html/816-5166/dtrace-1m.html">dtrace<span class="s">(1)</span></a> and,
+by extension, from <a class="man-ref" href="http://man7.org/linux/man-pages/man1/gawk.1.html">awk<span class="s">(1)</span></a>.</p>
 
 <h3 id="Probes">Probes</h3>
 
 <p>A program consists of one or more <em>probes</em>, which are analogous to
 awk's pattern-action statements. The syntax for a probe is as follows:</p>
 
-<pre><code>provider:probe-definition [/ predicate /]
+<pre><code>provider:probe-definition ['/' predicate '/']
 {
-     statement;
-    [statement; ... ]
+     statement ';'
+    [statement ';' ... ]
 }
 </code></pre>
 
-<p>The <em>provider</em> selects which probe interface to use. At the moment,
-<code>kprobe</code> is the only supported provider, but the intention is that
-this can be extended with <code>uprobe</code> for example. It is then up to the
+<p>The <em>provider</em> selects which probe interface to use. See the PROVIDERS
+section for more information about each provider. It is then up to the
 provider to parse the <em>probe-definition</em> to determine the point(s) of
 instrumentation.</p>
 
-<p>Due to the limitations imposed by the kernel on Linux BPF programs, no
-loop constructs are allowed. Conditionals could be implemented but
-have thus far not been. However, it is possible to perform some
-filtering by specifying a <em>predicate</em>, i.e. an expression that must
-evaluate to <em>true</em> in order for the probe to be executed.</p>
+<p>When tracing, it is often desirable to filter events to match some
+criteria. Because of this, ply allows you to provide a <em>predicate</em>,
+i.e. an expression that must evaluate to a non-zero value in order for
+the probe to be executed.</p>
 
-<p>Then follows the <em>statements</em> that perform the actual information
+<p>Then follows a block of <em>statements</em> that perform the actual information
 gathering. All but the last statement of a probe must be terminated
 with a semi-colon. Specifically, a simple probe containing only one
 statement does not need one.</p>
 
-<h3 id="Maps-and-Variables">Maps and Variables</h3>
+<p>A provider may define a default probe to be used if the user does not
+supply a block.</p>
 
-<p>The primary way to extract information is to store it in user-defined
-variables. Like in <a class="man-ref" href="http://man7.org/linux/man-pages/man1/gawk.1.html">awk<span class="s">(1)</span></a> they are dynamically created and their types
-are inferred. ply uses a very simple type system with 3 types:</p>
+<h3 id="Control-of-Flow">Control of Flow</h3>
+
+<p>Probes support two different types of flow control, the first is the
+<em>if-statement</em>, which conforms to the same rules as C's equivalent:</p>
+
+<pre><code>'if' '(' expr ')'
+    statement ';' | block
+[else
+    statement ';' | block]
+</code></pre>
+
+<p>In order to ensure that a probe will have a finite run-time the kernel
+does not allow backwards branching. As a result, ply does not have a
+traditional loop construct like <em>for</em> or <em>while</em>. Instead it provides
+an <em>unroll</em> statement that simply copies the contained <em>statements</em>
+<em>N</em> times to the output program:</p>
+
+<pre><code>'unroll' '(' N ')'
+    statement ';' | block
+</code></pre>
+
+<h3 id="Type-System">Type System</h3>
+
+<p>The type system is rudimentary, containing only three (3) types:</p>
 
 <dl>
 <dt class="flush"><code>Numbers</code></dt><dd><p>Represented as 64-bit signed integers, initialized to zero (0).</p></dd>
@@ -153,61 +190,95 @@ each component initialized to its zero value.</p></dd>
 </dl>
 
 
-<p>The syntax is as follows:</p>
+<p>Numbers and string literals are specified in the same way as in
+C. Records use the following syntax:</p>
 
-<pre><code>$varname
-$mapname[expression &lt;, expression ... &gt;]
+<pre><code>'[' expr [ ',' expr ... ] ']'
 </code></pre>
 
-<p>Variable names follow the familiar rules of C identifiers, with the
-added constraints that they must begin with a dollar sign (<code>$</code>). A map
-is simply a variable concatenated with a record, i.e one or more
-expressions that are used as the index into the map.</p>
+<h3 id="Maps">Maps</h3>
 
-<p>The simplest way to store data in variables is to assign a value to
-them:</p>
+<p>The primary way to extract information is to store it in a <em>map</em>,
+i.e. in a hash table. Like <a class="man-ref" href="http://man7.org/linux/man-pages/man1/gawk.1.html">awk<span class="s">(1)</span></a>, ply dynamically creates any
+referenced maps and their key and value types are inferred from the
+context in which they are used. All maps are in the global scope and
+can thus be used both for extracting data to the end-user, and for
+carrying data between probes. A map name must begin with the at sign
+'@' and then follows the rules of identifiers from C. For small
+scripts where only one map is used, it is convenient and idiomatic to
+simply name it '@'. After the name comes a record specifier which is
+used as the key in the map.</p>
 
-<pre><code>$varname = expression
+<pre><code>@mapname[exprs]
 </code></pre>
 
-<p>If a variable is assigned the special value <em>nil</em>, the variable is
-deleted and will return its zero value if referenced again.</p>
+<p>Data can be stored in a map by assigning a value to a given key:</p>
 
-<p>A more common way to store data is to use <em>methods</em>, i.e. functions
-that operate on the data stored in a variable or map:</p>
-
-<pre><code>$varname.method([expression, expression ... ])
+<pre><code>@mapname[exprs] = expr
 </code></pre>
+
+<p>If a map key is assigned the special value <em>nil</em>, the key is deleted
+and will return its zero value if referenced again.</p>
+
+<p>A more common way is to <em>aggregate</em> data using <em>methods</em>, i.e. functions
+that operate on the data stored in a map:</p>
 
 <dl>
-<dt><code>.count()</code></dt><dd><p>Bumps a counter.</p></dd>
-<dt><code>.quantize(number-expression)</code></dt><dd><p>Evaluates the argument and aggregates on the most significant bit
+<dt><code>@mapname[exprs].count()</code></dt><dd><p>Bumps a counter.</p></dd>
+<dt><code>@mapname[exprs].quantize(number-expr)</code></dt><dd><p>Evaluates the argument and aggregates on the most significant bit
 of the result. In other words, it stores the distribution of the
 expression.</p></dd>
 </dl>
 
 
-<h2 id="BUILT-INS">BUILT-INS</h2>
+<h3 id="Variables">Variables</h3>
 
-<p>Each <em>provider</em> may declare any number of built-in functions. Function
-calls use the same syntax as most languages that inherit from
-C. Additionally, functions which take no argument may be called
-without parenthesis, giving them a feel of being built-in variables.</p>
+<p>Variables are typically used for storing temporary data, like loop
+counters or results of computations that are used multiple times in a
+probe. They are local to the probe in which they are defined, i.e. the
+same identifier may be used independently in multiple probes. Their
+names follows the C identifier rules.</p>
 
-<p>The following built-ins are defined by the <em>kprobe</em> provider:</p>
+<h2 id="PROVIDERS">PROVIDERS</h2>
+
+<p>A <em>provider</em> makes data available to the user by exporting functions
+to the probe. Function calls use the same syntax as most languages
+that inherit from C. In addition to the provider-specific functions,
+all providers inherits a set of common functions:</p>
 
 <dl>
-<dt><code>arg(number)</code> => number</dt><dd><p>Returns the value of the n:th <em>argument</em> of the function to which
-the probe was attached.</p></dd>
-<dt><code>comm</code>, <code>execname</code> => string</dt><dd><p>Returns the <em>name</em> of the running process's executable.</p></dd>
-<dt><code>cpu</code> => number</dt><dd><p>Returns the <em>CPU ID</em> of the processor on which the probe fired.</p></dd>
-<dt><code>func</code>, <code>probefunc</code> => number</dt><dd><p>Returns the kernel address of the <em>function</em> to which the probe
-was attached.</p></dd>
-<dt><code>gid</code> => number</dt><dd><p>Returns the <em>group ID</em> of the running process.</p></dd>
+<dt><code>comm()</code>, <code>execname()</code> => string</dt><dd><p>Returns the <em>name</em> of the running process's executable.</p></dd>
+<dt><code>cpu()</code> => number</dt><dd><p>Returns the <em>CPU ID</em> of the processor on which the probe fired.</p></dd>
+<dt><code>gid()</code> => number</dt><dd><p>Returns the <em>group ID</em> of the running process.</p></dd>
 <dt><code>log2(number-expression)</code> => number</dt><dd><p>Returns the logarithm, base 2, of the argument.</p></dd>
-<dt><code>nsecs</code> => number</dt><dd><p>Returns the time since the system started, in nanoseconds.</p></dd>
-<dt><code>pid</code> => number</dt><dd><p>Returns the <em>process ID</em> of the running process.</p></dd>
-<dt><code>printf(format [, expression, expression ... ])</code></dt><dd><p>Prints <em>formatted output</em> to ply's standard out.</p>
+<dt><code>mem(address, format)</code> => TYPE:</dt><dd><p></p>
+
+<p>Copy from <em>address</em>, using the <em>format</em> specifier to determine the
+desired size and type. The format specifier takes inspiration from
+<span class="man-ref">python<span class="s">(1)</span></span>'s <em>struct</em> module:</p>
+
+<p>[repeat]type[[<var>repeat</var>]<var>type</var> ...]</p>
+
+<p><em>repeat</em> is an optional number, indicating that this member is an
+array of the following type. The recognized types are:</p>
+
+<p><em>b</em>/<em>B</em>: Signed/unsigned  8-bit integer. <br />
+<em>h</em>/<em>H</em>: Signed/unsigned 16-bit integer. <br />
+<em>w</em>/<em>W</em>: Signed/unsigned 32-bit integer. <br />
+<em>q</em>/<em>Q</em>: Signed/unsigned 64-bit integer. <br />
+<em>i</em>/<em>I</em>: Signed/unsigned    int integer. <br />
+<em>l</em>/<em>L</em>: Signed/unsigned   long integer. <br />
+<em>s</em>: String. <em>repeat</em> means maximum length. <br />
+<em>p</em>: Pointer.</p>
+
+<p>If more than one type is specified, <em>mem()</em>'s output will be
+of record type.</p></dd>
+<dt><code>nsecs()</code> => number</dt><dd><p>Returns the time since the system started, in nanoseconds.</p></dd>
+<dt><code>pid()</code> => number</dt><dd><p>Returns the <em>process ID</em> of the running process.</p></dd>
+<dt><code>printf(format [, expression, expression ... ])</code></dt><dd><p>Prints <em>formatted output</em> to ply's standard out. In addition to
+the formats recognized by the printf sitting in your &lt;stdio.h>,
+ply's also recognizes '%v' which will dump the value according to
+the inferred type's default.</p>
 
 <p>Beware that while there are times when it is useful to print data
 from a probe, it is very often not the best way of obtaining the
@@ -218,47 +289,134 @@ the 1k calls/s mark, at which point making sense of print output
 becomes very hard. In such cases, consider using some type of
 aggregation to limit the amount of data. Then, once you have
 zeroed in on the problem, printing might become useful.</p></dd>
+<dt><code>secs()</code> => number</dt><dd><p>Returns the time since the system started, in seconds.</p></dd>
+<dt><code>sizeof(format)</code> => number</dt><dd><p>Returns the number of bytes required to store an object specified
+in <em>format</em>. See <em>mem()</em> for the interpretation of the format
+specifier.</p></dd>
+<dt><code>strcmp(string-expression, string-expression)</code> => number</dt><dd><p>Returns -1, 0 or 1 if the first argument is less than, equal to or
+greater than the second argument respectively. Strings are
+compared by their lexicographical order.</p></dd>
+<dt><code>tgid()</code> => number</dt><dd><p>Returns the <em>thread group ID</em> of the running process.</p></dd>
+<dt><code>uid()</code> => number</dt><dd><p>Returns the <em>user ID</em> of the running process.</p></dd>
+</dl>
+
+
+<h3 id="kprobe-and-kretprobe">kprobe and kretprobe</h3>
+
+<p>These providers use the corresponding kernel features to instrument
+arbitrary instructions in the kernel. The <em>probe-definition</em> may be
+either an address or a symbol name. When using a symbol name, glob
+expansion is performed allowing a single probe to be inserted at
+multiple locations. E.g. <em>kprobe:SyS_*</em>, would match every syscall.</p>
+
+<p>Shared functions:</p>
+
+<dl>
 <dt><code>reg(number)</code>, <code>reg(string)</code> => number</dt><dd><p>If called with a number, it returns the value of the n:th CPU
 <em>register</em>, according to the order in the architecture specific
 <em>pt_regs</em> struct. If called with a string, the string is looked up
 against the register names as they are defined in the <em>pt_regs</em>
 struct.</p></dd>
-<dt><code>secs</code> => number</dt><dd><p>Returns the time since the system started, in seconds.</p></dd>
-<dt><code>strcmp(string-expression, string-expression)</code> => number</dt><dd><p>Returns -1, 0 or 1 if the first argument is less than, equal to or
-greater than the second argument respectively. Strings are
-compared by their lexicographical order.</p></dd>
-<dt><code>tgid</code> => number</dt><dd><p>Returns the <em>thread group ID</em> of the running process.</p></dd>
-<dt><code>uid</code> => number</dt><dd><p>Returns the <em>user ID</em> of the running process.</p></dd>
+<dt><code>stack()</code> => number</dt><dd><p>Get a <em>stack trace</em> of the current probe. This is just returns an
+index into a separate map containing the actual instruction
+pointers. As a user though, you can think of this function as
+returning a string containing the stack trace at the current
+location. Indeed <em>printf("%v\n", stack())</em> will produce exactly
+that.</p></dd>
 </dl>
 
 
-<h2 id="EXAMPLE">EXAMPLE</h2>
+<p><em>kprobe</em> specific functions:</p>
 
-<h3 id="Count">Count</h3>
+<dl>
+<dt><code>arg(number)</code> => number</dt><dd><p>Returns the value of the specified <em>argument</em> of the function to
+which the probe was attached, zero-indexed. I.e. <span class="man-ref">arg<span class="s">(0)</span></span> is the 1st
+argument, <span class="man-ref">arg<span class="s">(1)</span></span> is the 2nd, and so on.</p>
 
-<p>Count the number of times any process in the system calls <span class="man-ref">open<span class="s">(2)</span></span>:</p>
+<p>CAUTION: This is just syntactic sugar on top of <em>reg()</em>, using the
+relevant architecture's calling convention as a mapping. If your
+compiler decides to optimize out arguments or do other sneaky
+things, ply will be utterly oblivious to that.</p></dd>
+<dt><code>func()</code>, <code>probefunc()</code> => number</dt><dd><p>Returns the kernel address of the <em>function</em> to which the probe
+was attached. It also marks it as being a symbol, which means that
+<em>printf()</em> will know to print it as a symbol if possible.</p>
 
-<pre><code>kprobe:SyS_open
-{
-    $opens.count()
-}
+<p>This is also just syntactic sugar on top of <em>reg()</em> mapping to the
+architecture's instruction pointer register.</p></dd>
+</dl>
+
+
+<p><em>kretprobe</em> specific function:</p>
+
+<dl>
+<dt><code>retval()</code> => number</dt><dd>Returns the return value of the probed function.</dd>
+</dl>
+
+
+<h3 id="trace">trace</h3>
+
+<p>The <em>trace</em> provider allows you to attach probes to the kernel's
+<em>tracepoint</em> infrastructure. The <em>probe-definition</em> is matched against
+the <em>debugfs</em> path located at
+<em>/sys/kernel/debug/tracing/events</em>. E.g. <em>trace:sched/sched_switch</em>
+would run the probe every time the kernel schedules a new task.</p>
+
+<p>A tracepoint's data is defined in its <em>format</em> file,
+e.g. <em>/sys/kernel/debug/tracing/events/sched/sched_switch/format</em>. The
+trace provider will export each field as a function. Say the <em>format</em>
+file has the following content:</p>
+
+<pre><code>name: sched_switch
+ID: 287
+format:
+field:unsigned short common_type;   offset:0;   size:2; signed:0;
+field:unsigned char common_flags;   offset:2;   size:1; signed:0;
+field:unsigned char common_preempt_count;   offset:3;   size:1; signed:0;
+field:int common_pid;   offset:4;   size:4; signed:1;
+
+field:char prev_comm[16];   offset:8;   size:16;    signed:1;
+field:pid_t prev_pid;   offset:24;  size:4; signed:1;
+field:int prev_prio;    offset:28;  size:4; signed:1;
+field:long prev_state;  offset:32;  size:8; signed:1;
+field:char next_comm[16];   offset:40;  size:16;    signed:1;
+field:pid_t next_pid;   offset:56;  size:4; signed:1;
+field:int next_prio;    offset:60;  size:4; signed:1;
 </code></pre>
 
-<p>Count the number of calls to <span class="man-ref">open<span class="s">(2)</span></span>, grouped by executable name:</p>
+<p>The probe may then call the following functions:</p>
+
+<p>  <code>common_type()</code> => number <br />
+  <code>common_flags()</code> => number <br />
+  <code>common_preempt_count()</code> => number <br />
+  <code>common_pid()</code> => number</p>
+
+<p>  <code>prev_comm()</code> => string <br />
+  <code>prev_pid()</code> => number <br />
+  <code>prev_prio()</code> => number <br />
+  <code>prev_state()</code> => number <br />
+  <code>next_comm()</code> => string <br />
+  <code>next_pid()</code> => number <br />
+  <code>next_prio()</code> => number <br /></p>
+
+<h2 id="EXAMPLE">EXAMPLE</h2>
+
+<h3 id="Extracting-data">Extracting data</h3>
+
+<p>Print all opened files on the system, and who opened them:</p>
 
 <pre><code>kprobe:SyS_open
 {
-    $opens[execname].count()
+    printf("%v: %v\n", comm(), mem(arg(0), "128s"))
 }
 </code></pre>
 
 <h3 id="Quantize">Quantize</h3>
 
-<p>Record the distribution of the <em>size</em> argument to <span class="man-ref">read<span class="s">(2)</span></span>:</p>
+<p>Record the distribution of the return value of <span class="man-ref">read<span class="s">(2)</span></span>:</p>
 
-<pre><code>kprobe:SyS_read
+<pre><code>kretprobe:SyS_read
 {
-    $dist.quantize(arg(2))
+    @.quantize(retval())
 }
 </code></pre>
 
@@ -268,7 +426,7 @@ compared by their lexicographical order.</p></dd>
 
 <pre><code>kprobe:SyS_*
 {
-    $syscalls[func].count()
+    @[func()].count()
 }
 </code></pre>
 
@@ -276,7 +434,7 @@ compared by their lexicographical order.</p></dd>
 
 <pre><code>kprobe:SyS_* / !strcmp(execname, "dd") /
 {
-    $syscalls[func].count()
+    @[func()].count()
 }
 </code></pre>
 
@@ -287,13 +445,13 @@ compared by their lexicographical order.</p></dd>
 
 <pre><code>kprobe:__netif_receive_skb_core
 {
-    $rx[arg(0)] = nsecs
+    @rx[arg(0)] = nsecs()
 }
 
-kprobe:ip_rcv / $rx[arg(0)] /
+kprobe:ip_rcv / @rx[arg(0)] /
 {
-    $rx2ip.quantize(nsecs - $rx[arg(0)]);
-    $rx[arg(0)] = nil;
+    @diff.quantize(nsecs() - @rx[arg(0)]);
+    @rx[arg(0)] = nil;
 }
 </code></pre>
 
@@ -307,22 +465,22 @@ kprobe:ip_rcv / $rx[arg(0)] /
 
 <h2 id="AUTHORS">AUTHORS</h2>
 
-<p>Tobias Waldekranz <a href="&#x6d;&#97;&#105;&#108;&#x74;&#111;&#x3a;&#x74;&#x6f;&#98;&#x69;&#x61;&#x73;&#64;&#119;&#x61;&#x6c;&#x64;&#101;&#107;&#x72;&#97;&#110;&#122;&#x2e;&#x63;&#111;&#109;" data-bare-link="true">&#x74;&#x6f;&#x62;&#105;&#97;&#115;&#64;&#x77;&#97;&#x6c;&#100;&#x65;&#107;&#114;&#97;&#x6e;&#122;&#46;&#99;&#x6f;&#x6d;</a></p>
+<p>Tobias Waldekranz <a href="&#109;&#97;&#x69;&#108;&#116;&#111;&#58;&#x74;&#111;&#x62;&#105;&#97;&#115;&#64;&#119;&#x61;&#x6c;&#x64;&#x65;&#x6b;&#x72;&#97;&#110;&#x7a;&#x2e;&#x63;&#x6f;&#x6d;" data-bare-link="true">&#116;&#111;&#98;&#105;&#x61;&#115;&#64;&#x77;&#97;&#108;&#x64;&#101;&#x6b;&#x72;&#97;&#110;&#x7a;&#46;&#x63;&#x6f;&#x6d;</a></p>
 
 <h2 id="COPYRIGHT">COPYRIGHT</h2>
 
-<p>Copyright 2015-2016 Tobias Waldekranz</p>
+<p>Copyright 2015-2017 Tobias Waldekranz</p>
 
 <p>License: GPLv2</p>
 
 <h2 id="SEE-ALSO">SEE ALSO</h2>
 
-<p><a class="man-ref" href="http://man7.org/linux/man-pages/man1/gawk.1.html">awk<span class="s">(1)</span></a></p>
+<p><a class="man-ref" href="http://man7.org/linux/man-pages/man1/gawk.1.html">awk<span class="s">(1)</span></a> <a class="man-ref" href="https://docs.oracle.com/cd/E23823_01/html/816-5166/dtrace-1m.html">dtrace<span class="s">(1)</span></a> <a class="man-ref" href="http://man7.org/linux/man-pages/man2/bpf.2.html">bpf<span class="s">(2)</span></a></p>
 
 
   <ol class='man-decor man-foot man foot'>
-    <li class='tl'>ply</li>
-    <li class='tc'>March 2016</li>
+    <li class='tl'>ply Developers</li>
+    <li class='tc'>2017-02-22</li>
     <li class='tr'>ply(1)</li>
   </ol>
 

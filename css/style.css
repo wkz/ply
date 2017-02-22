@@ -1,0 +1,56 @@
+body {
+    font-family: "Roboto Mono", monospace;
+    background-color: #fdf6e3;
+    color: #586e75;
+}
+
+h1 {
+    color: #cb4b16;
+    font-size: 12rem;
+    font-weight: 100;
+}
+
+a:link {
+    color: #268bd2;
+}
+
+a:visited, a:active, a:focus {
+    text-decoration: none;
+}
+
+a:hover {
+    color: #268bd2; 
+    text-decoration: underline;
+}
+
+code {
+    background-color: #eee8d5;
+    color: #cb4b16;
+}
+
+pre {
+    background-color: #eee8d5;
+    padding: 1rem;
+}
+
+.container {
+    margin-bottom: 5rem;
+}
+
+.jumbotron {
+    background:    -moz-linear-gradient(top, #ded8c5, #fdf6e3);
+    background:      -o-linear-gradient(top, #ded8c5, #fdf6e3);
+    background: -webkit-linear-gradient(top, #ded8c5, #fdf6e3);
+    background:         linear-gradient(top, #ded8c5, #fdf6e3);
+    height: 60vh;
+}
+
+.jumbotron .container p {
+    color: #93a1a1;
+    margin: 1rem;
+}
+
+.header {
+    background-color: #eee8d5;
+    padding: 3rem 0;
+}
