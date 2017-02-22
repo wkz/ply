@@ -214,8 +214,8 @@ static int kprobe_event_id(kprobe_t *kp, const char *func)
 {
 	char ev_name[0x100];
 	const char *offstr;
-	ptrdiff_t funclen;
 	long offs = 0;
+	int funclen;
 
 	offstr = strchrnul(func, '+');
 	if (*offstr) {
@@ -226,7 +226,7 @@ static int kprobe_event_id(kprobe_t *kp, const char *func)
 		}
 	}
 
-	funclen = offstr - func;
+	funclen = (int)(offstr - func);
 
 	fprintf(kp->ctrl, "%s %*.*s+%ld\n", kp->type, funclen, funclen, func, offs);
 	fflush(kp->ctrl);
