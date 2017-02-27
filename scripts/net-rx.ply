@@ -1,0 +1,10 @@
+kprobe:__netif_receive_skb_core
+{
+	@rx[arg(0)] = nsecs();
+}
+
+kprobe:ip_rcv_finish / @rx[arg(2)] /
+{
+	@[""].quantize(nsecs() - @rx[arg(2)]);
+	@rx[arg(2)] = nil;
+}

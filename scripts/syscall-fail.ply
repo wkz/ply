@@ -1,0 +1,8 @@
+#!/usr/bin/env ply
+#
+# Attach return-probes
+
+trace:raw_syscalls/sys_exit / ret() < 0 /
+{
+	@[comm()].count()
+}
