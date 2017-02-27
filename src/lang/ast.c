@@ -36,7 +36,7 @@ const char *op_str(op_t op)
 	static const char *strs[] = {
 		OP_TABLE
 	};
-#undef TYPE
+#undef OP
 
 	return strs[op];
 }
