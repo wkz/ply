@@ -47,12 +47,12 @@ static int quantize_normalize(int log2, char const **suffix)
 	return (1 << log2);
 }
 
-static void quantize_dump_bar(FILE *fp, int64_t count, int64_t tot)
+static void quantize_dump_bar(FILE *fp, int64_t count, int64_t max)
 {
 	static const char bar_open[] = { 0xe2, 0x94, 0xa4 };
 	static const char bar_close[] = { 0xe2, 0x94, 0x82 };
 
-	int w = (((float)count / (float)tot) * 256.0) + 0.5;
+	int w = (((float)count / (float)max) * 256.0) + 0.5;
 	int space = 32 - ((w +  7) >> 3);
 	char block[] = { 0xe2, 0x96, 0x88 };
 
@@ -70,9 +70,9 @@ static void quantize_dump_bar(FILE *fp, int64_t count, int64_t tot)
 	fwrite(bar_close, sizeof(bar_close), 1, fp);
 }
 
-static void quantize_dump_bar_ascii(FILE *fp, int64_t count, int64_t tot)
+static void quantize_dump_bar_ascii(FILE *fp, int64_t count, int64_t max)
 {
-	int w = (((float)count / (float)tot) * 32.0) + 0.5;
+	int w = (((float)count / (float)max) * 32.0) + 0.5;
 	int i;
 
 	fputc('|', fp);
@@ -83,7 +83,7 @@ static void quantize_dump_bar_ascii(FILE *fp, int64_t count, int64_t tot)
 	fputc('|', fp);
 }
 
-static void quantize_dump_one(FILE *fp, int log2, int64_t count, int64_t tot)
+static void quantize_dump_one(FILE *fp, int log2, int64_t count, int64_t max)
 {
 	int lo, hi;
 	const char *ls, *hs;
@@ -113,14 +113,14 @@ static void quantize_dump_one(FILE *fp, int log2, int64_t count, int64_t tot)
 
 	fprintf(fp, "\t%8" PRId64" ", count);
 	if (G.ascii)
-		quantize_dump_bar_ascii(fp, count, tot);
+		quantize_dump_bar_ascii(fp, count, max);
 	else
-		quantize_dump_bar(fp, count, tot);
+		quantize_dump_bar(fp, count, max);
 	fputc('\n', fp);
 }
 
 static void quantize_dump_seg(FILE *fp, node_t *map,
-			      void *data, int len, int64_t tot)
+			      void *data, int len, int64_t max)
 {
 	node_t *rec = map->map.rec;
 	size_t entry_size = rec->dyn->size + map->dyn->size;
@@ -134,17 +134,17 @@ static void quantize_dump_seg(FILE *fp, node_t *map,
 	for (; len > 1; len--) {
 		int last_log2 = *log2 + 1;
 
-		quantize_dump_one(fp, *log2, *count, tot);
+		quantize_dump_one(fp, *log2, *count, max);
 
 		key += entry_size;
 		log2 = (void *)log2 + entry_size;
 		count = (void *)count + entry_size;
 
 		for (; last_log2 < *log2; last_log2++)
-			quantize_dump_one(fp, last_log2, 0, tot);
+			quantize_dump_one(fp, last_log2, 0, max);
 	}
 
-	quantize_dump_one(fp, *log2, *count, tot);
+	quantize_dump_one(fp, *log2, *count, max);
 }
 
 static void quantize_dump(FILE *fp, node_t *map, void *data, int len)
@@ -154,7 +154,7 @@ static void quantize_dump(FILE *fp, node_t *map, void *data, int len)
 	size_t rec_size = rec->dyn->size - sizeof(int64_t);
 	char *key = data, *seg_start = data;
 	int64_t *count = data + rec->dyn->size;
-	int64_t seg_tot = *count;
+	int64_t seg_max = *count;
 	int seg_len = 1;
 
 	for (; len > 1; len--) {
@@ -162,17 +162,17 @@ static void quantize_dump(FILE *fp, node_t *map, void *data, int len)
 		count = (void *)count + entry_size;
 
 		if (!memcmp(key, seg_start, rec_size)) {
-			seg_tot += *count;
+			seg_max = (*count > seg_max) ? *count : seg_max;
 			seg_len++;
 		} else {
-			quantize_dump_seg(fp, map, seg_start, seg_len, seg_tot);
-			seg_tot = *count;
+			quantize_dump_seg(fp, map, seg_start, seg_len, seg_max);
+			seg_max = *count;
 			seg_len = 1;
 			seg_start = key;
 		}
 	}
 
-	quantize_dump_seg(fp, map, seg_start, seg_len, seg_tot);
+	quantize_dump_seg(fp, map, seg_start, seg_len, seg_max);
 }
 
 int quantize_loc_assign(node_t *call)
