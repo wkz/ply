@@ -132,9 +132,10 @@ assign: var '=' expr { $$ = node_assign_new($1,   $3); }
       | map '=' NIL  { $$ = node_assign_new($1, NULL); }
 ;
 
-expr: INT          { $$ = node_int_new($1); }
-    | STRING       { $$ = node_str_new($1); }
-    | '!' expr     { $$ = node_not_new($2); }
+expr: INT          { $$ = node_int_new(    $1); }
+    | '-' INT      { $$ = node_int_new(0 - $2); }
+    | STRING       { $$ = node_str_new(    $1); }
+    | '!' expr     { $$ = node_not_new(    $2); }
     | '(' expr ')' { $$ = $2; }
     | binop
     | call
