@@ -1,7 +1,7 @@
 #!/usr/bin/env ply
 
 kprobe:SyS_execve {
-	@exec[tgid()] = mem(arg(0), "128s");
+	@exec[tid()] = mem(arg(0), "128s");
 
 	i = 0;
 	unroll(16) {
@@ -9,7 +9,7 @@ kprobe:SyS_execve {
 		if (!argi)
 			return;
 
-		@argv[tgid(), i] = mem(argi, "128s");
+		@argv[tid(), i] = mem(argi, "128s");
 
 		i = i + 1;
 	}
@@ -17,14 +17,14 @@ kprobe:SyS_execve {
 
 kretprobe:SyS_execve {
 	printf("cpu:%d uid:%d ret:%d bin:%-20s argv:",
-	       cpu(), uid(), retval(), @exec[tgid()]);
+	       cpu(), uid(), retval(), @exec[tid()]);
 
-	@exec[tgid()] = nil;
+	@exec[tid()] = nil;
 
 	i = 0;
 	unroll(16) {
-		printf("%s ", @argv[tgid(), i]);
-		@argv[tgid(), i] = nil;
+		printf("%s ", @argv[tid(), i]);
+		@argv[tid(), i] = nil;
 
 		i = i + 1;
 	}

@@ -8,10 +8,10 @@
 kprobe:do_sys_open
 {
 	# should just save ptr, pending issue #13
-	@path[pid()] = mem(arg(1), "128s");
+	@path[tid()] = mem(arg(1), "128s");
 }
 
-kretprobe:do_sys_open # should use / @path[pid()] /, pending issue #17 or #13
+kretprobe:do_sys_open / @path[tid()] /
 {
 	if (retval() > 0) {
 		fd = retval();
@@ -21,6 +21,6 @@ kretprobe:do_sys_open # should use / @path[pid()] /, pending issue #17 or #13
 		errno = -1 * retval();
 	}
 
-	printf("%-6d %-16s %4d %3d %s\n", pid(), comm(), fd, errno, @path[pid()]);
-	@path[pid()] = nil;
+	printf("%-6d %-16s %4d %3d %s\n", pid(), comm(), fd, errno, @path[tid()]);
+	@path[tid()] = nil;
 }

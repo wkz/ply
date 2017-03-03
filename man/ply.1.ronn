@@ -203,7 +203,8 @@ all providers inherits a set of common functions:
     Returns the time since the system started, in nanoseconds.
 
   * `pid()` => number:
-    Returns the _process ID_ of the running process.
+    Returns the _process ID_ of the running process. Also known as
+    _thread group ID_ by the kernel.
 
   * `printf(format [, expression, expression ... ])`:
     Prints _formatted output_ to ply's standard out. In addition to
@@ -234,8 +235,9 @@ all providers inherits a set of common functions:
     greater than the second argument respectively. Strings are
     compared by their lexicographical order.
 
-  * `tgid()` => number:
-    Returns the _thread group ID_ of the running process.
+  * `tid()` => number:
+    Returns the _task ID_ of the running process, i.e. the kernel's
+    identifier for the current thread of execution.
 
   * `uid()` => number:
     Returns the _user ID_ of the running process.
