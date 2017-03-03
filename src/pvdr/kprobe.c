@@ -57,10 +57,8 @@ static int probe_event_id(kprobe_t *kp, const char *path)
 	char ev_id[16];
 
 	fp = fopenf("r", "/sys/kernel/debug/tracing/events/%s/id", path);
-	if (!fp) {
-		_eno("\"%s\"", path);
+	if (!fp)
 		return -errno;
-	}
 
 	if (!fgets(ev_id, sizeof(ev_id), fp))
 		return -EIO;
@@ -264,8 +262,10 @@ static int kprobe_attach_pattern(kprobe_t *kp, const char *pattern)
 			continue;
 
 		err = kprobe_attach(kp, k->sym);
-		if (err == -EEXIST)
+		if (err == -EEXIST || err == -ENOENT) {
+			_w("'%s' will not be probed", k->sym);
 			err = 0;
+		}
 	}
 
 	return (err < 0) ? err : kp->efds.len;
