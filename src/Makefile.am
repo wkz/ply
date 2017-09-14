@@ -5,6 +5,7 @@ ACLOCAL_AMFLAGS  = -I ../m4
 AM_YFLAGS        = -d -Wall
 ply_CFLAGS       = -I$(top_srcdir)/src/include
 ply_CFLAGS      += -DGIT_VERSION=\"$(shell git describe --always --dirty)\"
+ply_CFLAGS      += -Wno-unused-result
 
 lang/lex.h: lang/lex.c
 lang/lex.c: lang/lex.l
