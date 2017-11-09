@@ -20,6 +20,9 @@ ply_SOURCES  += annotate.c bpf-syscall.c compile.c evpipe.c kallsyms.c \
 		map.c ply.c symtable.c utils.c
 
 ply_SOURCES  += arch/arch-null.c
+if ARCH_POWERPC
+ply_SOURCES  += arch/arch-ppc.c
+endif
 if ARCH_ARM
 ply_SOURCES  += arch/arch-arm.c
 endif
