@@ -29,13 +29,19 @@
 #include <ply/bpf-syscall.h>
 #include <ply/map.h>
 #include <ply/symtable.h>
+#include <ply/arch.h>
 
 #define PTR_W ((int)(sizeof(uintptr_t) * 2))
 
 void dump_sym(FILE *fp, node_t *integer, void *data)
 {
-	uintptr_t pc = *((uint64_t *)data);
+	uintptr_t pc;
 	const ksym_t *k;
+
+	if (arch_reg_width() == 4)
+		pc = *((uint32_t *)data);
+	else
+		pc = *((uint64_t *)data);
 
 	k = G.ksyms ? ksym_get(G.ksyms, pc) : NULL;
 	if (k) {
