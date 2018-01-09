@@ -23,6 +23,9 @@ ply_SOURCES  += arch/arch-null.c
 if ARCH_ARM
 ply_SOURCES  += arch/arch-arm.c
 endif
+if ARCH_AARCH64
+ply_SOURCES  += arch/arch-aarch64.c
+endif
 if ARCH_X86_64
 ply_SOURCES  += arch/arch-x86_64.c
 endif

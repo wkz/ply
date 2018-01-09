@@ -29,5 +29,6 @@ AC_CANONICAL_HOST
 AC_SUBST([host_cpu], [$host_cpu])
 AM_CONDITIONAL([ARCH_X86_64], [test x$host_cpu = xx86_64])
 AM_CONDITIONAL([ARCH_ARM],    [test x$host_cpu = xarm])
+AM_CONDITIONAL([ARCH_AARCH64], [test x$host_cpu = xaarch64])
 
 AC_OUTPUT
