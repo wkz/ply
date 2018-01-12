@@ -173,7 +173,7 @@ static int trace_load(node_t *probe, prog_t *prog)
 	kp = probe_load(BPF_PROG_TYPE_TRACEPOINT, probe, prog);
 	if (!kp)
 		return -EINVAL;
-	
+
 	func = strchr(probe->string, ':') + 1;
 	/* if (strchr(func, '?') || strchr(func, '*')) */
 	/* 	return kprobe_attach_pattern(kp, func); */
@@ -287,7 +287,7 @@ static int kprobe_load(node_t *probe, prog_t *prog, const char *type)
 		_eno("unable to open kprobe_events");
 		return -errno;
 	}
-	
+
 	func = strchr(probe->string, ':') + 1;
 	if (strchr(func, '?') || strchr(func, '*'))
 		return kprobe_attach_pattern(kp, func);
@@ -310,7 +310,9 @@ int kprobe_default(node_t *probe, node_t **stmts)
 	node_t *c, *vargs;
 	char *fmt;
 
-	asprintf(&fmt, "%s:  pid:%%-5d  comm:%%v  func:%%v\n", probe->string);
+	if (asprintf(&fmt, "%s:  pid:%%-5d  comm:%%v  func:%%v\n", probe->string) == -1) {
+		return -1;
+	}
 	vargs = node_str_new(fmt);
 
 	c = node_call_new(strdup("common"), strdup("pid"), NULL);
@@ -365,7 +367,9 @@ int kretprobe_default(node_t *probe, node_t **stmts)
 	node_t *c, *vargs;
 	char *fmt;
 
-	asprintf(&fmt, "%s:  pid:%%-5d  comm:%%v  retval:%%d\n", probe->string);
+	if (asprintf(&fmt, "%s:  pid:%%-5d  comm:%%v  retval:%%d\n", probe->string) == -1) {
+		return -1;
+	}
 	vargs = node_str_new(fmt);
 
 	c = node_call_new(strdup("common"), strdup("pid"), NULL);
