@@ -339,6 +339,15 @@ The probe may then call the following functions:
   `next_prio()` => number <br>
 
 
+### profile
+
+The profile provider supports profiling by allowing the user to specify
+how many times it will fire per-second.  Values of 1-1000 are supported,
+and the profile provider supports two probe formats:
+
+  `profile:[n]hz` => profile on all CPUs N times per second <br>
+  `profile:[c]:[n]hz` => profile on CPU c N times per second <br>
+
 ## EXAMPLE
 
 ### Extracting data

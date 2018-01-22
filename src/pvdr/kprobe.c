@@ -50,6 +50,11 @@ typedef struct kprobe {
 	} efds;
 } kprobe_t;
 
+typedef struct profile {
+	int *efds;
+	int num;
+	kprobe_t *kp;
+} profile_t;
 
 static int probe_event_id(kprobe_t *kp, const char *path)
 {
@@ -134,13 +139,11 @@ static kprobe_t *probe_load(enum bpf_prog_type type,
 		return NULL;
 	}
 
-	probe->dyn->probe.pvdr_priv = kp;
 	return kp;
 }
 
-static int probe_teardown(node_t *probe)
+static int kprobe_teardown(kprobe_t *kp)
 {
-	kprobe_t *kp = probe->dyn->probe.pvdr_priv;
 	int i;
 
 	for (i = 0; i < kp->efds.len; i++)
@@ -149,6 +152,11 @@ static int probe_teardown(node_t *probe)
 	free(kp->efds.fds);
 	free(kp);
 	return 0;
+}
+
+static int probe_teardown(node_t *probe)
+{
+	return kprobe_teardown(probe->dyn->probe.pvdr_priv);
 }
 
 
@@ -173,6 +181,8 @@ static int trace_load(node_t *probe, prog_t *prog)
 	kp = probe_load(BPF_PROG_TYPE_TRACEPOINT, probe, prog);
 	if (!kp)
 		return -EINVAL;
+
+	probe->dyn->probe.pvdr_priv = kp;
 
 	func = strchr(probe->string, ':') + 1;
 	/* if (strchr(func, '?') || strchr(func, '*')) */
@@ -203,6 +213,7 @@ pvdr_t trace_pvdr = {
 	.setup      = trace_load,
 	.teardown   = probe_teardown,
 };
+
 #endif
 
 
@@ -271,7 +282,8 @@ static int kprobe_attach_pattern(kprobe_t *kp, const char *pattern)
 	return (err < 0) ? err : kp->efds.len;
 }
 
-static int kprobe_load(node_t *probe, prog_t *prog, const char *type)
+static int kprobe_load(node_t *probe, prog_t *prog, const char *probestring,
+		       const char *type, kprobe_t **kpp)
 {
 	kprobe_t *kp;
 	char *func;
@@ -287,8 +299,8 @@ static int kprobe_load(node_t *probe, prog_t *prog, const char *type)
 		_eno("unable to open kprobe_events");
 		return -errno;
 	}
-
-	func = strchr(probe->string, ':') + 1;
+	*kpp = kp;
+	func = strchr(probestring, ':') + 1;
 	if (strchr(func, '?') || strchr(func, '*'))
 		return kprobe_attach_pattern(kp, func);
 	else
@@ -339,7 +351,8 @@ static int kprobe_resolve(node_t *call, const func_t **f)
 
 static int kprobe_setup(node_t *probe, prog_t *prog)
 {
-	return kprobe_load(probe, prog, "p");
+	return kprobe_load(probe, prog, probe->string, "p",
+			   (kprobe_t **)&probe->dyn->probe.pvdr_priv);
 }
 
 pvdr_t kprobe_pvdr = {
@@ -396,7 +409,8 @@ static int kretprobe_resolve(node_t *call, const func_t **f)
 
 static int kretprobe_setup(node_t *probe, prog_t *prog)
 {
-	return kprobe_load(probe, prog, "r");
+	return kprobe_load(probe, prog, probe->string, "r",
+			   (kprobe_t **)&probe->dyn->probe.pvdr_priv);
 }
 
 pvdr_t kretprobe_pvdr = {
@@ -407,6 +421,135 @@ pvdr_t kretprobe_pvdr = {
 
 	.setup      = kretprobe_setup,
 	.teardown   = probe_teardown,
+};
+
+/* PROFILE provider */
+
+static int profile_resolve(node_t *call, const func_t **f)
+{
+        return modules_get_func(kprobe_modules, call, f);
+}
+
+static void profile_destroy(profile_t *profile)
+{
+	int i;
+
+	if (!profile)
+		return;
+
+	if (profile->kp)
+		(void) kprobe_teardown(profile->kp);
+	for (i = 0; i < profile->num; i++) {
+		if (profile->efds[i] > 0)
+			close(profile->efds[i]);
+	}
+	free(profile->efds);
+	free(profile);
+}
+
+static int profile_teardown(node_t *probe)
+{
+	profile_t *profile = probe->dyn->probe.pvdr_priv;
+
+	profile_destroy(profile);
+
+	return 0;
+}
+
+static int profile_perf_event_open(profile_t *profile, int cpu, int freq)
+{
+	struct perf_event_attr attr = {};
+	int err = 0, i = profile->num;
+
+	attr.type = PERF_TYPE_SOFTWARE;
+	attr.config = PERF_COUNT_SW_CPU_CLOCK;
+	attr.freq = 1;
+	attr.sample_freq = freq;
+
+	profile->efds[i] = perf_event_open(&attr, -1, cpu, -1, 0);
+	if (profile->efds[i] < 0)
+		return -errno;
+	if (ioctl(profile->efds[i], PERF_EVENT_IOC_ENABLE, 0)) {
+		close(profile->efds[i]);
+		return -errno;
+	}
+	profile->num++;
+	return 0;
+}
+
+/*
+ * profile provider is implemented by creating a perf event
+ * PERF_TYPE_SOFTWARE/PERF_COUNT_SW_CPU_CLOCK for each CPU (or
+ * a specified CPU) and using a kprobe on "kprobe:perf_swevent_hrtimer"
+ * to catch it occuring in kernel context.
+ */
+static int profile_setup(node_t *probe, prog_t *prog)
+{
+	struct perf_event_attr attr = {};
+	int cpu = -1, ncpus;
+	profile_t *profile;
+	char *freqstr;
+	int freq = -1;
+	int err = 0;
+
+	/*
+	 * Expected format is either profile:[n]hz where n is a number between
+	 * 1 and 1000, or profile:[c]:[n]hz where c is the CPU to profile.
+	 */
+	if (sscanf(probe->string, "profile:%dhz", &freq) != 1 &&
+	    sscanf(probe->string, "profile:%d:%dhz", &cpu, &freq) != 2)
+		return -EINVAL;
+
+	if (freq < 0 || freq > 1000)
+		return -EINVAL;
+
+	ncpus = sysconf(_SC_NPROCESSORS_ONLN);
+
+	if (cpu < -1 || cpu > ncpus)
+		return -EINVAL;
+
+	if (cpu >= 0)
+		ncpus = 1;
+
+	profile = calloc(1, sizeof(*profile));
+	if (!profile)
+		return -ENOMEM;
+
+	profile->efds = calloc(ncpus, sizeof (int));
+	if (!profile->efds) {
+		free(profile);
+		return -ENOMEM;
+	}
+	if (cpu != -1)
+		err = profile_perf_event_open(profile, cpu, freq);
+	else {
+		for (cpu = 0; cpu < ncpus; cpu++) {
+			err = profile_perf_event_open(profile, cpu, freq);
+			if (err)
+				goto out;
+		}
+		profile->num++;
+	}
+
+	if (!err)
+		err = kprobe_load(probe, prog, "kprobe:perf_swevent_hrtimer",
+				  "p", &profile->kp);
+out:
+	if (err <= 0)
+		profile_destroy(profile);
+	else
+		probe->dyn->probe.pvdr_priv = profile;
+
+	return err;
+}
+
+pvdr_t profile_pvdr = {
+        .name = "profile",
+
+        .resolve = profile_resolve,
+
+        .setup = profile_setup,
+        .teardown = profile_teardown,
 };
 
 
@@ -420,4 +563,5 @@ static void kprobe_pvdr_register(void)
 #endif
 	pvdr_register(   &kprobe_pvdr);
 	pvdr_register(&kretprobe_pvdr);
+	pvdr_register(  &profile_pvdr);
 }
