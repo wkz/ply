@@ -35,3 +35,11 @@ ply -c 'kprobe:SyS_* { @[comm(), pid()].count() }'
 ```
 ply -c 'kprobe:schedule { @[stack()].count() }'
 ```
+
+### Profile
+
+**Sample process names on-cpu 1000 times per second:**
+```
+ply -c 'profile:1000 { @c[comm()].count();}'
+```
+
