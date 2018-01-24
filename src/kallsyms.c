@@ -45,6 +45,20 @@ static int ksym_cmp(const void *_key, const void *_member)
 	return 0;
 }
 
+/* Compare two members: for this qsort operation it is sufficient to compare
+ * start addresses.
+ */
+static int ksym_membercmp(const void *_m1, const void *_m2)
+{
+	const ksym_t *m1 = _m1, *m2 = _m2;
+
+	if (m1->start < m2->start)
+		return -1;
+	if (m1->start > m2->start)
+		return 1;
+	return 0;
+}
+
 const ksym_t *ksym_get(ksyms_t *ks, uintptr_t addr)
 {
 	ksym_t key = { .start = addr, .end = addr };
@@ -115,7 +129,6 @@ static int ksyms_cache_build(const char *in, const char *out)
 		} else if (err)
 			goto close_cfp;
 
-		ksym[!i].end = ksym[i].start - 1;
 		if (!fwrite(&ksym[!i], sizeof(ksym[!i]), 1, cfp)) {
 			err = -EIO;
 			goto close_cfp;
@@ -124,8 +137,6 @@ static int ksyms_cache_build(const char *in, const char *out)
 		hdr.n_syms++;
 	}
 
-	/* assume no function larger than 4k */
-	ksym[i].end = ksym[i].start + 0x1000;
 	if (!fwrite(&ksym[i], sizeof(ksym[i]), 1, cfp)) {
 		err = -EIO;
 		goto close_cfp;
@@ -150,7 +161,7 @@ out:
 static int ksyms_cache_open(ksyms_t *ks)
 {
 	struct stat st;
-	int err;
+	int err, i;
 
 	if (stat(KSYMS_CACHE, &st)) {
 		err = ksyms_cache_build("/proc/kallsyms", KSYMS_CACHE);
@@ -165,8 +176,29 @@ static int ksyms_cache_open(ksyms_t *ks)
 	if (ks->cache_fd < 0)
 		return -errno;
 
-	ks->cache = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE,
+	ks->cache = mmap(NULL, st.st_size, PROT_READ | PROT_WRITE, MAP_PRIVATE,
 			 ks->cache_fd, 0);
+
+	/* For bsearch() to work properly, our cache must be sorted by
+	 * start address.  kallsyms is not guaranteed to be in order from
+	 * low address to high; modules seem to be particularly problematic.
+	 * Question: do we need to sort prior to cache creation?  Might make
+	 * that code a bit uglier but implicit assumption of ordering is used
+	 * to figure out end addresses.
+	 */
+	if (ks->cache) {
+		ksym_t *ksyms = ks->cache->sym;
+		int i;
+
+		qsort(ksyms, ks->cache->hdr.n_syms, sizeof(ksym_t),
+		      ksym_membercmp);
+		/* Now we have sorted we can fill in end values. */
+		for (i = 0; i < ks->cache->hdr.n_syms - 1; i++)
+			ksyms[i].end = ksyms[i+1].start -1;
+		/* assume no function larger than 4k */
+		ksyms[i].end = ksyms[i].start + 0x1000;
+	}
+
 	return ks->cache ? 0 : -ENOENT;
 }
 
