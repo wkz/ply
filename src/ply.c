@@ -22,6 +22,7 @@
 #include <signal.h>
 #include <stdio.h>
 #include <sys/resource.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include <ply/ast.h>
@@ -194,9 +195,10 @@ int main(int argc, char **argv)
 	node_t *probe, *script;
 	prog_t *prog = NULL;
 	pvdr_t *pvdr;
-	FILE *sfp, *enable;
+	FILE *sfp;
 	int err = 0, num, total;
 
+	G.self = getpid();
 	scriptfp = stdin;
 	err = parse_opts(argc, argv, &sfp);
 	if (err)
@@ -269,24 +271,10 @@ int main(int argc, char **argv)
 	siginterrupt(SIGINT, 1);
 	signal(SIGINT, term);
 	
-	enable = fopen("/sys/kernel/debug/tracing/events/enable", "w");
-	if (!enable) {
-		perror("unable to enable probes");
-		err = -errno;
-		goto err;
-	}
-
-	fputs("1\n", enable);
-	fflush(enable);
-	rewind(enable);
-
 	fprintf(stderr, "%d probe%s active\n", total, (total == 1) ? "" : "s");
 	err = evpipe_loop(evp, &term_sig, 0);
 
 	fprintf(stderr, "de-activating probes\n");
-	fputs("0\n", enable);
-	fflush(enable);
-	fclose(enable);
 
 	map_teardown(script);
 
@@ -297,8 +285,6 @@ int main(int argc, char **argv)
 			break;
 	}
 
-	/* disable all kprobe events */
-	fclose(fopen("/sys/kernel/debug/tracing/kprobe_events", "w"));
 done:
 err:
 	if (prog)

@@ -39,6 +39,12 @@
 #include <ply/ply.h>
 #include <ply/pvdr.h>
 
+#define KPROBE_MAXLEN   0x100
+
+/*
+ * Structure used for internal representation of kprobes, kretprobes and
+ * tracepoints.
+ */
 typedef struct kprobe {
 	const char *type;
 	FILE *ctrl;
@@ -55,6 +61,8 @@ typedef struct profile {
 	int num;
 	kprobe_t *kp;
 } profile_t;
+
+#define	KPROBE_MAXLEN	0x100
 
 static int probe_event_id(kprobe_t *kp, const char *path)
 {
@@ -86,16 +94,19 @@ static int probe_attach(kprobe_t *kp, int id)
 	gfd = kp->efds.len ? kp->efds.fds[0] : -1;
 	efd = perf_event_open(&attr, -1, 0, gfd, 0);
 	if (efd < 0) {
+		_d("could not open perf_event: %s", strerror(errno));
 		return -errno;
 	}
 
 	if (ioctl(efd, PERF_EVENT_IOC_ENABLE, 0)) {
 		close(efd);
+		_d("could not enable probe: %s", strerror(errno));
 		return -errno;
 	}
 
 	if (ioctl(efd, PERF_EVENT_IOC_SET_BPF, kp->bfd)) {
 		close(efd);
+		_d("could not set BPF program: %s", strerror(errno));
 		return -errno;
 	}
 
@@ -117,7 +128,7 @@ static kprobe_t *probe_load(enum bpf_prog_type type,
 {
 	kprobe_t *kp;
 
-	kp = malloc(sizeof(*kp));
+	kp = calloc(1, sizeof(*kp));
 	assert(kp);
 
 	kp->efds.fds = calloc(1, sizeof(*kp->efds.fds));
@@ -142,23 +153,31 @@ static kprobe_t *probe_load(enum bpf_prog_type type,
 	return kp;
 }
 
-static int kprobe_teardown(kprobe_t *kp)
+static int probe_teardown_events(kprobe_t *kp)
 {
 	int i;
 
 	for (i = 0; i < kp->efds.len; i++)
 		close(kp->efds.fds[i]);
-
 	free(kp->efds.fds);
-	free(kp);
+
 	return 0;
 }
 
 static int probe_teardown(node_t *probe)
 {
-	return kprobe_teardown(probe->dyn->probe.pvdr_priv);
-}
+	int err;
 
+	kprobe_t *kp = probe->dyn->probe.pvdr_priv;
+
+	err = probe_teardown_events(kp);
+
+	if (kp->ctrl)
+		fclose(kp->ctrl);
+	free(kp);
+
+	return err;
+}
 
 /* TRACEPOINT provider */
 #ifdef LINUX_HAS_TRACEPOINT
@@ -185,10 +204,8 @@ static int trace_load(node_t *probe, prog_t *prog)
 	probe->dyn->probe.pvdr_priv = kp;
 
 	func = strchr(probe->string, ':') + 1;
-	/* if (strchr(func, '?') || strchr(func, '*')) */
-	/* 	return kprobe_attach_pattern(kp, func); */
-	/* else */
-		return trace_attach(kp, func);
+
+	return trace_attach(kp, func);
 }
 
 const module_t *trace_modules[] = {
@@ -219,14 +236,43 @@ pvdr_t trace_pvdr = {
 
 /* KPROBE provider */
 
-static int kprobe_event_id(kprobe_t *kp, const char *func)
+static int kprobe_event_id(kprobe_t *kp, const char *func, long offs)
 {
-	char ev_name[0x100];
+	char ev_name[KPROBE_MAXLEN];
+
+	snprintf(ev_name, sizeof(ev_name), "kprobes/%s_%s_%ld_%d", kp->type,
+		 func, offs, G.self);
+
+	return probe_event_id(kp, ev_name);
+}
+
+/*
+ * Set attach state for function/offset to attached if attach is 1, otherwise
+ * detach.
+ *
+ * In order to make k[ret]probes unique to this instance of ply, we name
+ * the probes [type]_[func]_[offset]_[pid], where
+ *	- type is the type of probe (p for kprobes, r for kretprobes);
+ *	- func and offset are function name and offset
+ *	- pid is process id of this process.
+ *
+ * For example, p_kfree_skb_0_1234 is the kprobe for kfree_skb at offset 0
+ * created by process 1234.
+ *
+ * Making probes unique like this allows us to have multiple k[ret]probes
+ * active for different instances of ply running simultaneously, and it
+ * gives us a way to clean up after ourselves only when done.
+ */
+static int kprobe_setattach(kprobe_t *kp, const char *func_and_offset,
+			    int attach)
+{
+	char func[KPROBE_MAXLEN];
 	const char *offstr;
 	long offs = 0;
 	int funclen;
+	int id, err;
 
-	offstr = strchrnul(func, '+');
+	offstr = strchrnul(func_and_offset, '+');
 	if (*offstr) {
 		offs = strtol(offstr, NULL, 0);
 		if (offs < 0) {
@@ -234,32 +280,43 @@ static int kprobe_event_id(kprobe_t *kp, const char *func)
 			return -EINVAL;
 		}
 	}
+	funclen = (int)(offstr - func_and_offset);
+	snprintf(func, funclen+1, "%*.*s", funclen, funclen, func_and_offset);
 
-	funclen = (int)(offstr - func);
+	assert(kp->ctrl);
+	_d("%s %s+%x", attach ? "attaching to" : "detaching from", func, offs);
+	fseek(kp->ctrl, 0, SEEK_END);
+	if (attach)
+		err = fprintf(kp->ctrl, "%s:%s_%s_%ld_%d %s+%ld\n", kp->type,
+			      kp->type, func, offs, G.self, func, offs);
+	else
+		err = fprintf(kp->ctrl, "-:%s_%s_%ld_%d\n", kp->type,
+			      func, offs, G.self);
+	if (err < 0)
+		err = -errno;
+	else
+		err = 0;
 
-	fprintf(kp->ctrl, "%s %*.*s+%ld\n", kp->type, funclen, funclen, func, offs);
 	fflush(kp->ctrl);
 
-	snprintf(ev_name, sizeof(ev_name), "kprobes/%s_%*.*s_%ld", kp->type,
-		 funclen, funclen, func, offs);
+	/* If detaching or something went wrong, we're done... */
+	if (!attach || err)
+		return err;
 
-	return probe_event_id(kp, ev_name);
-}
-
-static int kprobe_attach(kprobe_t *kp, const char *func)
-{
-	int id;
-
-	id = kprobe_event_id(kp, func);
+	id = kprobe_event_id(kp, func, offs);
 	if (id < 0)
 		return id;
 
 	return probe_attach(kp, id);
 }
 
-static int kprobe_attach_pattern(kprobe_t *kp, const char *pattern)
+static int kprobe_setattach_pattern(kprobe_t *kp, const char *pattern,
+				    int attach)
 {
 	int i, err;
+
+	if (!strchr(pattern, '?') && !strchr(pattern, '*'))
+		return kprobe_setattach(kp, pattern, attach);
 
 	if (!G.ksyms) {
 		_e("probe wildcards not supported without KALLSYMS support");
@@ -272,9 +329,11 @@ static int kprobe_attach_pattern(kprobe_t *kp, const char *pattern)
 		if (fnmatch(pattern, k->sym, 0))
 			continue;
 
-		err = kprobe_attach(kp, k->sym);
+		err = kprobe_setattach(kp, k->sym, attach);
 		if (err == -EEXIST || err == -ENOENT) {
-			_w("'%s' will not be probed", k->sym);
+			_w("'%s' will not be probed: %s", k->sym,
+			   err == -EEXIST ? "probe already exists" :
+			   "probe not found");
 			err = 0;
 		}
 	}
@@ -299,14 +358,20 @@ static int kprobe_load(node_t *probe, prog_t *prog, const char *probestring,
 		_eno("unable to open kprobe_events");
 		return -errno;
 	}
+
 	*kpp = kp;
 	func = strchr(probestring, ':') + 1;
-	if (strchr(func, '?') || strchr(func, '*'))
-		return kprobe_attach_pattern(kp, func);
-	else
-		return kprobe_attach(kp, func);
+	return kprobe_setattach_pattern(kp, func, 1);
 }
 
+static int kprobe_detach(kprobe_t *kp, const char *probestring)
+{
+	char *func;
+
+	func = strchr(probestring, ':') + 1;
+
+	return kprobe_setattach_pattern(kp, func, 0);
+}
 
 const module_t *kprobe_modules[] = {
 	&kprobe_module,
@@ -355,6 +420,34 @@ static int kprobe_setup(node_t *probe, prog_t *prog)
 			   (kprobe_t **)&probe->dyn->probe.pvdr_priv);
 }
 
+static int kprobe_destroy(kprobe_t *kp, const char *pattern)
+{
+	int err1, err2;
+
+	/* preserve first error we hit but drive on... */
+	err1 = probe_teardown_events(kp);
+
+	/*
+	 * we need to detach after closing all event fds relating to probe,
+	 * otherwise we cannot remove the associated event from
+	 * /sys/kernel/debug/tracing/kprobe_events.
+	 */
+	err2 = kprobe_detach(kp, pattern);
+
+	fclose(kp->ctrl);
+
+	free(kp);
+
+	return err1 ? err1 : err2;
+}
+
+static int kprobe_teardown(node_t *probe)
+{
+	kprobe_t *kp = probe->dyn->probe.pvdr_priv;
+
+	return kprobe_destroy(kp, probe->string);
+}
+
 pvdr_t kprobe_pvdr = {
 	.name = "kprobe",
 
@@ -362,7 +455,7 @@ pvdr_t kprobe_pvdr = {
 	.resolve = kprobe_resolve,
 
 	.setup      = kprobe_setup,
-	.teardown   = probe_teardown,
+	.teardown   = kprobe_teardown,
 };
 
 
@@ -420,7 +513,7 @@ pvdr_t kretprobe_pvdr = {
 	.resolve = kretprobe_resolve,
 
 	.setup      = kretprobe_setup,
-	.teardown   = probe_teardown,
+	.teardown   = kprobe_teardown,
 };
 
 /* PROFILE provider */
@@ -438,7 +531,7 @@ static void profile_destroy(profile_t *profile)
 		return;
 
 	if (profile->kp)
-		(void) kprobe_teardown(profile->kp);
+		kprobe_destroy(profile->kp, "kprobe:perf_swevent_hrtimer");
 	for (i = 0; i < profile->num; i++) {
 		if (profile->efds[i] > 0)
 			close(profile->efds[i]);
