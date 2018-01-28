@@ -64,6 +64,15 @@ pspec		{ident}:[*?+@!:_.,/a-zA-Z0-9]*
 "continue"		{ return CONTINUE; }
 "return"		{ return RETURN; }
 
+"/"[ \t\n]*/"{"	{
+			/*
+			 * division in an expr and closing of probe predicate use
+			 * the same '/' symbol; need to resolve the shift-reduce
+			 * conflict.  If next non-whitespace char is '{' we know
+			 * it is a closing predicate.
+			 */
+			return CLOSEPRED;
+		}
 {pspec}			{ yylval->string = strdup(yytext); return PSPEC; }
 {ident}			{ yylval->string = strdup(yytext); return IDENT; }
 {map}			{ yylval->string = strdup(yytext); return MAP;   }
@@ -74,8 +83,9 @@ pspec		{ident}:[*?+@!:_.,/a-zA-Z0-9]*
 ">=" { return GE; }
 "==" { return EQ; }
 "!=" { return NE; }
+"/"  { return DIV; }
 
-[=$.,;+\-*/%<>&\^|!()\[\]{}]	{ return *yytext; }
+[=$.,;+\-*%<>&\^|!()\[\]{}]	{ return *yytext; }
 \"(\\.|[^\\"])*\"	{ yylval->string = strndup(&yytext[1], strlen(yytext) - 2); return STRING; }
 [0-9]+			{ yylval->integer = strtoul(yytext, NULL, 0); return INT; }
 0[xX][0-9a-fA-F]+	{ yylval->integer = strtoul(yytext, NULL, 0); return INT; }

@@ -11,7 +11,7 @@ ply -c 'kretprobe:SyS_read { @.quantize(retval()) }'
 
 **`read()` request size, as a power-of-2 histogram, for reads > 1 kB, grouped by pid:**
 ```
-ply -c 'kprobe:SyS_read / (arg(2) > 1024) / { @[pid()].quantize(arg(2)); }'
+ply -c 'kprobe:SyS_read / arg(2) > 1024 / { @[pid()].quantize(arg(2)); }'
 ```
 
 **`open()` Print process name, pid and the file that was opened:**

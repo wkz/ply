@@ -58,9 +58,9 @@ typedef struct node node_t;
 %parse-param { node_t **script }
 %parse-param { yyscan_t scanner }
 
-%token EQ NE LE GE LSH RSH
+%token EQ NE LE GE LSH RSH DIV
 %token NIL IF ELSE UNROLL BREAK CONTINUE RETURN
-%token <string> PSPEC IDENT MAP STRING
+%token <string> PSPEC CLOSEPRED IDENT MAP STRING
 %token <integer> INT
 
 %type <node> script probes probe oblock block stmts stmt assign
@@ -75,7 +75,7 @@ typedef struct node node_t;
 %left '<' LE GE '>'
 %left LSH RSH
 %left '+' '-'
-%left '*' '/' '%'
+%left '*' DIV '%'
 
 /* C if-else associativity */
 %right ')' ELSE
@@ -96,7 +96,7 @@ probes: probe
 ;
 
 probe: PSPEC oblock              { $$ = node_probe_new($1, NULL, $2); }
-     | PSPEC '/' expr '/' oblock { $$ = node_probe_new($1,   $3, $5); }
+     | PSPEC DIV expr CLOSEPRED oblock { $$ = node_probe_new($1,   $3, $5); }
 ;
 
 oblock: %empty { $$ = NULL; }
@@ -174,7 +174,7 @@ binop: expr '|' expr { $$ = node_binop_new($1, OP_OR,  $3); }
      | expr '+' expr { $$ = node_binop_new($1, OP_ADD, $3); }
      | expr '-' expr { $$ = node_binop_new($1, OP_SUB, $3); }
      | expr '*' expr { $$ = node_binop_new($1, OP_MUL, $3); }
-     | expr '/' expr { $$ = node_binop_new($1, OP_DIV, $3); }
+     | expr DIV expr { $$ = node_binop_new($1, OP_DIV, $3); }
      | expr '%' expr { $$ = node_binop_new($1, OP_MOD, $3); }
 ;
 
