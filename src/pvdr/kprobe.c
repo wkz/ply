@@ -46,6 +46,7 @@
  * tracepoints.
  */
 typedef struct kprobe {
+	const char *pvdr;
 	const char *type;
 	FILE *ctrl;
 	int bfd;
@@ -131,6 +132,7 @@ static kprobe_t *probe_load(enum bpf_prog_type type,
 	kp = calloc(1, sizeof(*kp));
 	assert(kp);
 
+	kp->pvdr = probe->dyn->probe.pvdr->name;
 	kp->efds.fds = calloc(1, sizeof(*kp->efds.fds));
 	assert(kp->efds.fds);
 	kp->efds.cap = 1;
@@ -236,41 +238,35 @@ pvdr_t trace_pvdr = {
 
 /* KPROBE provider */
 
-static int kprobe_event_id(kprobe_t *kp, const char *func, long offs)
-{
-	char ev_name[KPROBE_MAXLEN];
-
-	snprintf(ev_name, sizeof(ev_name), "kprobes/%s_%s_%ld_%d", kp->type,
-		 func, offs, G.self);
-
-	return probe_event_id(kp, ev_name);
-}
-
 /*
  * Set attach state for function/offset to attached if attach is 1, otherwise
  * detach.
  *
- * In order to make k[ret]probes unique to this instance of ply, we name
+ * In order to make [uk][ret]probes unique to this instance of ply, we name
  * the probes [type]_[func]_[offset]_[pid], where
- *	- type is the type of probe (p for kprobes, r for kretprobes);
+ *	- type is the type of probe (p for [uk]probes, r for [uk]retprobes);
  *	- func and offset are function name and offset
  *	- pid is process id of this process.
  *
  * For example, p_kfree_skb_0_1234 is the kprobe for kfree_skb at offset 0
  * created by process 1234.
  *
- * Making probes unique like this allows us to have multiple k[ret]probes
+ * Making probes unique like this allows us to have multiple [uk][ret]probes
  * active for different instances of ply running simultaneously, and it
  * gives us a way to clean up after ourselves only when done.
  */
 static int kprobe_setattach(kprobe_t *kp, const char *func_and_offset,
 			    int attach)
 {
+	char fullprobename[KPROBE_MAXLEN];
+	char probename[KPROBE_MAXLEN];
+	char *probeclass = "kprobes";
 	char func[KPROBE_MAXLEN];
+	char *fix_probename;
 	const char *offstr;
 	long offs = 0;
 	int funclen;
-	int id, err;
+	int i, id, err;
 
 	offstr = strchrnul(func_and_offset, '+');
 	if (*offstr) {
@@ -283,15 +279,50 @@ static int kprobe_setattach(kprobe_t *kp, const char *func_and_offset,
 	funclen = (int)(offstr - func_and_offset);
 	snprintf(func, funclen+1, "%*.*s", funclen, funclen, func_and_offset);
 
+	snprintf(probename, sizeof(probename), "%s_%s_%ld_%d",
+		 kp->type, func, offs, G.self);
+
+	/*
+	 * u[ret]probes are of form /path/to/execname:func+offset - replace ':'
+	 * and '/' elements. +offset is not currently supported.
+	 */
+	if (strcmp(kp->pvdr, "uprobe") == 0 ||
+	    strcmp(kp->pvdr, "uretprobe") == 0) {
+		if (offs != 0) {
+			_w("uprobes do not support addresses of form %s",
+			   func_and_offset);
+			return -EINVAL;
+		}
+		probeclass = "uprobes";
+		for (i = 0; i < strlen(probename); i++) {
+			switch (probename[i]) {
+			case ':':
+			case '/':
+				probename[i] = '_';
+				break;
+			default:
+				break;
+			}
+		}
+	}
+
+	snprintf(fullprobename, sizeof(fullprobename),
+			 "%s/%s", probeclass, probename);
+
 	assert(kp->ctrl);
 	_d("%s %s+%x", attach ? "attaching to" : "detaching from", func, offs);
 	fseek(kp->ctrl, 0, SEEK_END);
-	if (attach)
-		err = fprintf(kp->ctrl, "%s:%s_%s_%ld_%d %s+%ld\n", kp->type,
-			      kp->type, func, offs, G.self, func, offs);
-	else
-		err = fprintf(kp->ctrl, "-:%s_%s_%ld_%d\n", kp->type,
-			      func, offs, G.self);
+	if (attach) {
+		if (offs)
+			err = fprintf(kp->ctrl, "%s:%s %s+%ld\n", kp->type,
+				      probename, func, offs);
+		else
+			err = fprintf(kp->ctrl, "%s:%s %s\n", kp->type,
+				      probename, func);
+
+	} else
+		err = fprintf(kp->ctrl, "-:%s\n", probename);
+
 	if (err < 0)
 		err = -errno;
 	else
@@ -300,10 +331,16 @@ static int kprobe_setattach(kprobe_t *kp, const char *func_and_offset,
 	fflush(kp->ctrl);
 
 	/* If detaching or something went wrong, we're done... */
-	if (!attach || err)
+	if (!attach || err) {
+		if (err) {
+			_d("error %d %s %s (%s+%x)", err,
+			   attach ? "attaching to" : "detaching from",
+			   probename, func, offs);
+		}
 		return err;
+	}
 
-	id = kprobe_event_id(kp, func, offs);
+	id = probe_event_id(kp, fullprobename);
 	if (id < 0)
 		return id;
 
@@ -645,6 +682,58 @@ pvdr_t profile_pvdr = {
         .teardown = profile_teardown,
 };
 
+static int uprobe_load(node_t *probe, prog_t *prog, const char *type,
+		       kprobe_t **kpp)
+{
+	kprobe_t *kp;
+	char *func;
+
+	kp = probe_load(BPF_PROG_TYPE_KPROBE, probe, prog);
+	if (!kp)
+		return -EINVAL;
+
+	kp->type = type;
+
+	kp->ctrl = fopen("/sys/kernel/debug/tracing/uprobe_events", "a+");
+	if (!kp->ctrl) {
+		_eno("unable to open uprobe_events");
+		return -errno;
+	}
+
+	*kpp = kp;
+	func = strchr(probe->string, ':') + 1;
+	return kprobe_setattach_pattern(kp, func, 1);
+}
+
+static int uprobe_setup(node_t *probe, prog_t *prog)
+{
+	return uprobe_load(probe, prog, "p",
+			   (kprobe_t **)&probe->dyn->probe.pvdr_priv);
+}
+
+pvdr_t uprobe_pvdr = {
+	.name = "uprobe",
+
+	.resolve = kprobe_resolve,
+
+	.setup = uprobe_setup,
+	.teardown = kprobe_teardown,
+};
+
+static int uretprobe_setup(node_t *probe, prog_t *prog)
+{
+	return uprobe_load(probe, prog, "r",
+			   (kprobe_t **)&probe->dyn->probe.pvdr_priv);
+}
+
+pvdr_t uretprobe_pvdr = {
+	.name = "uretprobe",
+
+	.resolve = kretprobe_resolve,
+
+	.setup = uretprobe_setup,
+	.teardown = kprobe_teardown,
+};
 
 /* REGISTRATION */
 
@@ -657,4 +746,6 @@ static void kprobe_pvdr_register(void)
 	pvdr_register(   &kprobe_pvdr);
 	pvdr_register(&kretprobe_pvdr);
 	pvdr_register(  &profile_pvdr);
+	pvdr_register(   &uprobe_pvdr);
+	pvdr_register(&uretprobe_pvdr);
 }
