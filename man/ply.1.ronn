@@ -348,6 +348,28 @@ and the profile provider supports two probe formats:
   `profile:[n]hz` => profile on all CPUs N times per second <br>
   `profile:[c]:[n]hz` => profile on CPU c N times per second <br>
 
+### uprobes and uretprobes
+
+The u[ret]probes provider supports probing of user-space programs.
+At present probes are specified by the instruction offset in the
+text section.  For example, according to
+
+$ objdump -j .text -T /usr/bin/bash |grep shell_execve
+000000000042fbd0 g    DF .text	0000000000000a2b  Base        shell_execve
+
+...bash's shell_execve() function is at 000000000042fbd0.  If we run
+
+$ cat /proc//maps |grep /usr/bin/bash |grep r-xp
+00400000-004dd000 r-xp 00000000 fc:00 12433 /usr/bin/bash
+
+...we see that the text section starts at 400000. So that means our address
+is 0x2fbd0 (42fbd0 - 400000).  So we can specify
+
+uprobe:/usr/bin/bash:0x2fbd0
+
+...as a probe for entry to that function.  Future work will provide
+symbol resolution.
+
 ## EXAMPLE
 
 ### Extracting data
