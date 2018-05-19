@@ -894,6 +894,7 @@ static int compile_walk(node_t *n, prog_t *prog)
 
 static int compile_pred(node_t *pred, prog_t *prog)
 {
+	const dyn_t *dst;
 	int err;
 
 	if (!pred)
@@ -905,18 +906,17 @@ static int compile_pred(node_t *pred, prog_t *prog)
 	if (err)
 		return err;
 
-	switch (pred->dyn->loc) {
-	case LOC_REG:
-		emit(prog, JMP_IMM(BPF_JNE, pred->dyn->reg, 0, 2));
-		break;
+	if (pred->dyn->loc == LOC_REG)
+		dst = &dyn_reg[pred->dyn->reg];
+	else
+		dst = &dyn_reg[BPF_REG_0];
 
-	default:
-		_e("predicate %s was not in a register as expected", node_str(pred));
-		return -EINVAL;
-	}
+	emit_xfer_dyn(prog, dst, pred);
 
+	emit(prog, JMP_IMM(BPF_JNE, dst->reg, 0, 2));
 	emit(prog, MOV_IMM(BPF_REG_0, 0));
 	emit(prog, EXIT);
+
 	_D("<");
 	return 0;
 }

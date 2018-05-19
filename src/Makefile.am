@@ -23,6 +23,9 @@ ply_SOURCES  += arch/arch-null.c
 if ARCH_ARM
 ply_SOURCES  += arch/arch-arm.c
 endif
+if ARCH_AARCH64
+ply_SOURCES  += arch/arch-aarch64.c
+endif
 if ARCH_X86_64
 ply_SOURCES  += arch/arch-x86_64.c
 endif
@@ -31,7 +34,11 @@ if KERNEL_DIR
 BUILT_SOURCES += .kernel/include/linux/version.h
 ply_CFLAGS    += -I .kernel/include
 
+if ARCH_AARCH64
+kernelenv := ARCH=arm64
+else
 kernelenv := ARCH=@host_cpu@
+endif
 kernelenv += INSTALL_HDR_PATH=$(shell pwd)/.kernel
 
 .kernel/include/linux/version.h:

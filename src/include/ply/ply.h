@@ -53,6 +53,7 @@ struct globals {
 	int debug:1;
 	int dump:1;
 	int timeout;
+	pid_t self;
 
 	size_t map_nelem;
 

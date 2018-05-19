@@ -203,7 +203,8 @@ all providers inherits a set of common functions:
     Returns the time since the system started, in nanoseconds.
 
   * `pid()` => number:
-    Returns the _process ID_ of the running process.
+    Returns the _process ID_ of the running process. Also known as
+    _thread group ID_ by the kernel.
 
   * `printf(format [, expression, expression ... ])`:
     Prints _formatted output_ to ply's standard out. In addition to
@@ -234,8 +235,9 @@ all providers inherits a set of common functions:
     greater than the second argument respectively. Strings are
     compared by their lexicographical order.
 
-  * `tgid()` => number:
-    Returns the _thread group ID_ of the running process.
+  * `tid()` => number:
+    Returns the _task ID_ of the running process, i.e. the kernel's
+    identifier for the current thread of execution.
 
   * `uid()` => number:
     Returns the _user ID_ of the running process.
@@ -336,6 +338,37 @@ The probe may then call the following functions:
   `next_pid()` => number <br>
   `next_prio()` => number <br>
 
+
+### profile
+
+The profile provider supports profiling by allowing the user to specify
+how many times it will fire per-second.  Values of 1-1000 are supported,
+and the profile provider supports two probe formats:
+
+  `profile:[n]hz` => profile on all CPUs N times per second <br>
+  `profile:[c]:[n]hz` => profile on CPU c N times per second <br>
+
+### uprobes and uretprobes
+
+The u[ret]probes provider supports probing of user-space programs.
+At present probes are specified by the instruction offset in the
+text section.  For example, according to
+
+$ objdump -j .text -T /usr/bin/bash |grep shell_execve
+000000000042fbd0 g    DF .text	0000000000000a2b  Base        shell_execve
+
+...bash's shell_execve() function is at 000000000042fbd0.  If we run
+
+$ cat /proc//maps |grep /usr/bin/bash |grep r-xp
+00400000-004dd000 r-xp 00000000 fc:00 12433 /usr/bin/bash
+
+...we see that the text section starts at 400000. So that means our address
+is 0x2fbd0 (42fbd0 - 400000).  So we can specify
+
+uprobe:/usr/bin/bash:0x2fbd0
+
+...as a probe for entry to that function.  Future work will provide
+symbol resolution.
 
 ## EXAMPLE
 

@@ -11,7 +11,7 @@ ply -c 'kretprobe:SyS_read { @.quantize(retval()) }'
 
 **`read()` request size, as a power-of-2 histogram, for reads > 1 kB, grouped by pid:**
 ```
-ply -c 'kprobe:SyS_read / (arg(2) > 1024) / { @[pid()].quantize(arg(2)); }'
+ply -c 'kprobe:SyS_read / arg(2) > 1024 / { @[pid()].quantize(arg(2)); }'
 ```
 
 **`open()` Print process name, pid and the file that was opened:**
@@ -35,3 +35,11 @@ ply -c 'kprobe:SyS_* { @[comm(), pid()].count() }'
 ```
 ply -c 'kprobe:schedule { @[stack()].count() }'
 ```
+
+### Profile
+
+**Sample process names on-cpu 1000 times per second:**
+```
+ply -c 'profile:1000 { @c[comm()].count();}'
+```
+

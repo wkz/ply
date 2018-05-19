@@ -87,19 +87,19 @@ static int common_uid_compile(node_t *call, prog_t *prog)
 }
 COMMON_SIMPLE_FUNC(uid);
 
-static int common_tgid_compile(node_t *call, prog_t *prog)
+static int common_pid_compile(node_t *call, prog_t *prog)
 {
 	return int32_void_func(BPF_FUNC_get_current_pid_tgid,
 			       EXTRACT_OP_SHIFT, call, prog);
 }
-COMMON_SIMPLE_FUNC(tgid);
+COMMON_SIMPLE_FUNC(pid);
 
-static int common_pid_compile(node_t *call, prog_t *prog)
+static int common_tid_compile(node_t *call, prog_t *prog)
 {
 	return int32_void_func(BPF_FUNC_get_current_pid_tgid,
 			       EXTRACT_OP_MASK, call, prog);
 }
-COMMON_SIMPLE_FUNC(pid);
+COMMON_SIMPLE_FUNC(tid);
 
 static int common_nsecs_compile(node_t *call, prog_t *prog)
 {
@@ -438,8 +438,8 @@ extern const func_t printf_func;
 static const func_t *common_funcs[] = {
 	&common_gid_func,
 	&common_uid_func,
-	&common_tgid_func,
 	&common_pid_func,
+	&common_tid_func,
 	&common_nsecs_func,
 	&common_secs_func,
 	&common_cpu_func,
