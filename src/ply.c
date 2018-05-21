@@ -1,144 +1,32 @@
-/*
- * Copyright 2015-2017 Tobias Waldekranz <tobias@waldekranz.com>
- *
- * This file is part of ply.
- *
- * ply is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by
- * the Free Software Foundation, under the terms of version 2 of the
- * License.
- *
- * ply is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
- * License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with ply.  If not, see <http://www.gnu.org/licenses/>.
- */
-
+#include <assert.h>
 #include <getopt.h>
-#include <linux/version.h>
-#include <signal.h>
+#include <errno.h>
 #include <stdio.h>
-#include <sys/resource.h>
-#include <sys/types.h>
+#include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
-#include <ply/ast.h>
-#include <ply/evpipe.h>
-#include <ply/map.h>
+#include <linux/version.h>
+#include <sys/resource.h>
+
 #include <ply/ply.h>
-#include <ply/pvdr.h>
-
-#include "config.h"
-
-FILE *scriptfp;
-
-struct globals G;
-
-static const char *sopts = "AcdDht:v";
-static struct option lopts[] = {
-	{ "ascii",   no_argument,       0, 'A' },
-	{ "command", no_argument,       0, 'c' },
-	{ "debug",   no_argument,       0, 'd' },
-	{ "dump",    no_argument,       0, 'D' },
-	{ "help",    no_argument,       0, 'h' },
-	{ "timeout", required_argument, 0, 't' },
-	{ "version", no_argument,       0, 'v' },
-
-	{ NULL }
-};
 
 static void usage()
 {
-	puts("ply - Dynamic tracing utility\n"
-	     "\n"
-	     "Usage:\n"
-	     "  ply [options] <script_file>\n"
-	     "  ply [options] -c <script_string>\n"
-	     "\n"
-	     "Options:\n"
-	     "  -A                  ASCII output only, no Unicode.\n"
-	     "  -c <script_string>  Execute script literate.\n"
-	     "  -d                  Enable debug output.\n"
-	     "  -D                  Dump generated BPF and exit.\n"
-	     "  -h                  Print usage message and exit.\n"
-	     "  -t <timeout>        Terminate trace after <timeout> seconds.\n"
-	     "  -v                  Print version information.\n"
-		);
-}
-
-static void version()
-{
-	fputs(PACKAGE "-" VERSION, stdout);
-	if (strcmp(VERSION, GIT_VERSION))
-		fputs("(" GIT_VERSION ")", stdout);
-
-	printf(" (linux-version:%u~%u.%u.%u)\n",
-	       LINUX_VERSION_CODE,
-	       (LINUX_VERSION_CODE >> 16) & 0xff,
-	       (LINUX_VERSION_CODE >>  8) & 0xff,
-	       (LINUX_VERSION_CODE >>  0) & 0xff);
-}
-
-static int parse_opts(int argc, char **argv, FILE **sfp)
-{
-	int cmd = 0;
-	int opt;
-
-	G.map_nelem = 0x400;
-
-	while ((opt = getopt_long(argc, argv, sopts, lopts, NULL)) > 0) {
-		switch (opt) {
-		case 'A':
-			G.ascii = 1;
-			break;
-		case 'c':
-			cmd = 1;
-			break;
-		case 'd':
-			G.debug = 1;
-			break;
-		case 'D':
-			G.dump = 1;
-			break;
-		case 'h':
-			usage(); exit(0);
-			break;
-		case 't':
-			G.timeout = strtol(optarg, NULL, 0);
-			if (G.timeout <= 0) {
-				_e("timeout must be a positive integer");
-				usage(); exit(1);
-			}
-			break;
-		case 'v':
-			version(); exit(0);
-			break;
-
-		default:
-			_e("unknown option '%c'", opt);
-			usage(); exit(1);
-			break;
-		}
-	}
-
-	if (cmd)
-		*sfp = fmemopen(argv[optind], strlen(argv[optind]), "r");
-	else if (optind < argc)
-		*sfp = fopen(argv[optind], "r");
-	else {
-		_e("no input");
-		usage(); exit(1);
-	}
-
-	if (!*sfp) {
-		_eno("unable to read script");
-		usage(); exit(1);
-	}
-
-	return 0;
+	fputs("ply - Dynamic tracing utility\n"
+	      "\n"
+	      "Usage:\n"
+	      "  ply [options] <ply-text>\n"
+	      "  ply [options] <ply-file>\n"
+	      "\n"
+	      "Options:\n"
+	      "  -d             Enable debug output.\n"
+	      "  -e             Exit after compiling.\n"
+	      "  -f <ply-text>  Execute script literal.\n"
+	      "  -h             Print usage message and exit.\n"
+	      "  -S             Show generated BPF.\n"
+	      "  -v             Print version information.\n",
+	      stderr);
 }
 
 static void memlock_uncap(void)
@@ -149,8 +37,8 @@ static void memlock_uncap(void)
 
 	err = getrlimit(RLIMIT_MEMLOCK, &limit);
 	if (err) {
-		_eno("unable to retrieve memlock limit, "
-		     "maps are likely limited in size");
+		_e("unable to retrieve memlock limit, "
+		   "maps are likely limited in size\n");
 		return;
 	}
 
@@ -158,9 +46,10 @@ static void memlock_uncap(void)
 
 	/* The total size of all maps that ply is allowed to create is
 	 * limited by the amount of memory that can be locked into
-	 * RAM. By default, this limit can be quite low (64kB on the
-	 * author's system). So this simply tells the kernel to allow
-	 * ply to use as much as it needs. */
+	 * RAM. By default, this limit can be quite low (64kB on a
+	 * standard x86_64 box running a recent kernel). So this
+	 * simply tells the kernel to allow ply to use as much as it
+	 * needs. */
 	limit.rlim_cur = limit.rlim_max = RLIM_INFINITY;
 	err = setrlimit(RLIMIT_MEMLOCK, &limit);
 	if (err) {
@@ -174,123 +63,167 @@ static void memlock_uncap(void)
 			current >>= 10;
 		}
 
-		_eno("could not remove memlock size restriction");
-		_w("total map size is limited to %lu%s", current, suffix);
+		_w("could not remove memlock size restriction\n");
+		_w("total map size is limited to %lu%s\n", current, suffix);
 		return;
 	}
 
-	_d("unlimited memlock");
+	_d("unlimited memlock\n");
 }
 
-static int term_sig = 0;
-static void term(int sig)
+void dump(struct ply *ply)
 {
-	term_sig = sig;
-	return;
+	if (!ply->probes) {
+		printf("NO PROBES\n");
+		return;
+	}
+
+	printf("%s\n", ply->probes->probe ? : "<null>");
+
+	if (ply->probes->ast)
+		ast_fprint(stdout, ply->probes->ast);
+	else
+		printf("NO AST\n");
+
+	printf("\n\n-- globals\n");
+	symtab_dump(&ply->globals, stdout);
+	printf("\n-- locals\n");
+	symtab_dump(&ply->probes->locals, stdout);
+	printf("-- ir\n");
+	ir_dump(ply->probes->ir, stdout);
+}
+
+static void version()
+{
+	/* fputs(PACKAGE "-" VERSION, stdout); */
+	/* if (strcmp(VERSION, GIT_VERSION)) */
+	/* 	fputs("(" GIT_VERSION ")", stdout); */
+
+	printf(" (linux-version:%u~%u.%u.%u)\n",
+	       LINUX_VERSION_CODE,
+	       (LINUX_VERSION_CODE >> 16) & 0xff,
+	       (LINUX_VERSION_CODE >>  8) & 0xff,
+	       (LINUX_VERSION_CODE >>  0) & 0xff);
+}
+
+static const char *sopts = "dehSv";
+static struct option lopts[] = {
+	{ "debug",   no_argument,       0, 'd' },
+	{ "dry-run", no_argument,       0, 'e' },
+	{ "help",    no_argument,       0, 'h' },
+	{ "dump",    no_argument,       0, 'S' },
+	{ "version", no_argument,       0, 'v' },
+
+	{ NULL }
+};
+
+FILE *get_src(int argc, char **argv)
+{
+	if (!argc)
+		return NULL;
+	
+	/* if the argument names an existing file that we have access
+	 * to, use it as the source. */
+	if (!access(argv[0], R_OK))
+		return fopen(argv[0], "r");
+
+	/* TODO concat multiple argvs to one string and parse that as
+	 * a ply script */
+
+	/* otherwise, parse the argument as a ply script. */
+	return fmemopen(argv[0], strlen(argv[0]), "r");
 }
 
 int main(int argc, char **argv)
 {
-	evpipe_t *evp;
-	node_t *probe, *script;
-	prog_t *prog = NULL;
-	pvdr_t *pvdr;
-	FILE *sfp;
-	int err = 0, num, total;
+	struct ply *ply;
+	struct ply_ev *ev;
+	int err, opt;
+	int f_debug, f_dryrun, f_dump;
+	FILE *src;
 
-	G.self = getpid();
-	scriptfp = stdin;
-	err = parse_opts(argc, argv, &sfp);
+	f_debug = f_dryrun = f_dump = 0;
+	while ((opt = getopt_long(argc, argv, sopts, lopts, NULL)) > 0) {
+		switch (opt) {
+		case 'd':
+			f_debug = 1;
+			break;
+		case 'e':
+			f_dryrun = 1;
+			break;
+		case 'h':
+			usage(); exit(0);
+			break;
+		case 'S':
+			f_dump = 1;
+			break;
+		case 'v':
+			version(); exit(0);
+			break;
+
+		default:
+			_e("unknown option '%c'\n", opt);
+			usage(); exit(1);
+			break;
+		}
+	}
+
+	src = get_src(argc - optind, &argv[optind]);
+	if (!src) {
+		_e("no input\n");
+		usage(); exit(1);
+	}
+	
+	/* TODO figure this out dynamically. terminfo? */
+	ply_config.unicode = 1;
+
+	ply_alloc(&ply);
+	err = ply_fparse(ply, src);
 	if (err)
 		goto err;
 
-	G.ksyms = ksyms_new();
+	err = ply_compile(ply);
+	if (err)
+		goto err;
+
+	if (f_dump)
+		dump(ply);
+
+	if (f_dryrun)
+		goto unload;
+
 	memlock_uncap();
 
-	script = node_script_parse(sfp);
-	if (!script) {
-		err = -EINVAL;
-		goto err;
-	}
-
-	err = pvdr_resolve(script);
+	err = ply_load(ply);
 	if (err)
 		goto err;
 
-	err = annotate_script(script);
-	if (err)
-		goto err;
+	ply_start(ply);
+	printf("starting\n");
+	sleep(1);
+	/* while (ply_poll(ply, &ev)) { */
+	/* 	err = ply_ev_handle(ply, ev); */
+	/* 	ply_ev_free(ply, ev); */
+	/* 	if (err) */
+	/* 		break; */
+	/* } */
+	printf("stopping\n");
+	ply_stop(ply);
 
-	evp = calloc(1, sizeof(*evp));
-	assert(evp);
-	script->dyn->script.evp = evp;
+	if (!err)
+		ply_maps_print(ply);
 
-	err = evpipe_init(evp, 4 << 10);
-	if (err)
-		goto err;
+unload:
+	ply_unload(ply);
 
-	err = map_setup(script);
-	if (err)
-		goto err;
-		
-	if (G.dump)
-		node_ast_dump(script);
-
-	total = 0;
-	node_foreach(probe, script->script.probes) {
-		err = -EINVAL;
-		prog = compile_probe(probe);
-		if (!prog)
-			break;
-
-		if (G.dump)
-			continue;
-
-		pvdr = node_get_pvdr(probe);
-		num = pvdr->setup(probe, prog);
-		if (num < 0)
-			break;
-
-		total += num;
-	}
-
-	if (G.dump)
-		goto done;
-	
-	if (num < 0) {
-		err = num;
-		goto err;
-	}
-
-	if (G.timeout) {
-		siginterrupt(SIGALRM, 1);
-		signal(SIGALRM, term);
-		alarm(G.timeout);
-	}
-
-	siginterrupt(SIGINT, 1);
-	signal(SIGINT, term);
-	
-	fprintf(stderr, "%d probe%s active\n", total, (total == 1) ? "" : "s");
-	err = evpipe_loop(evp, &term_sig, 0);
-
-	fprintf(stderr, "de-activating probes\n");
-
-	map_teardown(script);
-
-	node_foreach(probe, script->script.probes) {
-		pvdr = node_get_pvdr(probe);
-		err = pvdr->teardown(probe);
-		if (err)
-			break;
-	}
-
-done:
 err:
-	if (prog)
-		free(prog);
-	if (script)
-		node_free(script);
+	if (err && f_dump)
+		dump(ply);
+
+	ply_free(ply);
+
+	if (err)
+		printf("ERR:%d\n", err);
 
 	return err ? 1 : 0;
 }

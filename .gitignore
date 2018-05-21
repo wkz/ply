@@ -1,6 +1,9 @@
 *~
 .#*
 *.o
+*.lo
+*.la
+.libs
 .gdb_history
 
 # autoconf/automake generated files
@@ -15,12 +18,13 @@ Makefile.in
 /configure
 /depcomp
 /install-sh
+/libtool
+/ltmain.sh
+/m4
 /missing
 /ylwrap
-/src/.kernel
-/src/config.h*
-/src/stamp-h1
 
-/src/lang/lex.[ch]
-/src/lang/parse.[ch]
+/lib/grammar.[ch]
+/lib/lexer.[ch]
+
 /src/ply
