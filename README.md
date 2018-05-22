@@ -1,3 +1,11 @@
+IMPORTANT
+=========
+
+The branch you are viewing shows version 2 of ply which is still under
+**HEAVY** development. Documentation and examples are **not** in sync
+with the implementation. See the v1.x branch for the (less un)stable
+version of `ply`.
+
 ply
 ===
 
