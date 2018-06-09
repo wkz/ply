@@ -141,6 +141,9 @@ extern struct type t_llong;
 extern struct type t_sllong;
 extern struct type t_ullong;
 
+extern struct type t_binop_func;
+extern struct type t_unary_func;
+extern struct type t_vargs_func;
 
 /* helpers */
 

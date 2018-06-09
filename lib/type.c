@@ -801,6 +801,33 @@ struct type t_ullong = builtin_scalar(unsigned long long);
 
 #pragma GCC diagnostic pop
 
+static struct tfield f_2args[] = {
+	{ .type = &t_void },
+	{ .type = &t_void },
+	{ .type = NULL }
+};
+
+struct type t_binop_func = {
+	.ttype = T_FUNC,
+	.func = { .type = &t_void, .args = f_2args },
+};
+
+static struct tfield f_1arg[] = {
+	{ .type = &t_void },
+	{ .type = NULL }
+};
+
+struct type t_unary_func = {
+	.ttype = T_FUNC,
+	.func = { .type = &t_void, .args = f_1arg },
+};
+
+struct type t_vargs_func = {
+	.ttype = T_FUNC,
+
+	.func = { .type = &t_void, .vargs = 1 },
+};
+
 struct type *builtin_types[] = {
 	&t_void,
 	&t_char,  &t_schar,  &t_uchar,
@@ -808,6 +835,8 @@ struct type *builtin_types[] = {
 	&t_int,   &t_sint,   &t_uint,
 	&t_long,  &t_slong,  &t_ulong,
 	&t_llong, &t_sllong, &t_ullong,
+
+	&t_binop_func, &t_unary_func, &t_vargs_func,
 
 	NULL
 };

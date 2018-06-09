@@ -21,6 +21,11 @@ libply_la_SOURCES     = 	\
 	aux/utils.c		\
 	\
 	built-in/global.c	\
+	built-in/aggregation.c	\
+	built-in/flow.c		\
+	built-in/math.c		\
+	built-in/proc.c		\
+	built-in/memory.c	\
 	\
 	provider/kprobe.c	\
 	\
