@@ -8,6 +8,7 @@
 
 #include <linux/version.h>
 #include <sys/resource.h>
+#include <sys/wait.h>
 
 #include <ply/ply.h>
 
@@ -20,9 +21,9 @@ static void usage()
 	      "  ply [options] <ply-file>\n"
 	      "\n"
 	      "Options:\n"
+	      "  -c COMMAND     Run COMMAND in a shell, exit upon completion.\n"
 	      "  -d             Enable debug output.\n"
 	      "  -e             Exit after compiling.\n"
-	      "  -f <ply-text>  Execute script literal.\n"
 	      "  -h             Print usage message and exit.\n"
 	      "  -S             Show generated BPF.\n"
 	      "  -v             Print version information.\n",
@@ -106,8 +107,9 @@ static void version()
 	       (LINUX_VERSION_CODE >>  0) & 0xff);
 }
 
-static const char *sopts = "dehSv";
+static const char *sopts = "c:dehSv";
 static struct option lopts[] = {
+	{ "command", required_argument, 0, 'c' },
 	{ "debug",   no_argument,       0, 'd' },
 	{ "dry-run", no_argument,       0, 'e' },
 	{ "help",    no_argument,       0, 'h' },
@@ -134,17 +136,66 @@ FILE *get_src(int argc, char **argv)
 	return fmemopen(argv[0], strlen(argv[0]), "r");
 }
 
+int inferior_prep(const char *cmd, int *infpid, int *inftrig)
+{
+	int err, pid, trig[2];
+
+	err = pipe(trig);
+	if (err)
+		return err;
+
+	*inftrig = trig[1];
+
+	pid = fork();
+	if (pid < 0)
+		return pid;
+
+	if (pid) {
+		char str[16];
+
+		*infpid = pid;
+
+		/* allow scripts to reference the pid of the inferior
+		 * as $target. */
+		snprintf(str, sizeof(str), "%d", pid);
+		setenv("target", str, 0);
+		return 0;
+	}
+
+	/* wait for parent to compile and get ready */
+	if (read(trig[0], &err, sizeof(err)) != sizeof(err))
+		return -EINVAL;
+
+	/* if parent sends us an error, don't run the command. most
+	 * probably the script did not compile. */
+	if (err)
+		exit(0);
+
+	return execl("/bin/sh", "sh", "-c", cmd, NULL);
+}
+
+static int term_sig = 0;
+static void term(int sig)
+{
+	term_sig = sig;
+	return;
+}
+
 int main(int argc, char **argv)
 {
 	struct ply *ply;
 	struct ply_ev *ev;
-	int err, opt;
+	int err, opt, infpid, inftrig;
 	int f_debug, f_dryrun, f_dump;
 	FILE *src;
+	char *cmd = NULL;
 
 	f_debug = f_dryrun = f_dump = 0;
 	while ((opt = getopt_long(argc, argv, sopts, lopts, NULL)) > 0) {
 		switch (opt) {
+		case 'c':
+			cmd = optarg;
+			break;
 		case 'd':
 			f_debug = 1;
 			break;
@@ -173,6 +224,9 @@ int main(int argc, char **argv)
 		_e("no input\n");
 		usage(); exit(1);
 	}
+
+	if (cmd && inferior_prep(cmd, &infpid, &inftrig))
+		exit(1);
 	
 	/* TODO figure this out dynamically. terminfo? */
 	ply_config.unicode = 1;
@@ -199,15 +253,30 @@ int main(int argc, char **argv)
 		goto err;
 
 	ply_start(ply);
-	printf("starting\n");
-	sleep(1);
+	fprintf(stderr, "ply: active\n");
+
+	err = 0;
+	write(inftrig, &err, sizeof(err));
+
+	siginterrupt(SIGINT, 1);
+	signal(SIGINT, term);
+	
+	if (cmd) {
+		if ((wait(&err) < 0) || !WIFEXITED(err) || WEXITSTATUS(err))
+			fprintf(stderr, "ply: inferior failed"
+				" with exit status %#x.\n", err);
+	} else {
+		pause();
+	}
+
 	/* while (ply_poll(ply, &ev)) { */
 	/* 	err = ply_ev_handle(ply, ev); */
 	/* 	ply_ev_free(ply, ev); */
 	/* 	if (err) */
 	/* 		break; */
 	/* } */
-	printf("stopping\n");
+
+	fprintf(stderr, "ply: deactivating\n");
 	ply_stop(ply);
 
 	if (!err)
