@@ -1,3 +1,4 @@
+#define _GNU_SOURCE 		/* asprintf */
 #include <assert.h>
 #include <errno.h>
 
@@ -261,7 +262,7 @@ static int map_ir_pre_key(struct node *n, struct ply_probe *pb)
 	struct node *map = n->expr.args, *arg;
 	struct type *ktype = type_base(map->sym->type->map.ktype);
 	ssize_t stack = map->sym->irs.stack;
-	size_t offset, size, pad;
+	size_t offset = 0, size = 0, pad;
 	struct tfield *f;
 
 	arg = map->next;

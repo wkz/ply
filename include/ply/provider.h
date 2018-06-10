@@ -19,6 +19,13 @@ struct provider {
 };
 
 struct provider *provider_get(const char *name);
-void provider_register(struct provider *p);
+
+#define __ply_provider __attribute__((		\
+     section("providers"),			\
+     aligned(__alignof__(struct provider))	\
+))
+
+extern struct provider __start_providers;
+extern struct provider __stop_providers;
 
 #endif	/* _PROVIDER_H */

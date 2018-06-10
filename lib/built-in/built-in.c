@@ -12,13 +12,7 @@
 #include "built-in.h"
 
 
-__ply_built_in const struct func block_func = {
-	.name = "{}",
-	.type = &t_vargs_func,
-	.static_ret = 1,
-};
-
-static struct type *global_num_type(struct node *n)
+static struct type *num_type(struct node *n)
 {
 	if (n->num.unsignd) {
 		if (n->num.u64 <= INT_MAX)
@@ -46,8 +40,8 @@ static struct type *global_num_type(struct node *n)
 	return NULL;
 }
 
-static int global_num_ir_post(const struct func *func, struct node *n,
-			      struct ply_probe *pb)
+static int num_ir_post(const struct func *func, struct node *n,
+		       struct ply_probe *pb)
 {
 	struct irstate *irs = &n->sym->irs;
 
@@ -73,13 +67,21 @@ static int global_num_ir_post(const struct func *func, struct node *n,
 	return 0;
 }
 
-static const struct func global_num_func = {
+static const struct func num_func = {
 	.name = ":num",
 
-	.ir_post = global_num_ir_post,	
+	.ir_post = num_ir_post,	
 };
 
-static int global_string_ir_post(const struct func *func, struct node *n,
+
+static struct type *string_type(struct node *n)
+{
+	size_t len = ((strlen(n->string.data) ? : 1) + 7) & ~7;
+
+	return type_array_of(&t_char, len);
+}
+
+static int string_ir_post(const struct func *func, struct node *n,
 				 struct ply_probe *pb)
 {
 	struct irstate *irs = &n->sym->irs;
@@ -94,34 +96,31 @@ static int global_string_ir_post(const struct func *func, struct node *n,
 	return 0;
 }
 
-static struct type *global_string_type(struct node *n)
-{
-	size_t len = ((strlen(n->string.data) ? : 1) + 7) & ~7;
-
-	return type_array_of(&t_char, len);
-}
-
-static const struct func global_string_func = {
+static const struct func string_func = {
 	.name = ":string",
 
-	.ir_post = global_string_ir_post,	
+	.ir_post = string_ir_post,	
 };
 
-static const struct func global_ident_func = {
+
+static const struct func ident_func = {
 	.name = ":ident",
 };
 
-extern const struct func *__start_built_ins;
-extern const struct func *__stop_built_ins;
 
-static const struct func *global_func_get(struct node *n)
+__ply_built_in const struct func block_func = {
+	.name = "{}",
+	.type = &t_vargs_func,
+	.static_ret = 1,
+};
+
+
+static const struct func *built_in_func_get(struct node *n)
 {
-	const struct func *func, *last;
+	const struct func *func;
 	int err;
 
-	last = &__stop_built_ins;
-
-	for (func = &__start_built_ins; func < last; func++) {
+	for (func = &__start_built_ins; func < &__stop_built_ins; func++) {
 		if (!strcmp(func->name, n->expr.func))
 			return func;
 	}
@@ -129,27 +128,27 @@ static const struct func *global_func_get(struct node *n)
 	return NULL;
 }
 
-int global_sym_alloc(struct ply_probe *pb, struct node *n)
+static int built_in_sym_alloc(struct ply_probe *pb, struct node *n)
 {
-	const struct func *func;
+	const struct func *func = NULL;
 	int err;
 
 	switch (n->ntype) {
 	case N_EXPR:
-		func = global_func_get(n);
+		func = built_in_func_get(n);
 		if (func)
 			break;
 
 		if (!n->expr.args) {
 			n->expr.ident = 1;
-			func = &global_ident_func;
+			func = &ident_func;
 		}
 		break;
 	case N_NUM:
-		func = &global_num_func;
+		func = &num_func;
 		break;
 	case N_STRING:
-		func = &global_string_func;
+		func = &string_func;
 		break;
 	}
 
@@ -164,28 +163,22 @@ int global_sym_alloc(struct ply_probe *pb, struct node *n)
 
 	/* infer statically known types early */
 	if (n->ntype == N_NUM)
-		n->sym->type = global_num_type(n);
+		n->sym->type = num_type(n);
 	else if (n->ntype == N_STRING)
-		n->sym->type = global_string_type(n);
+		n->sym->type = string_type(n);
 	else if (func->static_ret)
 		n->sym->type = func_return_type(func);
 	return 0;
 }
 
-int global_probe(struct ply_probe *pb)
+static int built_in_probe(struct ply_probe *pb)
 {
 	return 0;
 }
 
-struct provider global = {
-	.name = "!",
+__ply_provider struct provider built_in = {
+	.name = "!built-in",
 
-	.sym_alloc = global_sym_alloc,
-	.probe = global_probe,
+	.sym_alloc = built_in_sym_alloc,
+	.probe = built_in_probe,
 };
-
-__attribute__((constructor))
-static void global_init(void)
-{
-	provider_register(&global);
-}

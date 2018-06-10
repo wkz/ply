@@ -17,7 +17,7 @@ struct pass {
 static int pass_sym_alloc(struct node *n, void *_pb)
 {
 	struct ply_probe *pb = _pb;
-	struct provider *global = provider_get("!");
+	struct provider *built_in = provider_get("!built-in");
 	int err = 0;
 
 	if (n->sym)
@@ -32,7 +32,7 @@ static int pass_sym_alloc(struct node *n, void *_pb)
 		/* fall-through */
 	case N_NUM:
 	case N_STRING:
-		err = global->sym_alloc(pb, n);
+		err = built_in->sym_alloc(pb, n);
 	}
 
 	if (err) {

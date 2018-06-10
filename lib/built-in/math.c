@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <errno.h>
+#include <string.h>
 
 #include <ply/ply.h>
 #include <ply/internal.h>
@@ -89,7 +90,7 @@ static int relop_ir_post(const struct func *func, struct node *n,
 	struct bpf_insn jmp;
 	struct type *t;
 	int32_t *imm = NULL;
-	int dst, lreg, rreg;
+	int dst = 0, lreg = 0, rreg = 0;
 	int unsignd;
 
 	/* basic operation:
@@ -210,7 +211,7 @@ static int binop_ir_post(const struct func *func, struct node *n,
 	struct node *lval, *rval;
 	struct bpf_insn op;
 	int32_t *imm = NULL;
-	int dst, src;
+	int dst = 0, src = 0;
 
 	ir_init_irs(pb->ir, &n->sym->irs, n->sym->type);
 	dst = (n->sym->irs.loc == LOC_REG) ? n->sym->irs.reg : BPF_REG_0;

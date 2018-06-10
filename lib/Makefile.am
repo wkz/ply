@@ -1,7 +1,7 @@
 lib_LTLIBRARIES       = libply.la
 
 libply_la_CPPFLAGS    = -I $(top_srcdir)/include
-libply_la_CFLAGS      = -w
+libply_la_CFLAGS      = -Wall -Wextra -Wno-unused -Wno-unused-result
 libply_la_LDFLAGS     = $(AM_LDFLAGS) -version-info 0:0:0
 
 AM_YFLAGS = -d -Wall
@@ -20,7 +20,7 @@ libply_la_SOURCES     = 	\
 	aux/syscall.c		\
 	aux/utils.c		\
 	\
-	built-in/global.c	\
+	built-in/built-in.c	\
 	built-in/aggregation.c	\
 	built-in/flow.c		\
 	built-in/math.c		\

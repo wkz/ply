@@ -172,7 +172,7 @@ static int kprobe_probe(struct ply_probe *pb)
 	return 0;
 }
 
-struct provider kprobe = {
+__ply_provider struct provider kprobe = {
 	.name = "kprobe",
 	.prog_type = BPF_PROG_TYPE_KPROBE,
 
@@ -181,9 +181,3 @@ struct provider kprobe = {
 	.attach = kprobe_attach,
 	.probe = kprobe_probe,
 };
-
-__attribute__((constructor))
-static void kprobe_init(void)
-{
-	provider_register(&kprobe);
-}

@@ -1,3 +1,4 @@
+#define _GNU_SOURCE 		/* asprintf */
 #include <assert.h>
 #include <errno.h>
 
