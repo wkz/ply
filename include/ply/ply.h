@@ -6,6 +6,7 @@
 #include "sym.h"
 #include "utils.h"
 
+struct ksyms;
 struct ply;
 struct node;
 struct ir;
@@ -34,6 +35,7 @@ struct ply_config {
 	unsigned unicode:1; /* allow unicode in output. */
 	unsigned hex:1;	    /* prefer hexadecimal output for scalars. */
 	unsigned sort:1;    /* sort maps before output, requires more memory. */
+	unsigned ksyms:1;   /* create ksyms cache. */
 };
 
 extern struct ply_config ply_config;
@@ -41,6 +43,7 @@ extern struct ply_config ply_config;
 struct ply {
 	struct ply_probe *probes;
 	struct symtab globals;
+	struct ksyms *ksyms;
 
 	char *group;
 	int   group_fd;

@@ -201,6 +201,7 @@ int main(int argc, char **argv)
 			break;
 		case 'e':
 			f_dryrun = 1;
+			ply_config.ksyms = 0;
 			break;
 		case 'h':
 			usage(); exit(0);

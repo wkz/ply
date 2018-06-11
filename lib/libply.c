@@ -14,6 +14,7 @@ struct ply_config ply_config = {
 	.string_size =  0x80,
 
 	.sort = 1,
+	.ksyms = 1,
 };
 
 static void ply_map_print(struct ply *ply, struct sym *sym)
@@ -338,6 +339,9 @@ int ply_alloc(struct ply **plyp)
 	ply->globals.global = 1;
 	asprintf(&ply->group, "ply%d", getpid());
 	ply->group_fd = -1;
+
+	if (ply_config.ksyms)
+		ply->ksyms = ksyms_new();
 
 	*plyp = ply;
 	return 0;
