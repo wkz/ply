@@ -46,4 +46,9 @@ struct ksyms {
 const struct ksym *ksym_get(struct ksyms *ks, uintptr_t addr);
 struct ksyms *ksyms_new(void);
 
+#define ksyms_foreach(_sym, _ks)					\
+	for ((_sym) = &(_ks)->cache->sym[1];				\
+	     (_sym) < &(_ks)->cache->sym[(_ks)->cache->hdr.n_syms - 2]; \
+	     (_sym)++)
+
 #endif	/* __KALLSYMS_H */

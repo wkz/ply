@@ -122,14 +122,21 @@ static int __ksyms_cache_open(struct ksyms *ks)
 	if (stat(KSYMS_CACHE, &st))
 		return -errno;
 
-	ks->cache_fd = open(KSYMS_CACHE, O_RDONLY);
+	ks->cache_fd = open(KSYMS_CACHE, O_RDWR);
 	if (ks->cache_fd < 0)
 		return -errno;
 
-	ks->cache = mmap(NULL, st.st_size, PROT_READ | PROT_WRITE, MAP_PRIVATE,
+	ks->cache = mmap(NULL, st.st_size, PROT_READ | PROT_WRITE, MAP_SHARED,
 			 ks->cache_fd, 0);
 
 	return (ks->cache == MAP_FAILED) ? -EIO : 0;
+}
+
+static int ksym_sort_cmp(const void *_a, const void *_b)
+{
+	const struct ksym *a = _a, *b = _b;
+
+	return a->addr - b->addr;
 }
 
 static int ksyms_cache_sort(struct ksyms *ks)
@@ -140,17 +147,23 @@ static int ksyms_cache_sort(struct ksyms *ks)
 	if (err)
 		return err;
 
-	/* Skip `nullsym` and `endsym` they are by definition in the
-	 * right place already */
+	/* Sort everything between NULL and END */
 	qsort(&ks->cache->sym[1], ks->cache->hdr.n_syms - 2,
-	      sizeof(struct ksym), ksym_cmp);
+	      sizeof(struct ksym), ksym_sort_cmp);
+
+	err = msync(ks->cache, sizeof(ks->cache->hdr) +
+		    ks->cache->hdr.n_syms * sizeof(struct ksym), MS_SYNC);
+	if (err)
+		return -errno;
 
 	return 0;
 }
 
 /* Anyone may read /proc/kallsyms, but if the reader does not posses
  * the CAP_SYSLOG capability, all symbol addresses are set to zero. So
- * we make sure that we have it to avoid creating a useless cache. */
+ * we make sure that we have it to avoid creating a useless cache. If
+ * there is some less hacky way of getting this information without
+ * depending on libcap, please refactor. */
 static int ksyms_cache_cap(void)
 {
 	FILE *fp;
@@ -240,10 +253,13 @@ close_cfp:
 close_kfp:
 	fclose(kfp);
 out:
+	if (!err)
+		err = ksyms_cache_sort(ks);
+
 	if (err)
 		_w("unable to create kallsyms cache: %s\n", strerror(-err));
 
-	return err ? : ksyms_cache_sort(ks);
+	return err;
 }
 
 static int ksyms_cache_open(struct ksyms *ks)
@@ -258,6 +274,8 @@ static int ksyms_cache_open(struct ksyms *ks)
 	if (stat("/proc", &procst) || stat(KSYMS_CACHE, &ksymsst))
 		return ksyms_cache_build(ks);
 
+	/* Use ctime of `/proc` as an approximation of system boot
+	 * time and require that our cache is younger than that. */
 	if (ksymsst.st_ctime < procst.st_ctime)
 		return ksyms_cache_build(ks);
 

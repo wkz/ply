@@ -1,5 +1,7 @@
+#define _GNU_SOURCE 		/* FNM_EXTMATCH */
 #include <assert.h>
 #include <errno.h>
+#include <fnmatch.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -9,7 +11,7 @@
 #include <ply/internal.h>
 
 struct kprobe {
-	int evfd;
+	FILE *ctrl;
 };
 
 /* regs */
@@ -129,6 +131,47 @@ static int kprobe_sym_alloc(struct ply_probe *pb, struct node *n)
 	return 0;
 }
 
+static int kprobe_attach_one(struct ply_probe *pb, const char *func)
+{
+	struct kprobe *kp = pb->provider_data;
+	int ret;
+
+	ret = fprintf(kp->ctrl, "p:%s/kprobe_%s %s\n", pb->ply->group, func, func);
+	fflush(kp->ctrl);
+	if (ret < 0)
+		goto err;
+
+	if (perf_event_attach(pb, func) < 0)
+		goto err;
+
+	return 0;
+err:
+	_e("unable to attach to 'kprobe:%s'\n", func);
+	return -errno;
+}
+
+static int kprobe_attach_pattern(struct ply_probe *pb, const char *pattern)
+{
+	struct ksym *sym;
+	int err;
+
+	if (!pb->ply->ksyms) {
+		_w("kprobe pattern without kallsyms cache available.\n");
+		return kprobe_attach_one(pb, pattern);
+	}
+
+	ksyms_foreach(sym, pb->ply->ksyms) {
+		if (fnmatch(pattern, sym->sym, FNM_EXTMATCH))
+			continue;
+
+		err = kprobe_attach_one(pb, sym->sym);
+		if (err)
+			return err;
+	}
+
+	return 0;
+}
+
 static int kprobe_attach(struct ply_probe *pb)
 {
 	struct kprobe *kp = pb->provider_data;
@@ -138,27 +181,18 @@ static int kprobe_attach(struct ply_probe *pb)
 
 	/* TODO: mode should be a+ and we should clean this up on
 	 * detach. */
-	fp = fopen(TRACEPATH "kprobe_events", "w");
-	if (!fp)
-		goto err;
+	kp->ctrl = fopen(TRACEPATH "kprobe_events", "w");
+	if (!kp->ctrl)
+		return -errno;
 
 	func = strchr(pb->probe, ':');
 	assert(func);
 	func++;
 
-	ret = fprintf(fp, "p:%s/kprobe_%s %s\n", pb->ply->group, func, func);
-	fclose(fp);
-	if (ret < 0)
-		goto err;
-
-	kp->evfd = perf_event_attach(pb, func);
-	if (kp->evfd < 0)
-		goto err;
-
-	return 0;
-err:
-	_e("unable to attach probe to '%s'\n", pb->probe);
-	return -errno;
+	if (strpbrk(func, "?*[!@"))
+		return kprobe_attach_pattern(pb, func);
+	else
+		return kprobe_attach_one(pb, func);
 }
 
 static int kprobe_probe(struct ply_probe *pb)
