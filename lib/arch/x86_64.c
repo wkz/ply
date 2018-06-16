@@ -16,28 +16,42 @@ struct type t_u32 = arch_typedef(u32, &t_uint);
 struct type t_s64 = arch_typedef(s64, &t_slong);
 struct type t_u64 = arch_typedef(u64, &t_ulong);
 
+static int reg_fprint(struct type *t, FILE *fp, const void *data)
+{
+	return fprintf(fp, "%#lx", *((unsigned long *)data));
+}
+
+struct type t_reg_t = {
+	.ttype = T_TYPEDEF,
+	.tdef = {
+		.name = "reg_t",
+		.type = &t_ulong,
+		.fprint = reg_fprint,
+	},
+};
+
 struct tfield f_pt_regs_fields[] = {
-	{ .name = "r15",      .type = &t_ulong },
-	{ .name = "r14",      .type = &t_ulong },
-	{ .name = "r13",      .type = &t_ulong },
-	{ .name = "r12",      .type = &t_ulong },
-	{ .name = "rbp",      .type = &t_ulong },
-	{ .name = "rbx",      .type = &t_ulong },
-	{ .name = "r11",      .type = &t_ulong },
-	{ .name = "r10",      .type = &t_ulong },
-	{ .name = "r9",       .type = &t_ulong },
-	{ .name = "r8",       .type = &t_ulong },
-	{ .name = "rax",      .type = &t_ulong },
-	{ .name = "rcx",      .type = &t_ulong },
-	{ .name = "rdx",      .type = &t_ulong },
-	{ .name = "rsi",      .type = &t_ulong },
-	{ .name = "rdi",      .type = &t_ulong },
-	{ .name = "orig_rax", .type = &t_ulong },
-	{ .name = "rip",      .type = &t_ulong },
-	{ .name = "cs",       .type = &t_ulong },
-	{ .name = "eflags",   .type = &t_ulong },
-	{ .name = "rsp",      .type = &t_ulong },
-	{ .name = "ss",       .type = &t_ulong },
+	{ .name = "r15",      .type = &t_reg_t },
+	{ .name = "r14",      .type = &t_reg_t },
+	{ .name = "r13",      .type = &t_reg_t },
+	{ .name = "r12",      .type = &t_reg_t },
+	{ .name = "rbp",      .type = &t_reg_t },
+	{ .name = "rbx",      .type = &t_reg_t },
+	{ .name = "r11",      .type = &t_reg_t },
+	{ .name = "r10",      .type = &t_reg_t },
+	{ .name = "r9",       .type = &t_reg_t },
+	{ .name = "r8",       .type = &t_reg_t },
+	{ .name = "rax",      .type = &t_reg_t },
+	{ .name = "rcx",      .type = &t_reg_t },
+	{ .name = "rdx",      .type = &t_reg_t },
+	{ .name = "rsi",      .type = &t_reg_t },
+	{ .name = "rdi",      .type = &t_reg_t },
+	{ .name = "orig_rax", .type = &t_reg_t },
+	{ .name = "rip",      .type = &t_reg_t },
+	{ .name = "cs",       .type = &t_reg_t },
+	{ .name = "eflags",   .type = &t_reg_t },
+	{ .name = "rsp",      .type = &t_reg_t },
+	{ .name = "ss",       .type = &t_reg_t },
 
 	{ .type = NULL }
 };
@@ -56,7 +70,7 @@ struct type *arch_types[] = {
 	&t_s16, &t_u16,
 	&t_s32, &t_u32,
 	&t_s64, &t_u64,
-	&t_pt_regs,
+	&t_reg_t, &t_pt_regs,
 
 	NULL
 };

@@ -196,16 +196,27 @@ static int ply_unload_bpf(struct ply *ply)
 	return 0;
 }
 
+static int ply_unload_detach(struct ply *ply)
+{
+	struct ply_probe *pb;
+	int err;
+
+	ply_probe_foreach(ply, pb) {
+		err = pb->provider->detach(pb);
+		if (err)
+			return err;
+	}
+
+	return 0;
+}
+
 int ply_unload(struct ply *ply)
 {
 	int err;
 
-	err = ply_unload_bpf(ply);
-	if (err)
-		ply_unload_map(ply);
-	else
-		err = ply_unload_map(ply);
-
+	err  = ply_unload_detach(ply);
+	err |= ply_unload_bpf(ply);
+	err |= ply_unload_map(ply);
 	return err;
 }
 

@@ -54,7 +54,7 @@ uazd		[_a-zA-Z0-9]
 
 ident		{uaz}{uazd}*
 agg		@{uazd}*
-pspec		{ident}:[*?+@!:_.,/a-zA-Z0-9]*
+pspec		{ident}:[^ \n\r\t]*
 
 %x COMMENT
 %%

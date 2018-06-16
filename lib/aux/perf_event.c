@@ -17,13 +17,12 @@ static int perf_event_open(struct perf_event_attr *hw_event, pid_t pid,
 		       group_fd, flags);
 }
 
-static int perf_event_id(struct ply_probe *pb, const char *name)
+static int perf_event_id(struct ply_probe *pb, const char *path)
 {
 	FILE *fp;
 	int id;
 
-	fp = fopenf("r", TRACEPATH "events/%s/%s_%s/id",
-		    pb->ply->group, pb->provider->name, name);
+	fp = fopenf("r", "%s/id", path);
 	if (!fp)
 		goto err;
 
@@ -35,12 +34,12 @@ err:
 	return -errno;
 }
 
-int perf_event_attach(struct ply_probe *pb, const char *name)
+int perf_event_attach(struct ply_probe *pb, const char *path)
 {
 	struct perf_event_attr attr = {};
 	int fd, id;
 
-	id = perf_event_id(pb, name);
+	id = perf_event_id(pb, path);
 	if (id < 0)
 		return id;
 

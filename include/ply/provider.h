@@ -16,6 +16,7 @@ struct provider {
 	int (*ir_pre)   (struct ply_probe *);
 	int (*ir_post)  (struct ply_probe *);
 	int (*attach)   (struct ply_probe *);
+	int (*detach)   (struct ply_probe *);
 };
 
 struct provider *provider_get(const char *name);

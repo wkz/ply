@@ -28,6 +28,7 @@ libply_la_SOURCES     = 	\
 	built-in/proc.c		\
 	built-in/memory.c	\
 	\
+	provider/xprobe.c	\
 	provider/kprobe.c	\
 	\
 	compile.c		\

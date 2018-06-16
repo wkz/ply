@@ -13,6 +13,9 @@ extern struct type t_u32;
 extern struct type t_s64;
 extern struct type t_u64;
 
+/* a hardware register */
+extern struct type t_reg_t;
+
 /* layout of captured registers */
 extern struct type t_pt_regs;
 
