@@ -46,4 +46,7 @@ int bpf_map_next  (int fd, void *key, void *next_key);
 #define LINUX_HAS_TRACEPOINT
 #endif
 
+int perf_event_open(struct perf_event_attr *hw_event, pid_t pid,
+		    int cpu, int group_fd, unsigned long flags);
+
 #endif	/* _PLY_BPF_SYSCALL_H */

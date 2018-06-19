@@ -107,8 +107,8 @@ int bpf_map_next(int fd, void *key, void *next_key)
 	return bpf_map_op(BPF_MAP_GET_NEXT_KEY, fd, key, next_key, 0);
 }
 
-long perf_event_open(struct perf_event_attr *hw_event, pid_t pid,
-		     int cpu, int group_fd, unsigned long flags)
+int perf_event_open(struct perf_event_attr *hw_event, pid_t pid,
+		    int cpu, int group_fd, unsigned long flags)
 {
 	int ret;
 

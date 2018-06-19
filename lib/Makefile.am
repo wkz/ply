@@ -15,6 +15,7 @@ BUILT_SOURCES = grammar.h lexer.h
 libply_la_SOURCES     = 	\
 	arch/@host_cpu@.c	\
 	\
+	aux/evpipe.c		\
 	aux/kallsyms.c		\
 	aux/perf_event.c	\
 	aux/printxf.c		\

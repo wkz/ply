@@ -9,6 +9,7 @@
 #include "sym.h"
 #include "type.h"
 
+#include "evpipe.h"
 #include "kallsyms.h"
 #include "perf_event.h"
 #include "printxf.h"

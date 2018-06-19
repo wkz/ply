@@ -10,13 +10,6 @@
 #include <ply/ply.h>
 #include <ply/internal.h>
 
-static int perf_event_open(struct perf_event_attr *hw_event, pid_t pid,
-			   int cpu, int group_fd, unsigned long flags)
-{
-	return syscall(__NR_perf_event_open, hw_event, pid, cpu,
-		       group_fd, flags);
-}
-
 static int perf_event_id(struct ply_probe *pb, const char *path)
 {
 	FILE *fp;
