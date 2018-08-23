@@ -17,40 +17,47 @@
  * along with ply.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __KALLSYMS_H
-#define __KALLSYMS_H
+#ifndef _PLY_EVPIPE_H
+#define _PLY_EVPIPE_H
 
-#include <inttypes.h>
+#include <stdint.h>
 
-struct ksym {
-	uintptr_t addr;
-	char sym[0x40 - sizeof(uintptr_t)];
+#include <linux/perf_event.h>
+
+#include <sys/queue.h>
+
+typedef struct event {
+	struct perf_event_header hdr;
+	uint32_t size;
+
+	uint64_t type;
+	uint8_t  data[0];
+} __attribute__((packed)) event_t;
+
+typedef struct evhandler {
+	TAILQ_ENTRY(evhandler) node;
+
+	uint64_t type;
+	void *priv;
+
+	int (*handle)(event_t *ev, void *priv);
+} evhandler_t;
+
+struct evqueue;
+
+struct evpipe {
+	int mapfd;
+
+	uint32_t ncpus;
+	struct pollfd *poll;
+	struct evqueue *q;
+
+	int strict;
 };
 
-struct ksym_cache_hdr {
-	uint32_t n_syms;
-	char _reserved[0x40 - sizeof(uint32_t)];
-};
+void evhandler_register(evhandler_t *evh);
 
-struct ksym_cache {
-	struct ksym_cache_hdr hdr;
+int evpipe_loop(struct evpipe *evp);
+int evpipe_init(struct evpipe *evp, size_t qsize, int strict);
 
-	struct ksym sym[0];
-};
-
-struct ksyms {
-	int cache_fd;
-	struct ksym_cache *cache;
-};
-
-const struct ksym *ksym_get(struct ksyms *ks, uintptr_t addr);
-
-void ksyms_free(struct ksyms *ks);
-struct ksyms *ksyms_new(void);
-
-#define ksyms_foreach(_sym, _ks)					\
-	for ((_sym) = &(_ks)->cache->sym[1];				\
-	     (_sym) < &(_ks)->cache->sym[(_ks)->cache->hdr.n_syms - 2]; \
-	     (_sym)++)
-
-#endif	/* __KALLSYMS_H */
+#endif	/* _PLY_EVPIPE_H */

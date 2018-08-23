@@ -48,14 +48,14 @@ static int caller_fprint(struct type *t, FILE *fp, const void *data)
 	addr = *((unsigned long *)data);
 	if (ks && (sym = ksym_get(ks, addr))) {
 		if (sym->addr == addr)
-			fputs(sym->sym, fp);
+			return fputs(sym->sym, fp);
 		else
-			fprintf(fp, "%s+%"PRIuPTR, sym->sym, addr - sym->addr);
+			return fprintf(fp, "%s+%"PRIuPTR, sym->sym, addr - sym->addr);
 	} else {
 		int w = (int)(type_sizeof(t) * 2);
 
 		return fprintf(fp, "<%*.*lx>", w, w, *((unsigned long *)data));
-	}	
+	}
 }
 
 static struct type t_caller_t = {

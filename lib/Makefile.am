@@ -1,7 +1,7 @@
 lib_LTLIBRARIES       = libply.la
 
 libply_la_CPPFLAGS    = -I $(top_srcdir)/include
-libply_la_CFLAGS      = -Wall -Wextra -Wno-unused -Wno-unused-result
+libply_la_CFLAGS      = -Wall -Wextra -Wno-unused -Wno-unused-result -Wno-strict-aliasing
 libply_la_LDFLAGS     = $(AM_LDFLAGS) -version-info 0:0:0
 
 AM_YFLAGS = -d -Wall

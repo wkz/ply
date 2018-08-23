@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 
+#include "evpipe.h"
 #include "sym.h"
 #include "utils.h"
 
@@ -36,11 +37,14 @@ struct ply_config {
 	unsigned hex:1;	    /* prefer hexadecimal output for scalars. */
 	unsigned sort:1;    /* sort maps before output, requires more memory. */
 	unsigned ksyms:1;   /* create ksyms cache. */
+	unsigned strict:1;  /* abort on error. */
 };
 
 extern struct ply_config ply_config;
 
 struct ply {
+	struct evpipe evp;
+
 	struct ply_probe *probes;
 	struct symtab globals;
 	struct ksyms *ksyms;
@@ -61,6 +65,8 @@ static inline struct ply_probe *sym_to_probe(struct sym *sym)
 }
 
 void ply_maps_print(struct ply *ply);
+
+int ply_loop(struct ply *ply);
 
 int ply_start(struct ply *ply);
 int ply_stop(struct ply *ply);

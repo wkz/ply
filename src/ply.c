@@ -256,32 +256,24 @@ int main(int argc, char **argv)
 	ply_start(ply);
 	fprintf(stderr, "ply: active\n");
 
-	err = 0;
-	write(inftrig, &err, sizeof(err));
-
-	siginterrupt(SIGINT, 1);
 	signal(SIGINT, term);
-	
+	signal(SIGCHLD, term);
+	siginterrupt(SIGINT, 1);
+	siginterrupt(SIGCHLD, 1);
+
 	if (cmd) {
-		if ((wait(&err) < 0) || !WIFEXITED(err) || WEXITSTATUS(err))
-			fprintf(stderr, "ply: inferior failed"
-				" with exit status %#x.\n", err);
-	} else {
-		pause();
+		err = 0;
+		write(inftrig, &err, sizeof(err));
 	}
 
-	/* while (ply_poll(ply, &ev)) { */
-	/* 	err = ply_ev_handle(ply, ev); */
-	/* 	ply_ev_free(ply, ev); */
-	/* 	if (err) */
-	/* 		break; */
-	/* } */
+	err = ply_loop(ply);
+	if ((err == -EINTR) && term_sig)
+		err = 0;
 
 	fprintf(stderr, "ply: deactivating\n");
 	ply_stop(ply);
 
-	if (!err)
-		ply_maps_print(ply);
+	ply_maps_print(ply);
 
 unload:
 	ply_unload(ply);

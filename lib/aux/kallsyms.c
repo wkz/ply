@@ -282,6 +282,17 @@ static int ksyms_cache_open(struct ksyms *ks)
 	return 0;
 }
 
+void ksyms_free(struct ksyms *ks)
+{
+	size_t size;
+
+	size = sizeof(ks->cache->hdr) +
+		sizeof(ks->cache->sym[0]) * ks->cache->hdr.n_syms;
+
+	munmap(ks->cache, size);
+	close(ks->cache_fd);
+}
+
 struct ksyms *ksyms_new(void)
 {
 	struct ksyms *ks;

@@ -15,6 +15,7 @@ struct ply_config ply_config = {
 
 	.sort = 1,
 	.ksyms = 1,
+	.strict = 1,
 };
 
 static void ply_map_print(struct ply *ply, struct sym *sym)
@@ -315,6 +316,11 @@ err:
 
 }
 
+int ply_loop(struct ply *ply)
+{
+	return evpipe_loop(&ply->evp);
+}
+
 int ply_stop(struct ply *ply)
 {
 	return perf_event_disable(ply->group_fd);
@@ -335,6 +341,11 @@ void ply_free(struct ply *ply)
 		pb = next;
 	}
 
+	if (ply->ksyms)
+		ksyms_free(ply->ksyms);
+
+	/* TODO: evpipe_free(&ply->evp); */
+
 	free(ply);
 }
 
@@ -354,8 +365,15 @@ int ply_alloc(struct ply **plyp)
 	if (ply_config.ksyms)
 		ply->ksyms = ksyms_new();
 
+	err = evpipe_init(&ply->evp, 0x1000, ply_config.strict);
+	if (err)
+		goto err_free_ksyms;
+
 	*plyp = ply;
 	return 0;
+err_free_ksyms:
+	if (ply->ksyms)
+		ksyms_free(ply->ksyms);
 err_free:
 	free(ply);
 err:
