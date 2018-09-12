@@ -291,11 +291,17 @@ int ply_load(struct ply *ply)
 {
 	int err;
 
+	err = evpipe_init(&ply->evp, 0x1000, ply_config.strict);
+	if (err)
+		goto err;
+
+	ply->evp_sym->mapfd = ply->evp.mapfd;
+
 	/* Maps has to be allocated first, since we need those fds
 	 * before calling ir_bpf_extract. */
 	err = ply_load_map(ply);
 	if (err)
-		goto err;
+		goto err_free_evp;
 
 	/* Load programs in to the kernel. */
 	err = ply_load_bpf(ply);
@@ -311,6 +317,8 @@ err_free_prog:
 	ply_unload_bpf(ply);
 err_free_map:
 	ply_unload_map(ply);
+err_free_evp:
+	/* TODO evpipe_free(&ply->evp); */
 err:
 	return err;
 
@@ -365,15 +373,11 @@ int ply_alloc(struct ply **plyp)
 	if (ply_config.ksyms)
 		ply->ksyms = ksyms_new();
 
-	err = evpipe_init(&ply->evp, 0x1000, ply_config.strict);
-	if (err)
-		goto err_free_ksyms;
+	ply->evp_sym = __sym_alloc(&ply->globals, ":evpipe", NULL);
+	ply->evp_sym->type = &t_void;
 
 	*plyp = ply;
 	return 0;
-err_free_ksyms:
-	if (ply->ksyms)
-		ksyms_free(ply->ksyms);
 err_free:
 	free(ply);
 err:

@@ -37,6 +37,8 @@ struct symtab {
 #define symtab_foreach(_st, _sym) \
 	for((_sym) = (_st)->syms; (_sym) < &(_st)->syms[(_st)->len]; (_sym)++)
 
+struct sym *__sym_alloc(struct symtab *st, const char *name,
+			const struct func *func);
 struct sym *sym_alloc(struct symtab *st, struct node *n,
 		      const struct func *func);
 

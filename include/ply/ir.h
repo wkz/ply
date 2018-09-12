@@ -163,6 +163,9 @@ void ir_emit_data  (struct ir *ir, ssize_t dst, const char *src, size_t size);
 void ir_emit_memcpy(struct ir *ir, ssize_t dst, ssize_t src, size_t size);
 void ir_emit_bzero (struct ir *ir, ssize_t offset, size_t size);
 
+void ir_emit_perf_event_output(struct ir *ir,
+			       struct sym *map, struct sym *regs, struct sym *ev);
+
 struct ir *ir_new(void);
 
 int ir_bpf_generate(struct ir *ir);

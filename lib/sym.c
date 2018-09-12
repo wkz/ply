@@ -6,8 +6,8 @@
 
 #include <ply/internal.h>
 
-static struct sym *__sym_alloc(struct symtab *st, const char *name,
-			       const struct func *func)
+struct sym *__sym_alloc(struct symtab *st, const char *name,
+			const struct func *func)
 {
 	struct sym *sym;
 

@@ -44,6 +44,7 @@ extern struct ply_config ply_config;
 
 struct ply {
 	struct evpipe evp;
+	struct sym *evp_sym;
 
 	struct ply_probe *probes;
 	struct symtab globals;
