@@ -169,21 +169,36 @@ struct node *node_string(const struct nloc *loc, char *data)
 	return n;
 }
 
-struct node *node_num(const struct nloc *loc, const char *numstr)
+struct node *__node_num(const struct nloc *loc, size_t size,
+			int64_t *s64, uint64_t *u64)
 {
 	struct node *n = node_new(N_NUM, loc);
 
-	if (numstr[0] == '-')
-		numstr++;
-	else
+	if (s64) {
+		n->num.s64 = *s64;
+	} else {
+		n->num.u64 = *u64;
 		n->num.unsignd = 1;
-		
+	}
+
+	n->num.size = size;
+	return n;
+}
+
+struct node *node_num(const struct nloc *loc, const char *numstr)
+{
+	uint64_t u64;
+	int64_t s64;
+
 	errno = 0;
-	n->num.u64 = strtoull(numstr, NULL, 0);
-	if (!errno) {
-		if (!n->num.unsignd)
-			n->num.s64 = -n->num.u64;
-		return n;
+	if (numstr[0] == '-') {
+		s64 = strtoll(numstr, NULL, 0);
+		if (!errno)
+			return __node_num(loc, 0, &s64, NULL);
+	} else {
+		u64 = strtoull(numstr, NULL, 0);
+		if (!errno)
+			return __node_num(loc, 0, NULL, &u64);
 	}
 
 	assert(0);

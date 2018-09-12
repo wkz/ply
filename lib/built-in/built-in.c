@@ -14,6 +14,16 @@
 
 static struct type *num_type(struct node *n)
 {
+	switch (n->num.size) {
+	case 8:
+		return n->num.unsignd ? &t_u64 : &t_s64;
+	case 4:
+		return n->num.unsignd ? &t_u32 : &t_s32;
+	case 0:
+		break;
+	default:
+		assert(0);
+	}
 	if (n->num.unsignd) {
 		if (n->num.u64 <= INT_MAX)
 			return &t_int;
@@ -49,7 +59,7 @@ static int num_ir_post(const struct func *func, struct node *n,
 	    (n->num.s64 >= INT32_MIN && n->num.s64 <= INT32_MAX)) {
 		irs->loc = LOC_IMM;
 		irs->imm = n->num.s64;
-		irs->size = 4;
+		irs->size = type_sizeof(n->sym->type);
 		return 0;
 	}
 

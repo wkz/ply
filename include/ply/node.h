@@ -42,6 +42,7 @@ struct node {
 				uint64_t u64;
 			};
 			unsigned unsignd:1;
+			unsigned size:4;
 		} num;
 		struct {
 			char *data;
@@ -62,6 +63,8 @@ int node_replace(struct node *n, struct node *new);
 
 /* constructors */
 struct node *node_string     (const struct nloc *loc, char *data);
+struct node *__node_num      (const struct nloc *loc, size_t size,
+			      int64_t *s64, uint64_t *u64);
 struct node *node_num        (const struct nloc *loc, const char *numstr);
 void         node_insert     (struct node *prev, struct node *n);
 struct node *node_append     (struct node *head, struct node *tail);
