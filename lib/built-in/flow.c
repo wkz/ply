@@ -119,3 +119,79 @@ __ply_built_in const struct func if_func = {
 
 	.ir_post = if_ir_post,
 };
+
+static struct evreturn exit_ev_handler(struct event *ev, void *_null)
+{
+	int *code = (void *)ev->data;
+
+	_d("exit:%d\n", *code);
+	return (struct evreturn){ .val = *code, .exit = 1 };
+}
+
+static int exit_ir_post(const struct func *func, struct node *n,
+			     struct ply_probe *pb)
+{
+	struct node *ev, *regs;
+
+	ev = n->expr.args;
+	regs = ev->next;
+
+	ir_emit_perf_event_output(pb->ir, pb->ply->evp_sym, regs->sym, ev->sym);
+	return 0;
+}
+
+static int exit_rewrite(const struct func *func, struct node *n,
+			struct ply_probe *pb)
+{
+	struct node *expr, *ev;
+	struct evhandler *evh;
+
+	evh = n->sym->priv;
+
+	expr = n->expr.args;
+
+	ev = node_expr(&n->loc, ":struct",
+		       __node_num(&n->loc, sizeof(evh->type), NULL, &evh->type),
+		       NULL);
+
+	node_replace(expr, ev);
+	node_expr_append(&n->loc, ev, expr);
+	node_expr_append(&n->loc, n, node_expr(&n->loc, "regs", NULL));
+	return 0;
+}
+
+static int exit_type_infer(const struct func *func, struct node *n)
+{
+	struct node *expr = n->expr.args;
+	struct evhandler *evh;
+
+	if (n->sym->type)
+		return 0;
+
+	if (type_base(expr->sym->type)->ttype != T_SCALAR) {
+		_ne(expr, "argument to '%N' must be a scalar value, "
+		    "but '%N' is of type '%T'\n", n, expr, expr->sym->type);
+		return -EINVAL;
+	}
+
+	evh = calloc(1, sizeof(struct evhandler));
+	assert(evh);
+
+	evh->handle = exit_ev_handler;
+	evhandler_register(evh);
+
+	/* TODO: leaked */
+	n->sym->priv = evh;
+	n->sym->type = &t_void;
+	return 0;
+}
+
+__ply_built_in const struct func exit_func = {
+	.name = "exit",
+	.type = &t_unary_func,
+	.type_infer = exit_type_infer,
+
+	.rewrite = exit_rewrite,
+
+	.ir_post = exit_ir_post,
+};
