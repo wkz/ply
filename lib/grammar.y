@@ -222,11 +222,15 @@ func
 ;
 
 map
-: IDENT '[' exprs ']' { $$ = node_expr(&@$, "[]", $1, $3, NULL); }
+: IDENT key { $$ = node_expr(&@$, "[]", $1, $2, NULL); }
 ;
 
 aggregation
-: AGG '[' exprs ']' { $$ = node_expr(&@$, "[]", $1, $3, NULL); }
+: AGG key { $$ = node_expr(&@$, "[]", $1, $2, NULL); }
+;
+
+key
+: '[' exprs ']' { $$ = node_expr(&@$, ":struct", $2, NULL); }
 ;
 
 %%

@@ -241,33 +241,22 @@ __ply_built_in const struct func deref_func = {
 };
 
 
-
-static int map_ir_update(struct node *n, struct ply_probe *pb)
+static int struct_ir_pre(const struct func *func, struct node *n,
+			 struct ply_probe *pb)
 {
-	struct node *map = n->expr.args;
-
-	ir_emit_ldmap(pb->ir, BPF_REG_1, map->sym);
-	ir_emit_insn(pb->ir, MOV, BPF_REG_2, BPF_REG_BP);
-	ir_emit_insn(pb->ir, ALU_IMM(BPF_ADD, map->sym->irs.stack), BPF_REG_2, 0);
-	ir_emit_insn(pb->ir, MOV, BPF_REG_3, BPF_REG_BP);
-	ir_emit_insn(pb->ir, ALU_IMM(BPF_ADD, n->sym->irs.stack), BPF_REG_3, 0);
-	ir_emit_insn(pb->ir, MOV_IMM(0), BPF_REG_4, 0);
-	ir_emit_insn(pb->ir, CALL(BPF_FUNC_map_update_elem), 0, 0);
-	/* TODO: if (r0) exit(r0); */
-	return 0;
-}
-
-static int map_ir_pre_key(struct node *n, struct ply_probe *pb)
-{
-	struct node *map = n->expr.args, *arg;
-	struct type *ktype = type_base(map->sym->type->map.ktype);
-	ssize_t stack = map->sym->irs.stack;
+	struct node *arg;
+	struct type *t = type_base(n->sym->type);
+	ssize_t stack;
 	size_t offset = 0, size = 0, pad;
 	struct tfield *f;
 
-	arg = map->next;
-	tfields_foreach(f, ktype->sou.fields) {
-		offset = type_offsetof(ktype, f->name);
+	n->sym->irs.hint.stack = 1;
+	ir_init_sym(pb->ir, n->sym);
+	stack = n->sym->irs.stack;
+
+	arg = n->expr.args;
+	tfields_foreach(f, t->sou.fields) {
+		offset = type_offsetof(t, f->name);
 		size = type_sizeof(f->type);
 
 		if (!arg->sym->irs.loc) {
@@ -276,7 +265,7 @@ static int map_ir_pre_key(struct node *n, struct ply_probe *pb)
 		}
 
 		if (arg->next) {
-			pad = type_offsetof(ktype, f[1].name) - (offset + size);
+			pad = type_offsetof(t, f[1].name) - (offset + size);
 			if (pad)
 				ir_emit_bzero(pb->ir,
 					      stack + offset + size, pad);
@@ -284,56 +273,106 @@ static int map_ir_pre_key(struct node *n, struct ply_probe *pb)
 		arg = arg->next;
 	}
 
-	pad = type_sizeof(ktype) - (offset + size);
+	pad = type_sizeof(t) - (offset + size);
 	if (pad)
 		ir_emit_bzero(pb->ir, stack + offset + size, pad);
 	return 0;
 }
 
-static int map_ir_pre(const struct func *func, struct node *n,
-		      struct ply_probe *pb)
+static int struct_ir_post(const struct func *func, struct node *n,
+			  struct ply_probe *pb)
 {
-	struct irstate *kirs;
-	struct node *map = n->expr.args;
-	struct type *ktype = type_base(map->sym->type->map.ktype);
+	struct node *arg;
+	struct type *t = type_base(n->sym->type);
+	ssize_t stack = n->sym->irs.stack;
+	size_t offset;
+	struct tfield *f;
 
-	map->sym->irs.hint.stack = 1;
-	ir_init_irs(pb->ir, &map->sym->irs, ktype);
-
-
-	if (ktype->ttype == T_STRUCT)
-		return map_ir_pre_key(n, pb);
-
-	kirs = &map->next->sym->irs;
-	if (!kirs->loc) {
-		kirs->hint.stack = 1;
-		kirs->stack = map->sym->irs.stack;
+	arg = n->expr.args;
+	tfields_foreach(f, t->sou.fields) {
+		offset = type_offsetof(t, f->name);
+		ir_emit_sym_to_stack(pb->ir, stack + offset, arg->sym);
+		arg = arg->next;
 	}
 	return 0;
 }
 
+static int struct_type_infer(const struct func *func, struct node *n)
+{
+	struct node *arg;
+	struct type *t;
+	struct tfield *fields, *f;
+	int i, nargs = node_nargs(n);
+	char *kname;
+
+	for (arg = n->expr.args; arg; arg = arg->next) {
+		if (type_sizeof(arg->sym->type) < 0)
+			return 0;
+	}
+
+	t = calloc(1, sizeof(*t));
+	assert(t);
+
+	fields = calloc(nargs + 1, sizeof(*fields));
+	assert(fields);
+
+	for (arg = n->expr.args, f = fields, i = 0; arg;
+	     arg = arg->next, f++, i++) {
+		asprintf(&f->name, "f%d", i);
+		f->type = arg->sym->type;
+	}
+
+	asprintf(&t->sou.name, ":anon_%p", n);
+	t->ttype = T_STRUCT;
+	t->sou.fields = fields;
+
+	type_add(t);
+	n->sym->type = t;
+	return 0;
+}
+
+__ply_built_in const struct func struct_func = {
+	.name = ":struct",
+	.type = &t_vargs_func,
+	.type_infer = struct_type_infer,
+
+	.ir_pre  = struct_ir_pre,
+	.ir_post = struct_ir_post,
+};
+
+
+
+static int map_ir_update(struct node *n, struct ply_probe *pb)
+{
+	struct node *map, *key;
+
+	map = n->expr.args;
+	key = map->next;
+
+	ir_emit_ldmap(pb->ir, BPF_REG_1, map->sym);
+	ir_emit_insn(pb->ir, MOV, BPF_REG_2, BPF_REG_BP);
+	ir_emit_insn(pb->ir, ALU_IMM(BPF_ADD, key->sym->irs.stack), BPF_REG_2, 0);
+	ir_emit_insn(pb->ir, MOV, BPF_REG_3, BPF_REG_BP);
+	ir_emit_insn(pb->ir, ALU_IMM(BPF_ADD, n->sym->irs.stack), BPF_REG_3, 0);
+	ir_emit_insn(pb->ir, MOV_IMM(0), BPF_REG_4, 0);
+	ir_emit_insn(pb->ir, CALL(BPF_FUNC_map_update_elem), 0, 0);
+	/* TODO: if (r0) exit(r0); */
+	return 0;
+}
+
+
 static int map_ir_post(const struct func *func, struct node *n,
 		       struct ply_probe *pb)
 {
-	struct node *map = n->expr.args, *arg;
-	struct type *ktype = type_base(map->sym->type->map.ktype);
-	ssize_t stack = map->sym->irs.stack;
+	struct node *map, *key;
+	ssize_t stack;
 	size_t offset;
 	struct tfield *f;
 	int16_t lmiss, lhit;
 
-	arg = map->next;
-
-	if (ktype->ttype == T_STRUCT) {
-		tfields_foreach(f, ktype->sou.fields) {
-			offset = type_offsetof(ktype, f->name);
-			ir_emit_sym_to_stack(pb->ir, stack + offset, arg->sym);
-			arg = arg->next;
-		}
-	} else {
-		ir_emit_sym_to_stack(pb->ir, stack, arg->sym);
-		assert(!arg->next);
-	}
+	map = n->expr.args;
+	key = map->next;
+	stack = key->sym->irs.stack;
 
 	n->sym->irs.hint.stack = 1;
 	ir_init_sym(pb->ir, n->sym);
@@ -362,38 +401,6 @@ static int map_ir_post(const struct func *func, struct node *n,
 	return 0;
 }
 
-static struct type *map_key_type(struct node *n)
-{
-	struct node *map, *key;
-	struct type *ktype;
-	struct tfield *kfields, *f;
-	int i, nargs = node_nargs(n);
-	char *kname;
-
-	map = n->expr.args;
-
-	if (nargs == 2)
-		return map->next->sym->type;
-
-	ktype = calloc(1, sizeof(*ktype));
-	assert(ktype);
-
-	kfields = calloc(nargs, sizeof(*kfields));
-	assert(kfields);
-
-	for (key = map->next, f = kfields, i = 0; key; key = key->next, f++, i++) {
-		asprintf(&f->name, "k%d", i);
-		f->type = key->sym->type;
-	}
-
-	asprintf(&ktype->sou.name, ":%s_key", map->expr.func);
-	ktype->ttype = T_STRUCT;
-	ktype->sou.fields = kfields;
-
-	type_add(ktype);
-	return ktype;
-}
-
 static int map_type_validate(struct node *n)
 {
 	/* TODO */
@@ -406,6 +413,7 @@ static int map_type_infer(const struct func *func, struct node *n)
 	struct type *ktype;
 
 	map = n->expr.args;
+	key = map->next;
 	if (!map->sym)
 		return 0;
 
@@ -419,15 +427,10 @@ static int map_type_infer(const struct func *func, struct node *n)
 		return map_type_validate(n);
 	}
 
-	if (!n->sym->type)
+	if (!(n->sym->type && key->sym->type))
 		return 0;
 
-	for (key = map->next; key; key = key->next) {
-		if (type_sizeof(key->sym->type) < 0)
-			return 0;
-	}
-
-	map->sym->type = type_map_of(map_key_type(n), n->sym->type);
+	map->sym->type = type_map_of(key->sym->type, n->sym->type);
 	return 0;
 }
 
@@ -446,7 +449,6 @@ __ply_built_in const struct func map_func = {
 	.type_infer = map_type_infer,
 	.static_validate = map_static_validate,
 
-	.ir_pre  = map_ir_pre,
 	.ir_post = map_ir_post,
 };
 
