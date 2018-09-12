@@ -67,7 +67,7 @@ void evhandler_register(evhandler_t *evh)
 }
 
 
-static int event_handle(event_t *ev, size_t size)
+static struct evreturn event_handle(event_t *ev, size_t size)
 {
 	evhandler_t *evh;
 
@@ -75,7 +75,7 @@ static int event_handle(event_t *ev, size_t size)
 	if (!evh) {
 		_e("unknown event: type:%#"PRIx64" size:%#zx\n",
 		   ev->type, size);
-		return -ENOSYS;
+		return (struct evreturn) { .err = 1, .val = ENOSYS };
 	}
 
 	return evh->handle(ev, evh->priv);
@@ -96,13 +96,13 @@ static inline void __set_tail(struct perf_event_mmap_page *mem, uint64_t tail)
 	mem->data_tail = tail;
 }
 
-int evqueue_drain(struct evqueue *q, int strict)
+struct evreturn evqueue_drain(struct evqueue *q, int strict)
 {
 	struct lost_event *lost;
+	struct evreturn ret = {};
 	uint64_t size, offs, head, tail;
 	uint8_t *base, *this, *next;
 	event_t *ev;
-	int err = 0;
 
 	size = q->mem->data_size;
 	offs = q->mem->data_offset;
@@ -127,7 +127,7 @@ int evqueue_drain(struct evqueue *q, int strict)
 
 		switch (ev->hdr.type) {
 		case PERF_RECORD_SAMPLE:
-			err = event_handle(ev, ev->hdr.size);
+			ret = event_handle(ev, ev->hdr.size);			
 			break;
 
 		case PERF_RECORD_LOST:
@@ -135,7 +135,8 @@ int evqueue_drain(struct evqueue *q, int strict)
 
 			if (strict) {
 				_e("lost %"PRId64" events", lost->lost);
-				err = -EOVERFLOW;
+				ret.err = 1;
+				ret.val = EOVERFLOW;
 			} else {
 				_w("lost %"PRId64" events", lost->lost);
 			}
@@ -143,15 +144,16 @@ int evqueue_drain(struct evqueue *q, int strict)
 
 		default:
 			_e("unknown perf event %#"PRIx32, ev->hdr.type);
-			err = -EINVAL;
+			ret.err = 1;
+			ret.val = EINVAL;
 			break;
 		}
 
-		if (err)
+		if (ret.err || ret.exit)
 			break;
 	}
 
-	return err;
+	return ret;
 }
 
 int evqueue_init(struct evpipe *evp, uint32_t cpu, size_t size)
@@ -189,15 +191,19 @@ int evqueue_init(struct evpipe *evp, uint32_t cpu, size_t size)
 	return 0;
 }
 
-int evpipe_loop(struct evpipe *evp)
+struct evreturn evpipe_loop(struct evpipe *evp)
 {
+	struct evreturn ret;
 	uint32_t cpu;
-	int err, ready;
+	int ready;
 
 	for (;;) {
 		ready = poll(evp->poll, evp->ncpus, -1);
-		if (ready < 0)
-			return -errno;
+		if (ready < 0) {
+			ret.err = 1;
+			ret.val = errno;
+			return ret;
+		}
 
 		assert(ready);
 
@@ -205,15 +211,15 @@ int evpipe_loop(struct evpipe *evp)
 			if (!(evp->poll[cpu].revents & POLLIN))
 				continue;
 
-			err = evqueue_drain(&evp->q[cpu], evp->strict);
-			if (err)
-				return err;
+			ret = evqueue_drain(&evp->q[cpu], evp->strict);
+			if (ret.err | ret.exit)
+				return ret;
 
 			ready--;
 		}
 	}
 
-	return 0;
+	return ret;
 }
 
 int evpipe_init(struct evpipe *evp, size_t qsize, int strict)

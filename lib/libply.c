@@ -324,7 +324,7 @@ err:
 
 }
 
-int ply_loop(struct ply *ply)
+struct evreturn ply_loop(struct ply *ply)
 {
 	return evpipe_loop(&ply->evp);
 }

@@ -26,6 +26,12 @@
 
 #include <sys/queue.h>
 
+struct evreturn {
+	int val;
+	unsigned err:1;
+	unsigned exit:1;
+};
+
 typedef struct event {
 	struct perf_event_header hdr;
 	uint32_t size;
@@ -40,7 +46,7 @@ typedef struct evhandler {
 	uint64_t type;
 	void *priv;
 
-	int (*handle)(event_t *ev, void *priv);
+	struct evreturn (*handle)(event_t *ev, void *priv);
 } evhandler_t;
 
 struct evqueue;
@@ -57,7 +63,7 @@ struct evpipe {
 
 void evhandler_register(evhandler_t *evh);
 
-int evpipe_loop(struct evpipe *evp);
+struct evreturn evpipe_loop(struct evpipe *evp);
 int evpipe_init(struct evpipe *evp, size_t qsize, int strict);
 
 #endif	/* _PLY_EVPIPE_H */

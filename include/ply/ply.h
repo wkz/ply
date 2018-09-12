@@ -67,7 +67,7 @@ static inline struct ply_probe *sym_to_probe(struct sym *sym)
 
 void ply_maps_print(struct ply *ply);
 
-int ply_loop(struct ply *ply);
+struct evreturn ply_loop(struct ply *ply);
 
 int ply_start(struct ply *ply);
 int ply_stop(struct ply *ply);
