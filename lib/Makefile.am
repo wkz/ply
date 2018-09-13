@@ -26,6 +26,7 @@ libply_la_SOURCES     = 	\
 	built-in/aggregation.c	\
 	built-in/flow.c		\
 	built-in/math.c		\
+	built-in/print.c	\
 	built-in/proc.c		\
 	built-in/memory.c	\
 	\
