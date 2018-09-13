@@ -185,7 +185,7 @@ int main(int argc, char **argv)
 {
 	struct ply *ply;
 	struct ply_ev *ev;
-	struct evreturn ret;
+	struct evreturn ret = {};
 	int err, opt, infpid, inftrig;
 	int f_debug, f_dryrun, f_dump;
 	FILE *src;
