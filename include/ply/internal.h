@@ -2,6 +2,7 @@
 #define _PLY_INTERNAL_H
 
 #include "arch.h"
+#include "buffer.h"
 #include "func.h"
 #include "ir.h"
 #include "node.h"
@@ -9,7 +10,7 @@
 #include "sym.h"
 #include "type.h"
 
-#include "evpipe.h"
+
 #include "kallsyms.h"
 #include "perf_event.h"
 #include "printxf.h"

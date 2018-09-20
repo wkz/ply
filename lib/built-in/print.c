@@ -6,15 +6,11 @@
 
 #include "built-in.h"
 
-static struct evreturn print_ev_handler(struct event *ev, void *_n)
+static struct ply_return print_ev_handler(struct buffer_ev *ev, void *_n)
 {
-	struct node *n = _n, *evn, *vals;
-	struct type *t;
+	struct node *n = _n;
+	struct type *t = n->sym->type;
 	struct tfield *f;
-
-	evn = n->expr.args;
-	vals = evn->expr.args->next;
-	t = vals->sym->type;
 
 	tfields_foreach(f, t->sou.fields) {
 		if (f != t->sou.fields)
@@ -25,58 +21,51 @@ static struct evreturn print_ev_handler(struct event *ev, void *_n)
 	}
 
 	putchar('\n');
-	return (struct evreturn){ };
-}
-
-static int print_ir_post(const struct func *func, struct node *n,
-			     struct ply_probe *pb)
-{
-	struct node *evn, *regs;
-
-	evn = n->expr.args;
-	regs = evn->next;
-
-	ir_emit_perf_event_output(pb->ir, pb->ply->evp_sym, regs->sym, evn->sym);
-	return 0;
+	return (struct ply_return){ };
 }
 
 static int print_rewrite(const struct func *func, struct node *n,
 			struct ply_probe *pb)
 {
-	struct node *exprs, *evn;
-	struct evhandler *evh;
+	struct node *bwrite, *exprs, *ev;
+	struct buffer_evh *evh;
+	uint64_t id;
 
 	evh = n->sym->priv;
+	id = evh->id;
 
 	exprs = n->expr.args;
+	n->expr.args = NULL;
 
-	evn = node_expr(&n->loc, ":struct",
-		       __node_num(&n->loc, sizeof(evh->type), NULL, &evh->type),
-		       node_expr(&n->loc, ":struct", NULL),
+	ev = node_expr(&n->loc, ":struct",
+		       __node_num(&n->loc, sizeof(evh->id), NULL, &id),
+		       node_expr(&n->loc, ":struct", exprs, NULL),
 		       NULL);
 
-	node_replace(exprs, evn);
-	evn->next = NULL;
+	bwrite = node_expr(&n->loc, "bwrite",
+			   node_expr(&n->loc, "regs", NULL),
+			   node_expr(&n->loc, "stdbuf", NULL),
+			   ev,
+			   NULL);
 
-	node_expr_append(&n->loc, evn->expr.args->next, exprs);
-	node_expr_append(&n->loc, n, node_expr(&n->loc, "regs", NULL));
+	node_replace(n, bwrite);
+	evh->priv = ev->expr.args->next;
 	return 0;
 }
 
 static int print_type_infer(const struct func *func, struct node *n)
 {
 	struct node *expr = n->expr.args;
-	struct evhandler *evh;
+	struct buffer_evh *evh;
 
 	if (n->sym->type)
 		return 0;
 
-	evh = calloc(1, sizeof(struct evhandler));
+	evh = calloc(1, sizeof(*evh));
 	assert(evh);
 
-	evh->priv = n;
 	evh->handle = print_ev_handler;
-	evhandler_register(evh);
+	buffer_evh_register(evh);
 
 	/* TODO: leaked */
 	n->sym->priv = evh;
@@ -90,6 +79,4 @@ __ply_built_in const struct func print_func = {
 	.type_infer = print_type_infer,
 
 	.rewrite = print_rewrite,
-
-	.ir_post = print_ir_post,
 };

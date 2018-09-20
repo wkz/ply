@@ -120,52 +120,52 @@ __ply_built_in const struct func if_func = {
 	.ir_post = if_ir_post,
 };
 
-static struct evreturn exit_ev_handler(struct event *ev, void *_null)
+
+static struct ply_return exit_ev_handler(struct buffer_ev *ev, void *_null)
 {
 	int *code = (void *)ev->data;
 
 	_d("exit:%d\n", *code);
-	return (struct evreturn){ .val = *code, .exit = 1 };
-}
-
-static int exit_ir_post(const struct func *func, struct node *n,
-			     struct ply_probe *pb)
-{
-	struct node *ev, *regs;
-
-	ev = n->expr.args;
-	regs = ev->next;
-
-	ir_emit_perf_event_output(pb->ir, pb->ply->evp_sym, regs->sym, ev->sym);
-	return 0;
+	return (struct ply_return){ .val = *code, .exit = 1 };
 }
 
 static int exit_rewrite(const struct func *func, struct node *n,
 			struct ply_probe *pb)
 {
-	struct node *expr, *ev;
-	struct evhandler *evh;
+	struct node *bwrite, *expr, *ev;
+	struct buffer_evh *evh;
+	uint64_t id;
 
 	evh = n->sym->priv;
+	id = evh->id;
 
 	expr = n->expr.args;
+	n->expr.args = NULL;
 
 	ev = node_expr(&n->loc, ":struct",
-		       __node_num(&n->loc, sizeof(evh->type), NULL, &evh->type),
+		       __node_num(&n->loc, sizeof(evh->id), NULL, &id),
+		       node_expr(&n->loc, ":struct", expr, NULL),
 		       NULL);
 
-	node_replace(expr, ev);
-	node_expr_append(&n->loc, ev, expr);
-	node_expr_append(&n->loc, n, node_expr(&n->loc, "regs", NULL));
+	bwrite = node_expr(&n->loc, "bwrite",
+			   node_expr(&n->loc, "regs", NULL),
+			   node_expr(&n->loc, "stdbuf", NULL),
+			   ev,
+			   NULL);
+
+	node_replace(n, bwrite);
 	return 0;
 }
 
 static int exit_type_infer(const struct func *func, struct node *n)
 {
 	struct node *expr = n->expr.args;
-	struct evhandler *evh;
+	struct buffer_evh *evh;
 
 	if (n->sym->type)
+		return 0;
+
+	if (!expr->sym->type)
 		return 0;
 
 	if (type_base(expr->sym->type)->ttype != T_SCALAR) {
@@ -174,11 +174,11 @@ static int exit_type_infer(const struct func *func, struct node *n)
 		return -EINVAL;
 	}
 
-	evh = calloc(1, sizeof(struct evhandler));
+	evh = calloc(1, sizeof(*evh));
 	assert(evh);
 
 	evh->handle = exit_ev_handler;
-	evhandler_register(evh);
+	buffer_evh_register(evh);
 
 	/* TODO: leaked */
 	n->sym->priv = evh;
@@ -192,6 +192,4 @@ __ply_built_in const struct func exit_func = {
 	.type_infer = exit_type_infer,
 
 	.rewrite = exit_rewrite,
-
-	.ir_post = exit_ir_post,
 };

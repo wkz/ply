@@ -185,7 +185,7 @@ int main(int argc, char **argv)
 {
 	struct ply *ply;
 	struct ply_ev *ev;
-	struct evreturn ret = {};
+	struct ply_return ret = {};
 	int err, opt, infpid, inftrig;
 	int f_debug, f_dryrun, f_dump;
 	FILE *src;
@@ -269,7 +269,7 @@ int main(int argc, char **argv)
 
 	ret = ply_loop(ply);
 	if (ret.err && (ret.val == EINTR) && term_sig)
-		err = 0;
+		ret.err = 0;
 
 	fprintf(stderr, "ply: deactivating\n");
 	ply_stop(ply);
@@ -280,13 +280,12 @@ unload:
 	ply_unload(ply);
 
 err:
-	if (ret.err && f_dump)
-		dump(ply);
-
 	ply_free(ply);
 
 	if (ret.err) {
-		printf("ERR:%d\n", ret.val);
+		if (ret.val)
+			printf("ERR:%d\n", ret.val);
+
 		return 1;
 	}
 

@@ -15,7 +15,6 @@ BUILT_SOURCES = grammar.h lexer.h
 libply_la_SOURCES     = 	\
 	arch/@host_cpu@.c	\
 	\
-	aux/evpipe.c		\
 	aux/kallsyms.c		\
 	aux/perf_event.c	\
 	aux/printxf.c		\
@@ -24,11 +23,12 @@ libply_la_SOURCES     = 	\
 	\
 	built-in/built-in.c	\
 	built-in/aggregation.c	\
+	built-in/buffer.c	\
 	built-in/flow.c		\
 	built-in/math.c		\
+	built-in/memory.c	\
 	built-in/print.c	\
 	built-in/proc.c		\
-	built-in/memory.c	\
 	\
 	provider/xprobe.c	\
 	provider/kprobe.c	\

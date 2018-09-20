@@ -736,6 +736,8 @@ struct type *type_map_of(struct type *ktype, struct type *vtype)
 
 	t = calloc(1, sizeof(*t));
 	t->ttype = T_MAP;
+	t->map.mtype = BPF_MAP_TYPE_HASH;
+	t->map.len   = ply_config.map_elems;
 	t->map.vtype = vtype;
 	t->map.ktype = ktype;
 	type_add(t);
@@ -828,6 +830,15 @@ struct type t_vargs_func = {
 	.func = { .type = &t_void, .vargs = 1 },
 };
 
+struct type t_buffer = {
+	.ttype = T_MAP,
+	.map = {
+		.mtype = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
+		.ktype = &t_u32,
+		.vtype = &t_int,
+	},
+};
+
 struct type *builtin_types[] = {
 	&t_void,
 	&t_char,  &t_schar,  &t_uchar,
@@ -838,12 +849,22 @@ struct type *builtin_types[] = {
 
 	&t_binop_func, &t_unary_func, &t_vargs_func,
 
+	&t_buffer,
+
 	NULL
 };
 
 __attribute__((constructor))
 static void type_init(void)
 {
+	int ncpus;
+
+	/* perf event array maps's length has to equal the number of
+	 * CPUs, which we van't know until we're actually running. */
+	ncpus = sysconf(_SC_NPROCESSORS_ONLN);
+	assert(ncpus > 0);
+	t_buffer.map.len = ncpus;
+
 	type_add_list(builtin_types);
 
 	printxf_default.vfprintxf['T'] = type_vfprintxf;

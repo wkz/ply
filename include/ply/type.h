@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <stdio.h>
 
+#include <linux/bpf.h>
+
 struct sym;
 
 struct ttdef {
@@ -35,6 +37,8 @@ struct tarray {
 struct tmap {
 	struct type *vtype;
 	struct type *ktype;
+
+	enum bpf_map_type mtype;
 	size_t len;
 };
 
@@ -144,6 +148,8 @@ extern struct type t_ullong;
 extern struct type t_binop_func;
 extern struct type t_unary_func;
 extern struct type t_vargs_func;
+
+extern struct type t_buffer;
 
 /* helpers */
 

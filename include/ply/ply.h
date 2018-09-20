@@ -3,7 +3,6 @@
 
 #include <stdio.h>
 
-#include "evpipe.h"
 #include "sym.h"
 #include "utils.h"
 
@@ -11,6 +10,12 @@ struct ksyms;
 struct ply;
 struct node;
 struct ir;
+
+struct ply_return {
+	int val;
+	unsigned err:1;
+	unsigned exit:1;
+};
 
 /* api */
 struct ply_probe {
@@ -32,6 +37,7 @@ struct ply_probe {
 struct ply_config {
 	size_t map_elems;
 	size_t string_size;
+	size_t buf_pages;   /* number of memory pages, per-cpu, per buffer */
 
 	unsigned unicode:1; /* allow unicode in output. */
 	unsigned hex:1;	    /* prefer hexadecimal output for scalars. */
@@ -43,8 +49,7 @@ struct ply_config {
 extern struct ply_config ply_config;
 
 struct ply {
-	struct evpipe evp;
-	struct sym *evp_sym;
+	struct sym *stdbuf;
 
 	struct ply_probe *probes;
 	struct symtab globals;
@@ -67,7 +72,7 @@ static inline struct ply_probe *sym_to_probe(struct sym *sym)
 
 void ply_maps_print(struct ply *ply);
 
-struct evreturn ply_loop(struct ply *ply);
+struct ply_return ply_loop(struct ply *ply);
 
 int ply_start(struct ply *ply);
 int ply_stop(struct ply *ply);

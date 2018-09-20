@@ -23,6 +23,7 @@
 #include <unistd.h>
 
 #include <linux/bpf.h>
+#include <linux/perf_event.h>
 #include <linux/version.h>
 
 #define LOG_BUF_SIZE 0x20000

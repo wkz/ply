@@ -10,8 +10,9 @@
 #include "lexer.h"
 
 struct ply_config ply_config = {
-	.map_elems   = 0x400,
-	.string_size =  0x80,
+	.map_elems   =  0x400,
+	.string_size =   0x80,
+	.buf_pages   =      1,
 
 	.sort = 1,
 	.ksyms = 1,
@@ -224,20 +225,33 @@ int ply_unload(struct ply *ply)
 static int ply_load_map(struct ply *ply)
 {
 	struct sym **symp, *sym;
+	struct type *t;
 
 	symtab_foreach(&ply->globals, symp) {
 		sym = *symp;
+		t = sym->type;
 
-		if (sym->type->ttype != T_MAP)
+		if (t->ttype != T_MAP)
 			continue;
 
-		sym->mapfd = bpf_map_create(BPF_MAP_TYPE_HASH,
-					       type_sizeof(sym->type->map.ktype),
-					       type_sizeof(sym->type->map.vtype),
-					       ply_config.map_elems);
+		sym->mapfd = bpf_map_create(t->map.mtype,
+					    type_sizeof(t->map.ktype),
+					    type_sizeof(t->map.vtype),
+					    t->map.len);
 		if (sym->mapfd < 0) {
 			_e("unable to create map '%s', errno:%d\n", sym->name, errno);
 			return -errno;
+		}
+
+		if (t->map.mtype == BPF_MAP_TYPE_PERF_EVENT_ARRAY) {
+			sym->priv = buffer_new(sym->mapfd);
+			if (!sym->priv) {
+				_e("unable to create buffer '%s'\n", sym->name);
+				return -EINVAL;
+			}
+
+			if (!strcmp("stdbuf", sym->name))
+				ply->stdbuf = sym;
 		}
 	}
 
@@ -291,12 +305,6 @@ int ply_load(struct ply *ply)
 {
 	int err;
 
-	err = evpipe_init(&ply->evp, 0x1000, ply_config.strict);
-	if (err)
-		goto err;
-
-	ply->evp_sym->mapfd = ply->evp.mapfd;
-
 	/* Maps has to be allocated first, since we need those fds
 	 * before calling ir_bpf_extract. */
 	err = ply_load_map(ply);
@@ -324,9 +332,14 @@ err:
 
 }
 
-struct evreturn ply_loop(struct ply *ply)
+struct ply_return ply_loop(struct ply *ply)
 {
-	return evpipe_loop(&ply->evp);
+	if (!ply->stdbuf) {
+		pause();
+		return (struct ply_return){ .err = 1, .val = EINTR };
+	}
+
+	return buffer_loop((struct buffer *)ply->stdbuf->priv);
 }
 
 int ply_stop(struct ply *ply)
@@ -372,9 +385,6 @@ int ply_alloc(struct ply **plyp)
 
 	if (ply_config.ksyms)
 		ply->ksyms = ksyms_new();
-
-	ply->evp_sym = __sym_alloc(&ply->globals, ":evpipe", NULL);
-	ply->evp_sym->type = &t_void;
 
 	*plyp = ply;
 	return 0;
