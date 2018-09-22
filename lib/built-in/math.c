@@ -82,6 +82,109 @@ UNARY(uminus, "u-");
 UNARY(bwnot,  "u~");
 UNARY(lognot, "u!");
 
+static int logop_ir_post(const struct func *func, struct node *n,
+				struct ply_probe *pb)
+{
+	struct node *lval, *rval;
+	struct bpf_insn jmp;
+	struct type *t;
+	int16_t out;
+	int dst = 0, lreg = 0, rreg = 0;
+	int start;
+
+	lval = n->expr.args;
+	rval = lval->next;
+
+	/* basic operation:
+	 * mov      r0, #<0, 1>
+	 * b<eq,ne> rl, #0, end
+	 * b<eq,ne> rr, #0, end
+	 * mov      r0, #<1, 0>
+	 * end:
+	 */
+	out = ir_alloc_label(pb->ir);
+	if (!strcmp(func->name, "&&")) {
+		start = 0;
+		jmp = JMP_IMM(BPF_JEQ, 0, out);
+	} else if (!strcmp(func->name, "||")) {
+		start = 1;
+		jmp = JMP_IMM(BPF_JNE, 0, out);
+	} else
+		assert(0);
+
+	ir_init_irs(pb->ir, &n->sym->irs, n->sym->type);
+	dst = (n->sym->irs.loc == LOC_REG) ? n->sym->irs.reg : BPF_REG_0;
+
+	ir_emit_insn(pb->ir, MOV_IMM(start), dst, 0);
+
+	if (lval->sym->irs.loc == LOC_REG) {
+		lreg = lval->sym->irs.reg;
+	} else {
+		lreg = BPF_REG_1;
+		ir_emit_sym_to_reg(pb->ir, lreg, lval->sym);
+	}
+
+	ir_emit_insn(pb->ir, jmp, lreg, 0);
+
+	if (rval->sym->irs.loc == LOC_REG) {
+		rreg = rval->sym->irs.reg;
+	} else {
+		rreg = BPF_REG_2;
+		ir_emit_sym_to_reg(pb->ir, rreg, rval->sym);
+	}
+
+	ir_emit_insn(pb->ir, jmp, rreg, 0);
+	ir_emit_insn(pb->ir, MOV_IMM(!start), dst, 0);
+	ir_emit_label(pb->ir, out);
+
+	if (dst == BPF_REG_0)
+		ir_emit_reg_to_sym(pb->ir, n->sym, BPF_REG_0);
+	return 0;
+}
+
+static int logop_type_infer(const struct func *func, struct node *n)
+{
+	struct node *lval, *rval;
+	struct type *ltype, *rtype;
+
+	if (n->sym->type)
+		return 0;
+
+	lval = n->expr.args;
+	rval = lval->next;
+
+	ltype = lval->sym->type;
+	rtype = rval->sym->type;
+	if (!ltype || !rtype)
+		return 0;
+
+	if (type_base(ltype)->ttype != T_SCALAR) {
+		_ne(n, "left side of '%N' must be a scalar value, "
+		    "but '%N' is of type '%T'\n", n, lval, ltype);
+		return -EINVAL;
+	}
+
+	if (type_base(rtype)->ttype != T_SCALAR) {
+		_ne(n, "right side of '%N' must be a scalar value, "
+		    "but '%N' is of type '%T'\n", n, rval, rtype);
+		return -EINVAL;
+	}
+
+	n->sym->type = &t_int;
+	return 0;
+}
+
+#define LOGOP(_fn, _name)				\
+	__ply_built_in const struct func math_ ## _fn =	\
+	{						\
+		.name = _name,				\
+		.type = &t_binop_func,			\
+		.type_infer = logop_type_infer,		\
+		.ir_post = logop_ir_post,		\
+	}
+
+LOGOP(logand, "&&");
+LOGOP(logor,  "||");
 
 static int relop_ir_post(const struct func *func, struct node *n,
 				struct ply_probe *pb)
