@@ -18,7 +18,7 @@ struct buffer_ev {
 struct buffer_evh {
 	TAILQ_ENTRY(buffer_evh) node;
 
-	uint32_t id;
+	uint64_t id;
 	void *priv;
 
 	struct ply_return (*handle)(struct buffer_ev *ev, void *priv);
