@@ -149,21 +149,48 @@ static struct node *node_new(enum ntype ntype, const struct nloc *loc)
 	return n;
 }
 
+void __string_escape(char *dst, const char *src)
+{
+	while (*src) {
+		if (*src == '\\' && *(src + 1)) {
+			src++;
+
+			switch (*src) {
+			case '\\': *dst++ = '\\'; break;
+			case 'n': *dst++ = '\n'; break;
+			case 'r': *dst++ = '\r'; break;
+			case 't': *dst++ = '\t'; break;
+			default: assert(!"TODO"); break;
+			}
+
+			src++;
+		} else {
+			*dst++ = *src++;
+		}
+	}
+}
+
 struct node *node_string(const struct nloc *loc, char *data)
 {
 	struct node *n = node_new(N_STRING, loc);
+	size_t len;
 
 	/* remove quotes */
 	if (data[0] == '"') {
-		size_t len = strlen(data) - 2;
+		char *unquoted;
 
-		n->string.data = calloc(1, ((len ? : 1) + 7) & ~7);
-		strncpy(n->string.data, data + 1, len);
+		len = strlen(data) - 2;
+
+		unquoted = xcalloc(1, len);
+		strncpy(unquoted, data + 1, len);
 		free(data);
-	} else {
-		n->string.data = data;
+		data = unquoted;
 	}
 
+	len = ((strlen(data) ? : 1) + 7) & ~7;
+	n->string.data = xcalloc(1, len);
+	__string_escape(n->string.data, data);
+	free(data);
 	return n;
 }
 
