@@ -58,7 +58,7 @@ int vfprintxf(struct printxf *pxf, FILE *fp, const char *fmt, va_list ap)
 			continue;
 		}
 		
-		ssize = strspn(fmt + 1, " #$'*+,-.0123456789:;L_hjlqtvz") + 1;
+		ssize = strspn(fmt + 1, " #$'*+,-.0123456789:;L_hjlqtz") + 1;
 
 		if (!fmt[ssize]) {
 			/* corner case. fmt ends with an unterminated
