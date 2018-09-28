@@ -6,8 +6,6 @@
 
 #include <ply/printxf.h>
 
-struct printxf printxf_default;
-
 /* allow domains an easy way to defer standard specifiers to the
  * system's implementation. */
 int printxf_vfprintf(struct printxf *pxf,
@@ -33,7 +31,8 @@ int vfprintxf(struct printxf *pxf, FILE *fp, const char *fmt, va_list ap)
 	vfprintxf_fn handler;
 	char spec[16];
 
-	pxf = pxf ? : &printxf_default;
+	if (!pxf)
+		pxf = &printxf_default;
 
 	if (!fmt)
 		return 0;
@@ -116,11 +115,16 @@ int printxf(struct printxf *pxf, const char *fmt, ...)
 	return ret;
 }
 
-__attribute__((constructor))
-static void printxf_init(void)
-{
-	const char *std = "aAcdeEfFgGiosuxX";
-
-	for (; *std; std++)
-		printxf_default.vfprintxf[(int)*std] = &printxf_vfprintf;
-}
+struct printxf printxf_default = {
+	.vfprintxf = {
+		['a'] = printxf_vfprintf, ['A'] = printxf_vfprintf,
+		['c'] = printxf_vfprintf, ['d'] = printxf_vfprintf,
+		['e'] = printxf_vfprintf, ['E'] = printxf_vfprintf,
+		['f'] = printxf_vfprintf, ['F'] = printxf_vfprintf,
+		['g'] = printxf_vfprintf, ['G'] = printxf_vfprintf,
+		['i'] = printxf_vfprintf, ['o'] = printxf_vfprintf,
+		['p'] = printxf_vfprintf, ['s'] = printxf_vfprintf,
+		['u'] = printxf_vfprintf,
+		['x'] = printxf_vfprintf, ['X'] = printxf_vfprintf,
+	},
+};
