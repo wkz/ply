@@ -66,7 +66,7 @@ struct buffer_q {
 
 struct buffer {
 	int mapfd;
-	int ncpus;
+	uint32_t ncpus;
 
 	struct pollfd *poll;
 	struct buffer_q q[0];
