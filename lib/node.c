@@ -141,9 +141,7 @@ static struct node *node_new(enum ntype ntype, const struct nloc *loc)
 {
 	struct node *n;
 
-	n = calloc(1, sizeof(*n));
-	assert(n);
-
+	n = xcalloc(1, sizeof(*n));
 	n->ntype = ntype;
 
 	if (loc)

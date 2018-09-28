@@ -14,7 +14,7 @@ struct sym *__sym_alloc(struct symtab *st, const char *name,
 	st->syms = realloc(st->syms, ++st->len * sizeof(*st->syms));
 	assert(st->syms);
 
-	st->syms[st->len - 1] = calloc(1, sizeof(struct sym));
+	st->syms[st->len - 1] = xcalloc(1, sizeof(struct sym));
 	sym = st->syms[st->len - 1];
 	sym->st    = st;
 	sym->name  = name;

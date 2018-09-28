@@ -350,11 +350,7 @@ static int kprobe_attach(struct ply_probe *pb)
 	if (err)
 		goto err_close;
 
-	kp->evfds = calloc(kp->n_evs, sizeof(kp->evfds));
-	if (!kp->evfds) {
-		err = -ENOMEM;
-		goto err_destroy;
-	}
+	kp->evfds = xcalloc(kp->n_evs, sizeof(kp->evfds));
 
 	err = __kprobe_attach(pb);
 	if (err)
@@ -374,8 +370,7 @@ static int kprobe_probe(struct ply_probe *pb)
 {
 	struct kprobe *kp;
 
-	kp = calloc(1, sizeof(*kp));
-	assert(kp);
+	kp = xcalloc(1, sizeof(*kp));
 
 	kp->pattern = strchr(pb->probe, ':');
 	assert(kp->pattern);

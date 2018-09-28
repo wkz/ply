@@ -298,8 +298,7 @@ struct ksyms *ksyms_new(void)
 	struct ksyms *ks;
 	int err;
 
-	ks = calloc(1, sizeof(*ks));
-	assert(ks);
+	ks = xcalloc(1, sizeof(*ks));
 
 	err = ksyms_cache_open(ks);
 	if (err)

@@ -61,8 +61,7 @@ static int print_type_infer(const struct func *func, struct node *n)
 	if (n->sym->type)
 		return 0;
 
-	evh = calloc(1, sizeof(*evh));
-	assert(evh);
+	evh = xcalloc(1, sizeof(*evh));
 
 	evh->handle = print_ev_handler;
 	buffer_evh_register(evh);

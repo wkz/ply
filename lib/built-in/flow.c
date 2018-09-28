@@ -103,8 +103,7 @@ static int if_type_infer(const struct func *func, struct node *n)
 	}
 
 	/* TODO: leaked */
-	n->sym->priv = calloc(1, sizeof(struct if_priv));
-	assert(n->sym->priv);
+	n->sym->priv = xcalloc(1, sizeof(struct if_priv));
 
 	n->sym->type = &t_void;
 	return 0;
@@ -174,8 +173,7 @@ static int exit_type_infer(const struct func *func, struct node *n)
 		return -EINVAL;
 	}
 
-	evh = calloc(1, sizeof(*evh));
-	assert(evh);
+	evh = xcalloc(1, sizeof(*evh));
 
 	evh->handle = exit_ev_handler;
 	buffer_evh_register(evh);

@@ -310,11 +310,8 @@ static int struct_type_infer(const struct func *func, struct node *n)
 			return 0;
 	}
 
-	t = calloc(1, sizeof(*t));
-	assert(t);
-
-	fields = calloc(nargs + 1, sizeof(*fields));
-	assert(fields);
+	t = xcalloc(1, sizeof(*t));
+	fields = xcalloc(nargs + 1, sizeof(*fields));
 
 	for (arg = n->expr.args, f = fields, i = 0; arg;
 	     arg = arg->next, f++, i++) {

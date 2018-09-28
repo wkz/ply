@@ -92,9 +92,7 @@ int __ply_probe_alloc(struct ply *ply, struct node *pspec, struct node *ast)
 	struct ply_probe *pb, *last;
 	int err;
 
-	pb = calloc(1, sizeof(*pb));
-	if (!pb)
-		return -ENOMEM;
+	pb = xcalloc(1, sizeof(*pb));
 
 	pb->ply = ply;
 	pb->ast = ast;

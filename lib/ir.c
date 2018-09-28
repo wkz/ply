@@ -554,8 +554,7 @@ struct ir *ir_new(void)
 {
 	struct ir *ir;
 
-	ir = calloc(1, sizeof(*ir));
-	assert(ir);
+	ir = xcalloc(1, sizeof(*ir));
 
 	ir->next_reg = vreg_base;
 	ir->next_label = -1;

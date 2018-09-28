@@ -694,7 +694,7 @@ struct type *type_typedef(struct type *type, const char *name)
 			return t;
 	}
 
-	t = calloc(1, sizeof(*t));
+	t = xcalloc(1, sizeof(*t));
 	t->ttype = T_TYPEDEF;
 	t->tdef.type = type;
 	t->tdef.name = strdup(name);
@@ -714,7 +714,7 @@ struct type *type_array_of(struct type *type, size_t len)
 			return t;
 	}
 
-	t = calloc(1, sizeof(*t));
+	t = xcalloc(1, sizeof(*t));
 	t->ttype = T_ARRAY;
 	t->array.type = type;
 	t->array.len = len;
@@ -734,7 +734,7 @@ struct type *type_map_of(struct type *ktype, struct type *vtype)
 			return t;
 	}
 
-	t = calloc(1, sizeof(*t));
+	t = xcalloc(1, sizeof(*t));
 	t->ttype = T_MAP;
 	t->map.mtype = BPF_MAP_TYPE_HASH;
 	t->map.len   = ply_config.map_elems;
@@ -755,7 +755,7 @@ struct type *type_ptr_of(struct type *type)
 			return t;
 	}
 
-	t = calloc(1, sizeof(*t));
+	t = xcalloc(1, sizeof(*t));
 	t->ttype = T_POINTER;
 	t->ptr.type = type;
 	type_add(t);

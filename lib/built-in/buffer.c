@@ -219,14 +219,12 @@ struct buffer *buffer_new(int mapfd)
 	struct buffer *buf;
 	int err, cpu, ncpus = t_buffer.map.len;
 
-	buf = calloc(1, sizeof(*buf) + ncpus * sizeof(buf->q[0]));
-	assert(buf);
+	buf = xcalloc(1, sizeof(*buf) + ncpus * sizeof(buf->q[0]));
 
 	buf->mapfd = mapfd;
 	buf->ncpus = ncpus;
 
-	buf->poll = calloc(ncpus, sizeof(*buf->poll));
-	assert(buf->poll);
+	buf->poll = xcalloc(ncpus, sizeof(*buf->poll));
 
 	for (cpu = 0; cpu < ncpus; cpu++) {
 		err = buffer_q_init(buf, cpu);

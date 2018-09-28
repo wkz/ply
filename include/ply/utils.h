@@ -20,6 +20,8 @@
 #ifndef _PLY_UTILS_H
 #define _PLY_UTILS_H
 
+#include <assert.h>
+
 int isstring(const char *data, size_t len);
 
 FILE *fopenf(const char *mode, const char *fmt, ...)
@@ -54,5 +56,13 @@ void ast_fprint(FILE *fp, struct node *root);
 #define container_of(ptr, type, member) ({			     \
                 const typeof( ((type *)0)->member ) *__mptr = (ptr); \
                 (type *)( (char *)__mptr - offsetof(type,member) );})
+
+static inline void *xcalloc(size_t nmemb, size_t size)
+{
+	void *mem = calloc(nmemb, size);
+
+	assert(mem);
+	return mem;
+}
 
 #endif	/* _PLY_UTILS_H */
