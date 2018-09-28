@@ -46,6 +46,7 @@ struct node {
 		} num;
 		struct {
 			char *data;
+			unsigned virtual:1;
 		} string;
 	};
 

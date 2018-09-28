@@ -167,6 +167,8 @@ static int struct_dot_type_infer(const struct func *func, struct node *n)
 		return -EINVAL;
 	}
 
+	member->string.virtual = 1;
+
 	/* given `sou.member` where sou is a struct/union, infer that
 	 * the expression's type is equal to member's type. */
 	n->sym->type = f->type;

@@ -96,7 +96,7 @@ static int string_ir_post(const struct func *func, struct node *n,
 {
 	struct irstate *irs = &n->sym->irs;
 
-	if (node_is(n->up, "."))
+	if (n->string.virtual)
 		return 0;
 
 	ir_init_sym(pb->ir, n->sym);
