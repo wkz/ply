@@ -57,6 +57,20 @@ void ast_fprint(FILE *fp, struct node *root);
                 const typeof( ((type *)0)->member ) *__mptr = (ptr); \
                 (type *)( (char *)__mptr - offsetof(type,member) );})
 
+#define max(a, b)				\
+	({					\
+		__typeof__ (a) _a = (a);	\
+		__typeof__ (b) _b = (b);	\
+		_a > _b ? _a : _b;		\
+	})
+
+#define min(a, b)				\
+	({					\
+		__typeof__ (a) _a = (a);	\
+		__typeof__ (b) _b = (b);	\
+		_a < _b ? _a : _b;		\
+	})
+
 static inline void *xcalloc(size_t nmemb, size_t size)
 {
 	void *mem = calloc(nmemb, size);
