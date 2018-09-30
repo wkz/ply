@@ -45,4 +45,15 @@ struct sym *sym_alloc(struct symtab *st, struct node *n,
 void sym_dump(struct sym *sym, FILE *fp);
 void symtab_dump(struct symtab *st, FILE *fp);
 
+
+static inline int sym_in_reg(struct sym *sym)
+{
+	return sym->irs.loc == LOC_REG;
+}
+
+static inline int sym_on_stack(struct sym *sym)
+{
+	return sym->irs.loc == LOC_STACK;
+}
+
 #endif	/* _PLY_SYM_H */

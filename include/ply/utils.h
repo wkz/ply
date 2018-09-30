@@ -51,6 +51,7 @@ void ast_fprint(FILE *fp, struct node *root);
 #define _e(fmt, ...) _l("error: ",   fmt, ##__VA_ARGS__)
 
 #define _ne(_n, fmt, ...) _l("%#N: \e[31merror:\e[0m ", fmt, _n, ##__VA_ARGS__)
+#define _nw(_n, fmt, ...) _l("%#N: \e[33mwarning:\e[0m ", fmt, _n, ##__VA_ARGS__)
 
 
 #define container_of(ptr, type, member) ({			     \

@@ -186,4 +186,15 @@ static inline struct type *type_return(struct type *t)
 	return t;
 }
 
+static inline int type_is_string(struct type *t)
+{
+	t = type_base(t);
+
+	if (t->ttype != T_ARRAY)
+		return 0;
+
+	t = type_base(t->array.type);
+	return t == &t_char;
+}
+
 #endif	/* _PLY_TYPE_H */

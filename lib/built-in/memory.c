@@ -7,6 +7,120 @@
 
 #include "built-in.h"
 
+static void strcmp_emit(struct ir *ir, uint16_t dst,
+			ssize_t a, ssize_t b, const char *blit, size_t len)
+{
+	int16_t done;
+	int literal = blit ? 1 : 0;
+
+	done = ir_alloc_label(ir);
+
+	for (; len; len--, a++, b++, blit++) {
+		ir_emit_insn(ir, LDX(BPF_B, a), dst, BPF_REG_BP);
+
+		if (literal) {
+			ir_emit_insn(ir, ALU_IMM(BPF_SUB, *blit), dst, 0);
+		} else {
+			ir_emit_insn(ir, LDX(BPF_B, b), BPF_REG_1, BPF_REG_BP);
+			ir_emit_insn(ir, ALU(BPF_SUB), dst, BPF_REG_1);
+		}
+
+		if (len == 1)
+			break;
+
+		if (!literal)
+			ir_emit_insn(ir, JMP_IMM(BPF_JEQ, 0, done), BPF_REG_1, 0);
+		else if (!*blit)
+			break;
+
+		ir_emit_insn(ir, JMP_IMM(BPF_JNE, 0, done), dst, 0);
+	}
+
+	ir_emit_label(ir, done);
+}
+
+static int strcmp_ir_post(const struct func *func, struct node *n,
+				struct ply_probe *pb)
+{
+	struct node *a, *b;
+	ssize_t len;
+	int16_t done;
+	uint16_t dst;
+	int invert = 0;
+	const char *blit = NULL;
+
+	a = n->expr.args;
+	b = a->next;
+
+	if (a->ntype == N_STRING) {
+		struct node *tmp = a;
+
+		a = b;
+		b = tmp;
+		invert = 1;
+	}
+
+	if (b->ntype == N_STRING)
+		blit = b->string.data;
+
+	/* TODO: Short strings could be in registers or immediate
+	 * values I suppose, but let's not deal with that for now */
+	assert(sym_on_stack(a->sym));
+	if (!blit)
+		assert(sym_on_stack(b->sym));
+
+	ir_init_sym(pb->ir, n->sym);
+
+	len = min(type_sizeof(a->sym->type), type_sizeof(b->sym->type));
+
+	dst = sym_in_reg(n->sym) ? n->sym->irs.reg : BPF_REG_0;
+	strcmp_emit(pb->ir, dst, a->sym->irs.stack, b->sym->irs.stack,
+		    blit, len);
+
+	if (invert)
+		ir_emit_insn(pb->ir, ALU_IMM(BPF_NEG, 0), dst, 0);
+
+	ir_emit_reg_to_sym(pb->ir, n->sym, dst);
+	return 0;
+}
+
+static int strcmp_type_infer(const struct func *func, struct node *n)
+{
+	struct node *s[2];
+	struct tfield *f;
+	int i;
+
+	if (n->sym->type)
+		return 0;
+
+	s[0] = n->expr.args;
+	s[1] = s[0]->next;
+
+	if (!(s[0]->sym->type && s[1]->sym->type))
+		return 0;
+
+	for (i = 0; i < 2; i++) {
+		if (s[i]->ntype == N_STRING) {
+			s[i]->string.virtual = 1;
+			continue;
+		}
+
+		if (!type_is_string(s[i]->sym->type))
+			_nw(n, "'%N' is of type '%T', a string was expected.",
+			    s[i], s[i]->sym->type);
+	}
+
+	n->sym->type = &t_int;
+	return 0;
+}
+
+__ply_built_in const struct func strcmp_func = {
+	.name = "strcmp",
+	.type = &t_vargs_func,
+	.type_infer = strcmp_type_infer,
+	.ir_post = strcmp_ir_post,
+};
+
 static int struct_deref_rewrite(const struct func *func, struct node *n,
 				 struct ply_probe *pb)
 {
