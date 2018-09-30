@@ -81,7 +81,7 @@ static int kprobe_caller_rewrite(const struct func *func, struct node *n,
 	/* argN => (*regs).REG */
 	new = node_expr(&n->loc, ".",
 			node_expr(&n->loc, "u*", node_expr_ident(&n->loc, "regs"), NULL),
-			node_string(&n->loc, (char *)reg),
+			node_string(&n->loc, strdup(reg)),
 			NULL);
 
 	node_replace(n, new);
@@ -129,7 +129,7 @@ static int kprobe_arg_rewrite(const struct func *func, struct node *n,
 	/* argN => (*regs).REG */
 	new = node_expr(&n->loc, ".",
 			node_expr(&n->loc, "u*", node_expr_ident(&n->loc, "regs"), NULL),
-			node_string(&n->loc, (char *)reg),
+			node_string(&n->loc, strdup(reg)),
 			NULL);
 
 	node_replace(n, new);
