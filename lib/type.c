@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <ctype.h>
 #include <errno.h>
 #include <inttypes.h>
 #include <stdarg.h>
@@ -191,13 +192,64 @@ static int type_fprint_pointer(struct type *t, FILE *fp, const void *data)
 	return fprintf(fp, "<%"PRIxPTR">", *((uintptr_t *)data));
 }
 
+static void __hexdump_line(FILE *fp, size_t offset,
+			   const unsigned char *data, size_t n)
+{
+	size_t i;
+	int pad;
+
+	fprintf(fp, "%3.3zx:", offset);
+
+	for (i = 0; i <= n; i++) {
+		if (i == 7)
+			fputc(' ', fp);
+
+		fprintf(fp, " %2.2x", data[i]);
+	}
+
+	pad = (0x10 - (i - 1)) * 3 + 2;
+	if (i < 7)
+		pad++;
+
+	fprintf(fp, "%*c", pad, ' ');
+
+	for (i = 0; i <= n; i++) {
+		if (i == 7)
+			fputc(' ', fp);
+
+		fputc(isprint(data[i]) ? data[i] : '.', fp);
+	}
+}
+
+static int type_fprint_char_array(struct type *t, FILE *fp, const void *data)
+{
+	const unsigned char *d = data;
+	size_t i;
+
+	if (isstring(data, t->array.len))
+		return fprintf(fp, "%-*s", (int)t->array.len - 1, (char *)data);
+
+	fputc('\n', fp);
+
+	for (i = 0; (i + 0xf) < t->array.len; i += 0x10) {
+		__hexdump_line(fp, i, &d[i], 0x10);
+		fputc('\n', fp);
+	}
+
+	if (i < t->array.len) {
+		__hexdump_line(fp, i, &d[i], t->array.len - i);
+		fputc('\n', fp);
+	}
+	return 0;
+}
+
 static int type_fprint_array(struct type *t, FILE *fp, const void *data)
 {
 	size_t i;
 	int ret, total = 0;
 
-	if ((t->array.type == &t_char) && isstring(data, t->array.len))
-		return fprintf(fp, "%-*s", (int)t->array.len - 1, (char *)data);
+	if (t->array.type == &t_char)
+		return type_fprint_char_array(t, fp, data);
 
 	fputc('[', fp);
 	total++;
