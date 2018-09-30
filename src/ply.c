@@ -185,8 +185,8 @@ int main(int argc, char **argv)
 {
 	struct ply *ply;
 	struct ply_ev *ev;
-	struct ply_return ret = {};
-	int err, opt, infpid, inftrig;
+	struct ply_return ret = { .err = 1 };
+	int opt, infpid, inftrig;
 	int f_debug, f_dryrun, f_dump;
 	FILE *src;
 	char *cmd = NULL;
@@ -234,24 +234,25 @@ int main(int argc, char **argv)
 	ply_config.unicode = 1;
 
 	ply_alloc(&ply);
-	err = ply_fparse(ply, src);
-	if (err)
+	ret.val = ply_fparse(ply, src);
+	if (ret.val)
 		goto err;
 
-	err = ply_compile(ply);
-	if (err)
-		goto err;
+	ret.val = ply_compile(ply);
 
 	if (f_dump)
 		dump(ply);
+
+	if (ret.val)
+		goto err;
 
 	if (f_dryrun)
 		goto unload;
 
 	memlock_uncap();
 
-	err = ply_load(ply);
-	if (err)
+	ret.val = ply_load(ply);
+	if (ret.val)
 		goto err;
 
 	ply_start(ply);
@@ -263,7 +264,7 @@ int main(int argc, char **argv)
 	siginterrupt(SIGCHLD, 1);
 
 	if (cmd) {
-		err = 0;
+		int err = 0;
 		write(inftrig, &err, sizeof(err));
 	}
 
