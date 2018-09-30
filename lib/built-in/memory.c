@@ -121,6 +121,104 @@ __ply_built_in const struct func strcmp_func = {
 	.ir_post = strcmp_ir_post,
 };
 
+static int str_ir_post(const struct func *func, struct node *n,
+		       struct ply_probe *pb)
+{
+	struct node *ptr = n->expr.args;
+	struct ir *ir = pb->ir;
+
+	n->sym->irs.hint.stack = 1;
+	ir_init_sym(ir, n->sym);
+
+	ir_emit_bzero(ir, n->sym->irs.stack, (size_t)type_sizeof(n->sym->type));
+
+	ir_emit_insn(ir, MOV, BPF_REG_1, BPF_REG_BP);
+	ir_emit_insn(ir, ALU_IMM(BPF_ADD, n->sym->irs.stack), BPF_REG_1, 0);
+	ir_emit_insn(ir, MOV_IMM((int32_t)type_sizeof(n->sym->type)), BPF_REG_2, 0);
+	ir_emit_sym_to_reg(ir, BPF_REG_3, ptr->sym);
+	ir_emit_insn(ir, CALL(BPF_FUNC_probe_read_str), 0, 0);
+	return 0;
+}
+
+static int mem_ir_post(const struct func *func, struct node *n,
+		       struct ply_probe *pb)
+{
+	struct node *ptr = n->expr.args;
+
+	n->sym->irs.hint.stack = 1;
+	ir_init_sym(pb->ir, n->sym);
+
+	ir_emit_sym_to_reg(pb->ir, BPF_REG_3, ptr->sym);
+	ir_emit_read_to_sym(pb->ir, n->sym, BPF_REG_3);
+	return 0;
+}
+
+static int mem_type_infer(const struct func *func, struct node *n)
+{
+	struct node *arg, *len;
+	struct type *t;
+	size_t sz = ply_config.string_size;
+	int i;
+
+	if (n->sym->type)
+		return 0;
+
+	arg = n->expr.args;
+	len = arg->next;
+
+	if (!(arg->sym->type && (!len || len->sym->type)))
+		return 0;
+
+	if (type_sizeof(arg->sym->type) > (ssize_t)sizeof(void *)) {
+		_ne(n, "can not cast '%N', of type '%T', to a pointer.",
+		    arg, arg->sym->type);
+		return -EINVAL;
+	}
+
+	if (len) {
+		if (len->ntype != N_NUM) {
+			_ne(n, "length must be a constant, "
+			    "but '%N' is of type '%T'.", len, len->sym->type);
+			return -EINVAL;
+		}
+
+		sz = (size_t)len->num.u64;
+		if (sz > MAX_BPF_STACK) {
+			_ne(n, "length is larger than the maximum "
+			    "allowed stack size (%d).", MAX_BPF_STACK);
+			return -EINVAL;
+		}
+	}
+
+	n->sym->type = type_array_of(&t_char, sz);
+	return 0;
+}
+
+static struct tfield f_1arg[] = {
+	{ .type = &t_void },
+	{ .type = NULL }
+};
+
+struct type t_mem_func = {
+	.ttype = T_FUNC,
+	.func = { .type = &t_void, .args = f_1arg, .vargs = 1 },
+};
+
+__ply_built_in const struct func mem_func = {
+	.name = "mem",
+	.type = &t_mem_func,
+	.type_infer = mem_type_infer,
+	.ir_post = mem_ir_post,
+};
+
+__ply_built_in const struct func str_func = {
+	.name = "str",
+	.type = &t_mem_func,
+	.type_infer = mem_type_infer,
+	.ir_post = str_ir_post,
+};
+
+
 static int struct_deref_rewrite(const struct func *func, struct node *n,
 				 struct ply_probe *pb)
 {

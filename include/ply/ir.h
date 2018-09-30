@@ -8,6 +8,11 @@
 #include <bits/wordsize.h>
 #include <linux/bpf.h>
 
+/* TODO: This is not exported in userspace headers for some reason */
+#ifndef MAX_BPF_STACK
+#define MAX_BPF_STACK 512
+#endif
+
 /* TODO: TEMP workaround for old headers */
 #ifndef BPF_JLE
 #define BPF_JLE		0xb0	/* LE is unsigned, '<=' */

@@ -34,6 +34,8 @@ static const char *bpf_func_name(enum bpf_func_id id)
 		return "perf_event_output";
 	case BPF_FUNC_probe_read:
 		return "probe_read";
+	case BPF_FUNC_probe_read_str:
+		return "probe_read_str";
 	case BPF_FUNC_trace_printk:
 		return "trace_printk";
 	default:
