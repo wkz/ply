@@ -632,11 +632,6 @@ ssize_t type_offsetof(struct type *t, const char *field)
 	return type_offset_size_of(t, field);
 }
 
-ssize_t type_sizeof_struct(struct type *t)
-{
-	return type_offset_size_of(t, NULL);
-}
-
 ssize_t type_sizeof(struct type *t)
 {
 	if (!t)
@@ -655,7 +650,7 @@ ssize_t type_sizeof(struct type *t)
 	case T_ARRAY:
 		return t->array.len * type_sizeof(t->array.type);
 	case T_STRUCT:
-		return type_sizeof_struct(t);
+		return type_offset_size_of(t, NULL);
 	case T_MAP:
 		return sizeof(int);
 	}
