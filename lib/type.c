@@ -198,22 +198,22 @@ static void __hexdump_line(FILE *fp, size_t offset,
 	size_t i;
 	int pad;
 
-	fprintf(fp, "%3.3zx:", offset);
+	fprintf(fp, "%03zx: ", offset);
 
-	for (i = 0; i <= n; i++) {
+	for (i = 0; i < n; i++) {
 		if (i == 8)
 			fputc(' ', fp);
 
 		fprintf(fp, " %2.2x", data[i]);
 	}
 
-	pad = (0x10 - (i - 1)) * 3 + 2;
+	pad = (0x10 - i) * 3 + 3;
 	if (i < 8)
 		pad++;
 
 	fprintf(fp, "%*c", pad, ' ');
 
-	for (i = 0; i <= n; i++) {
+	for (i = 0; i < n; i++) {
 		if (i == 8)
 			fputc(' ', fp);
 
