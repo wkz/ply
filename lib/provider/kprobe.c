@@ -41,21 +41,12 @@ static const struct func kprobe_regs_func = {
 
 static int caller_fprint(struct type *t, FILE *fp, const void *data)
 {
-	struct ksyms *ks = t->tdef.priv;
-	const struct ksym *sym;
-	unsigned long addr;
+	struct ksyms *ks = t->priv;
+	uintptr_t addr;
 
-	addr = *((unsigned long *)data);
-	if (ks && (sym = ksym_get(ks, addr))) {
-		if (sym->addr == addr)
-			return fputs(sym->sym, fp);
-		else
-			return fprintf(fp, "%s+%"PRIuPTR, sym->sym, addr - sym->addr);
-	} else {
-		int w = (int)(type_sizeof(t) * 2);
+	addr = *((uintptr_t *)data);
 
-		return fprintf(fp, "<%*.*lx>", w, w, *((unsigned long *)data));
-	}
+	return ksym_fprint(ks, fp, addr);
 }
 
 static struct type t_caller_t = {

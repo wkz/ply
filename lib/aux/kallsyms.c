@@ -75,9 +75,28 @@ static int ksym_cmp(const void *_key, const void *_member)
 	return 0;
 }
 
+int ksym_fprint(struct ksyms *ks, FILE *fp, uintptr_t addr)
+{
+	const struct ksym *sym;
+
+	if (ks && (sym = ksym_get(ks, addr))) {
+		if (sym->addr == addr)
+			return fputs(sym->sym, fp);
+		else
+			return fprintf(fp, "%s+%"PRIuPTR, sym->sym, addr - sym->addr);
+	} else {
+		int w = (int)(sizeof(addr) * 2);
+
+		return fprintf(fp, "<%*.*lx>", w, w, addr);
+	}
+}
+
 const struct ksym *ksym_get(struct ksyms *ks, uintptr_t addr)
 {
 	struct ksym key = { .addr = addr };
+
+	if (!ks)
+		return NULL;
 
 	return bsearch(&key, ks->cache->sym,
 		       ks->cache->hdr.n_syms - 1, sizeof(key), ksym_cmp);

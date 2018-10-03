@@ -43,6 +43,7 @@ struct ksyms {
 	struct ksym_cache *cache;
 };
 
+int ksym_fprint(struct ksyms *ks, FILE *fp, uintptr_t addr);
 const struct ksym *ksym_get(struct ksyms *ks, uintptr_t addr);
 
 void ksyms_free(struct ksyms *ks);
