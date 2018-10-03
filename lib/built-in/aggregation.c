@@ -109,12 +109,9 @@ static int __quantize_normalize(int log2, char const **suffix)
 
 static int __quantize_fprint_bucket(struct type *t, FILE *fp, int i)
 {
-	struct type *arg_type = t->tdef.priv;
+	struct type *arg_type = t->priv;
 	const char *ls, *hs;
 	int lo, hi;
-
-	if ((arg_type->ttype == T_TYPEDEF) && arg_type->tdef.fprint_log2)
-		return arg_type->tdef.fprint_log2(arg_type, fp, i);
 
 	lo = __quantize_normalize(i    , &ls);
 	hi = __quantize_normalize(i + 1, &hs);
@@ -133,7 +130,7 @@ static int __quantize_fprint_bucket(struct type *t, FILE *fp, int i)
 static int quantize_fprint(struct type *t, FILE *fp, const void *data)
 {
 	const unsigned int *bucket = data;
-	struct type *arg_type = t->tdef.priv;
+	struct type *arg_type = t->priv;
 	uint64_t total = __quantize_total(t, bucket);
 	int gap, i, len;
 
@@ -254,8 +251,8 @@ static int quantize_type_infer(const struct func *func, struct node *n)
 	 * bucket. (2) allow range output to be customized,
 	 * e.g. [256ms - 512ms] instead of [256G - 512G] and then
 	 * having to figure out what a giga-nanosecond is. */
-	n->sym->type->tdef.priv = arg->sym->type;
-	n->sym->type->tdef.fprint = quantize_fprint;
+	n->sym->type->priv = arg->sym->type;
+	n->sym->type->fprint = quantize_fprint;
 	return 0;
 }
 

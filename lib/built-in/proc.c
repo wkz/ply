@@ -19,8 +19,9 @@ struct type t_pid = {
 	.tdef = {
 		.name = ":pid",
 		.type = &t_u32,
-		.fprint = pid_fprint,
 	},
+
+	.fprint = pid_fprint,
 };
 
 struct type t_pid_func = {
@@ -86,8 +87,9 @@ struct type t_uid = {
 	.tdef = {
 		.name = ":uid",
 		.type = &t_u32,
-		.fprint = uid_fprint,
 	},
+
+	.fprint = uid_fprint,
 };
 
 struct type t_uid_func = {
@@ -153,8 +155,9 @@ struct type t_cpu = {
 	.tdef = {
 		.name = ":cpu",
 		.type = &t_u32,
-		.fprint = cpu_fprint,
 	},
+
+	.fprint = cpu_fprint,
 };
 
 struct type t_cpu_func = {

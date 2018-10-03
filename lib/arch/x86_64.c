@@ -26,8 +26,9 @@ struct type t_reg_t = {
 	.tdef = {
 		.name = "reg_t",
 		.type = &t_ulong,
-		.fprint = reg_fprint,
 	},
+
+	.fprint = reg_fprint,
 };
 
 struct tfield f_pt_regs_fields[] = {

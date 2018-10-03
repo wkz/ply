@@ -62,9 +62,6 @@ void type_dump(struct type *t, const char *name, FILE *fp)
 		goto print_name;
 	}
 
-	if (t->aggregation)
-		fputc('@', fp);
-
 	switch (t->ttype){
 	case T_VOID:
 		__faint(fp, "void");
@@ -326,14 +323,14 @@ int type_fprint(struct type *t, FILE *fp, const void *data)
 {
 	int err;
 
+	if (t->fprint)
+		return t->fprint(t, fp, data);
+
 	switch (t->ttype) {
 	case T_VOID:
 		return fprintf(fp, "void");
 	case T_TYPEDEF:
-		if (t->tdef.fprint)
-			return t->tdef.fprint(t, fp, data);
-		else
-			return type_fprint(t->tdef.type, fp, data);
+		return type_fprint(t->tdef.type, fp, data);
 	case T_SCALAR:
 		return type_fprint_scalar(t, fp, data);
 	case T_POINTER:
@@ -439,10 +436,7 @@ int type_cmp(const void *a, const void *b, void *_type)
 	case T_VOID:
 		return 0;
 	case T_TYPEDEF:
-		if (t->tdef.cmp)
-			return t->tdef.cmp(a, b, t);
-		else
-			return type_cmp(a, b, t->tdef.type);
+		return type_cmp(a, b, t->tdef.type);
 	case T_SCALAR:
 	case T_POINTER:
 	case T_FUNC:
@@ -504,9 +498,6 @@ int type_compatible(struct type *a, struct type *b)
 
 	a = type_base(a);
 	b = type_base(b);
-
-	if ((a->ttype != b->ttype) || (a->aggregation != b->aggregation))
-		return 0;
 
 	switch (a->ttype){
 	case T_VOID:

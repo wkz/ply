@@ -11,12 +11,6 @@ struct sym;
 struct ttdef {
 	char *name;
 	struct type *type;
-
-	/* TODO move this to a `struct type_ops` or something */
-	void *priv;
-	int (*cmp)        (const void *a, const void *b, struct type *t);
-	int (*fprint)     (struct type *t, FILE *fp, const void *data);
-	int (*fprint_log2)(struct type *t, FILE *fp, int bucket);
 };
 
 struct tscalar {
@@ -90,8 +84,8 @@ struct type {
 		struct tfunc func;
 	};
 
-	/* TODO remove */
-	int aggregation:1;
+	int (*fprint)(struct type *t, FILE *fp, const void *data);
+	void *priv;
 };
 
 struct type *type_scalar_promote(struct type *t);

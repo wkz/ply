@@ -64,8 +64,9 @@ static struct type t_caller_t = {
 	.tdef = {
 		.name = "caller_t",
 		.type = &t_reg_t,
-		.fprint = caller_fprint,
 	},
+
+	.fprint = caller_fprint,
 };
 
 static int kprobe_caller_rewrite(const struct func *func, struct node *n,
@@ -74,7 +75,7 @@ static int kprobe_caller_rewrite(const struct func *func, struct node *n,
 	struct node *new;
 	const char *reg;
 
-	n->sym->type->tdef.priv = pb->ply->ksyms;
+	n->sym->type->priv = pb->ply->ksyms;
 
 	reg = arch_register_pc();
 
