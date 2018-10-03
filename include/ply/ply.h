@@ -38,6 +38,7 @@ struct ply_config {
 	size_t map_elems;
 	size_t string_size;
 	size_t buf_pages;   /* number of memory pages, per-cpu, per buffer */
+	size_t stack_depth;
 
 	unsigned unicode:1; /* allow unicode in output. */
 	unsigned hex:1;	    /* prefer hexadecimal output for scalars. */

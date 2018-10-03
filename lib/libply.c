@@ -13,6 +13,7 @@ struct ply_config ply_config = {
 	.map_elems   =  0x400,
 	.string_size =   0x80,
 	.buf_pages   =      1,
+	.stack_depth =   0x20,
 
 	.sort = 1,
 	.ksyms = 1,
