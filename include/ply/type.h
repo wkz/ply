@@ -111,7 +111,8 @@ int type_add_list(struct type **ts);
 
 struct type *type_typedef (struct type *type, const char *name);
 struct type *type_array_of(struct type *type, size_t len);
-struct type *type_map_of  (struct type *ktype, struct type *vtype);
+struct type *type_map_of  (struct type *ktype, struct type *vtype,
+			   enum bpf_map_type mtype, size_t len);
 struct type *type_ptr_of  (struct type *type);
 
 

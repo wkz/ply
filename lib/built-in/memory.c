@@ -641,7 +641,8 @@ static int map_type_infer(const struct func *func, struct node *n)
 	if (!(n->sym->type && key->sym->type))
 		return 0;
 
-	map->sym->type = type_map_of(key->sym->type, n->sym->type);
+	map->sym->type = type_map_of(key->sym->type, n->sym->type,
+				     BPF_MAP_TYPE_HASH, 0);
 	return 0;
 }
 

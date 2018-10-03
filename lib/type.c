@@ -760,7 +760,8 @@ struct type *type_array_of(struct type *type, size_t len)
 	return t;
 }
 
-struct type *type_map_of(struct type *ktype, struct type *vtype)
+struct type *type_map_of(struct type *ktype, struct type *vtype,
+			 enum bpf_map_type mtype, size_t len)
 {
 	struct type **ti, *t;
 
@@ -768,16 +769,18 @@ struct type *type_map_of(struct type *ktype, struct type *vtype)
 		t = *ti;
 		if ((t->ttype == T_MAP)
 		    && (t->map.ktype == ktype)
-		    && (t->map.vtype == vtype))
+		    && (t->map.vtype == vtype)
+		    && (t->map.mtype == mtype)
+		    && (t->map.len   == len))
 			return t;
 	}
 
 	t = xcalloc(1, sizeof(*t));
 	t->ttype = T_MAP;
-	t->map.mtype = BPF_MAP_TYPE_HASH;
-	t->map.len   = ply_config.map_elems;
-	t->map.vtype = vtype;
 	t->map.ktype = ktype;
+	t->map.vtype = vtype;
+	t->map.mtype = mtype;
+	t->map.len   = len;
 	type_add(t);
 	return t;
 }

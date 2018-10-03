@@ -235,7 +235,7 @@ static int ply_load_map(struct ply *ply)
 		sym->mapfd = bpf_map_create(t->map.mtype,
 					    type_sizeof(t->map.ktype),
 					    type_sizeof(t->map.vtype),
-					    t->map.len);
+					    t->map.len ? : ply_config.map_elems);
 		if (sym->mapfd < 0) {
 			_e("unable to create map '%s', errno:%d\n", sym->name, errno);
 			return -errno;
