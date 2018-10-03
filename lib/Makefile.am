@@ -32,6 +32,7 @@ libply_la_SOURCES     = 	\
 	\
 	provider/xprobe.c	\
 	provider/kprobe.c	\
+	provider/kretprobe.c	\
 	\
 	compile.c		\
 	func.c			\
