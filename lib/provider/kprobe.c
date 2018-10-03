@@ -1,7 +1,6 @@
 #define _GNU_SOURCE 		/* FNM_EXTMATCH */
 #include <assert.h>
 #include <errno.h>
-#include <fnmatch.h>
 #include <glob.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,15 +12,6 @@
 
 #include "xprobe.h"
 
-struct kprobe {
-	FILE *ctrl;
-	char *pattern;
-	char stem[0x40];
-
-	size_t n_evs;
-	int *evfds;
-};
-
 /* regs */
 
 static struct type t_pt_regsp = {
@@ -30,7 +20,7 @@ static struct type t_pt_regsp = {
 	.ptr.type = &t_pt_regs,
 };
 
-static const struct func kprobe_regs_func = {
+const struct func kprobe_regs_func = {
 	.name = "regs",
 
 	.type = &t_pt_regsp,
@@ -142,7 +132,7 @@ static const struct func kprobe_arg_func = {
 
 /*  */
 
-static int kprobe_ir_pre(struct ply_probe *pb)
+int kprobe_ir_pre(struct ply_probe *pb)
 {
 	struct sym **sym;
 
@@ -197,178 +187,19 @@ static int kprobe_sym_alloc(struct ply_probe *pb, struct node *n)
 }
 
 
-static int kprobe_detach(struct ply_probe *pb)
-{
-	struct kprobe *kp = pb->provider_data;
-	glob_t gl;
-	size_t i, evstart;
-	int err, pending;
-
-	if (!kp->ctrl)
-		return 0;
-
-	for (i = 0; i < kp->n_evs; i++)
-		close(kp->evfds[i]);
-
-	err = xprobe_glob(pb, &gl);
-	if (err)
-		return err;
-
-	assert(gl.gl_pathc == kp->n_evs);
-
-	evstart = strlen(TRACEPATH "events/");
-	pending = 0;
-
-	for (i = 0; i < gl.gl_pathc; i++) {
-		fputs("-:", kp->ctrl);
-		pending += 2;
-		fputs(&gl.gl_pathv[i][evstart], kp->ctrl);
-		pending += strlen(&gl.gl_pathv[i][evstart]);
-		fputc('\n', kp->ctrl);
-		pending++;
-
-		/* The kernel parser doesn't deal with a probe definition
-		 * being split across two writes. So if there's less than
-		 * 512 bytes left, flush the buffer. */
-		if (pending > (0x1000 - 0x200)) {
-			err = fflush(kp->ctrl);
-			if (err)
-				break;
-
-			pending = 0;
-		}
-	}
-
-	globfree(&gl);
-	fclose(kp->ctrl);
-	return err;
-}
-
-
-static int kprobe_create_pattern(struct ply_probe *pb)
-{
-	struct kprobe *kp = pb->provider_data;
-	struct ksym *sym;
-	int err, pending = 0;
-
-	ksyms_foreach(sym, pb->ply->ksyms) {
-		if (fnmatch(kp->pattern, sym->sym, FNM_EXTMATCH))
-			continue;
-
-		pending += xprobe_create(kp->ctrl, kp->stem, sym->sym);
-		kp->n_evs++;
-
-		/* The kernel parser doesn't deal with a probe definition
-		 * being split across two writes. So if there's less than
-		 * 512 bytes left, flush the buffer. */
-		if (pending > (0x1000 - 0x200)) {
-			err = fflush(kp->ctrl);
-			if (err)
-				return -errno;
-
-			pending = 0;
-		}
-	}
-
-	return 0;
-}	
-
-static int kprobe_create(struct ply_probe *pb)
-{
-	struct kprobe *kp = pb->provider_data;
-	int err = 0;
-
-	xprobe_stem(pb, 'p', kp->stem, sizeof(kp->stem));
-
-	if (strpbrk(kp->pattern, "?*[!@") && pb->ply->ksyms) {
-		err = kprobe_create_pattern(pb);
-	} else {
-		xprobe_create(kp->ctrl, kp->stem, kp->pattern);
-		kp->n_evs++;
-	}
-
-	if (!err)
-		err = fflush(kp->ctrl) ? -errno : 0;
-	return err;
-}
-
-static int __kprobe_attach(struct ply_probe *pb)
-{
-	struct kprobe *kp = pb->provider_data;
-	glob_t gl;
-	int err, i;
-
-	err = xprobe_glob(pb, &gl);
-	if (err)
-		return err;
-
-	if (gl.gl_pathc != kp->n_evs) {
-		_d("n:%d c:%d\n", kp->n_evs, gl.gl_pathc);
-		pause();
-	}
-	
-	assert(gl.gl_pathc == kp->n_evs);
-	for (i = 0; i < (int)gl.gl_pathc; i++) {
-		kp->evfds[i] = perf_event_attach(pb, gl.gl_pathv[i]);
-		if (kp->evfds[i] < 0) {
-			err = kp->evfds[i];
-			break;
-		}
-	}
-
-	globfree(&gl);
-	return err;
-}
-
-static int kprobe_attach(struct ply_probe *pb)
-{
-	struct kprobe *kp = pb->provider_data;
-	char *func;
-	int err;
-
-	/* TODO: mode should be a+ and we should clean this up on
-	 * detach. */
-	kp->ctrl = fopen(TRACEPATH "kprobe_events", "a+");
-	if (!kp->ctrl)
-		return -errno;
-
-	err = setvbuf(kp->ctrl, NULL, _IOFBF, 0x1000);
-	if (err) {
-		err = -errno;
-		goto err_close;
-	}
-
-	err = kprobe_create(pb);
-	if (err)
-		goto err_close;
-
-	kp->evfds = xcalloc(kp->n_evs, sizeof(kp->evfds));
-
-	err = __kprobe_attach(pb);
-	if (err)
-		goto err_destroy;
-
-	return 0;
-
-err_destroy:
-	/* kprobe_destroy(kp); */
-
-err_close:
-	fclose(kp->ctrl);
-	return err;
-}
 
 static int kprobe_probe(struct ply_probe *pb)
 {
-	struct kprobe *kp;
+	struct xprobe *xp;
 
-	kp = xcalloc(1, sizeof(*kp));
+	xp = xcalloc(1, sizeof(*xp));
+	xp->type = 'p';
+	xp->ctrl_name = "kprobe_events";
+	xp->pattern = strchr(pb->probe, ':');
+	assert(xp->pattern);
+	xp->pattern++;
 
-	kp->pattern = strchr(pb->probe, ':');
-	assert(kp->pattern);
-	kp->pattern++;
-
-	pb->provider_data = kp;
+	pb->provider_data = xp;
 	return 0;
 }
 
@@ -376,9 +207,10 @@ __ply_provider struct provider kprobe = {
 	.name = "kprobe",
 	.prog_type = BPF_PROG_TYPE_KPROBE,
 
-	.ir_pre = kprobe_ir_pre,
+	.ir_pre    = kprobe_ir_pre,
 	.sym_alloc = kprobe_sym_alloc,
-	.attach = kprobe_attach,
-	.detach = kprobe_detach,
-	.probe = kprobe_probe,
+	.probe     = kprobe_probe,
+
+	.attach = xprobe_attach,
+	.detach = xprobe_detach,
 };

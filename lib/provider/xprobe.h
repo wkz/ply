@@ -1,9 +1,20 @@
 #ifndef _PLY_PROVIDER_XPROBE_H
 #define _PLY_PROVIDER_XPROBE_H
 
-int   xprobe_stem  (struct ply_probe *pb, char type, char *stem, size_t size);
-int   xprobe_create(FILE *ctrl, const char *stem, const char *func);
-int   xprobe_glob  (struct ply_probe *pb, glob_t *gl);
-char *xprobe_func  (struct ply_probe *pb, char *path);
+struct xprobe {
+	FILE *ctrl;
+	const char *ctrl_name;
+
+	char *pattern;
+	char stem[0x40];
+
+	size_t n_evs;
+	int *evfds;
+
+	char type;
+};
+
+int xprobe_detach(struct ply_probe *pb);
+int xprobe_attach(struct ply_probe *pb);
 
 #endif	/* _PLY_PROVIDER_XPROBE_H */
