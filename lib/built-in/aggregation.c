@@ -101,6 +101,11 @@ static int __quantize_normalize(int log2, char const **suffix)
 	static const char *s[] = { NULL, "k", "M", "G", "T", "P", "Z" };
 	int i;
 
+	if (!log2) {
+		*suffix = s[0];
+		return 0;
+	}
+
 	for (i = 0; log2 >= 10; i++, log2 -= 10);
 
 	*suffix = s[i];
