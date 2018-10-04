@@ -112,9 +112,9 @@ int printf_float(FILE *fp, const char *spec, const char *type, union value *val)
 }
 
 int printf_vfprintxf(struct printxf *pxf,
-		     FILE *fp, const char *spec, va_list ap)
+		     FILE *fp, const char *spec, void *_pd)
 {
-	struct printf_data *pd = (void *)ap;
+	struct printf_data *pd = _pd;
 	const char *type;
 	union value *val;
 	size_t size;
@@ -174,7 +174,7 @@ int printf_vfprintxf(struct printxf *pxf,
 }
 
 struct printxf printf_printxf = {
-	.vfprintxf = {
+	.xfprintxf = {
 		['a'] = printf_vfprintxf, ['A'] = printf_vfprintxf,
 		['c'] = printf_vfprintxf, ['d'] = printf_vfprintxf,
 		['e'] = printf_vfprintxf, ['E'] = printf_vfprintxf,
@@ -200,18 +200,7 @@ static struct ply_return printf_ev_handler(struct buffer_ev *ev, void *_pevh)
 			.data = ev->data,
 		};
 
-#pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
-		/* We want to reuse printxf's segment-splitting and
-		 * extensibility features, but we need to pass the
-		 * event data along with the type info instead of a
-		 * va_list. At least in glibc, va_list is a typedef:ed
-		 * array which means we can't use a regular cast to
-		 * silence the warning. This is most likely to stop
-		 * crazy people from doing stuff like this. So lets
-		 * ignore these flashing red lights and keep going,
-		 * please forgive me. */
-		vprintxf(&printf_printxf, pevh->fmt, &pd);
-#pragma GCC diagnostic pop
+		xfprintxf(&printf_printxf, stdout, pevh->fmt, &pd);
 	}
 
 	return (struct ply_return){ };

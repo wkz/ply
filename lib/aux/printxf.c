@@ -25,11 +25,13 @@ int __printxf_wsegment(FILE *fp, const char **fmt, size_t ssize, size_t *tsize)
 	return (wsize < ssize) ? EOF : 0;
 }
 
-int vfprintxf(struct printxf *pxf, FILE *fp, const char *fmt, va_list ap)
+int __printxf(struct printxf *pxf, FILE *fp, const char *fmt,
+	      void *priv, va_list ap)
 {
 	size_t tsize = 0, wsize, ssize;
 	vfprintxf_fn handler;
 	char spec[16];
+	int type;
 
 	if (!pxf)
 		pxf = &printxf_default;
@@ -67,8 +69,9 @@ int vfprintxf(struct printxf *pxf, FILE *fp, const char *fmt, va_list ap)
 			break;
 		}
 
-		handler = pxf->vfprintxf[fmt[ssize] & 0x7f];
-		if (!handler) {
+		type = fmt[ssize] & 0x7f;
+		if ((priv && !pxf->xfprintxf[type])
+		    || !pxf->vfprintxf[type]) {
 			/* unsupported specifier, write the entire
 			 * specifier unformatted to the output */
 			if (__printxf_wsegment(fp, &fmt, ssize + 1, &tsize))
@@ -82,10 +85,25 @@ int vfprintxf(struct printxf *pxf, FILE *fp, const char *fmt, va_list ap)
 		strncpy(spec, fmt, (ssize >= sizeof(spec)) ? sizeof(spec) - 1 : ssize);
 		fmt += ssize;
 
-		tsize += handler(pxf, fp, spec, ap);
+		if (priv)
+			tsize += pxf->xfprintxf[type](pxf, fp, spec, priv);
+		else
+			tsize += pxf->vfprintxf[type](pxf, fp, spec, ap);
 	}
 
 	return tsize;
+}
+
+int xfprintxf(struct printxf *pxf, FILE *fp, const char *fmt, void *priv)
+{
+	va_list ap;
+
+	return __printxf(pxf, fp, fmt, priv, ap);
+}
+
+int vfprintxf(struct printxf *pxf, FILE *fp, const char *fmt, va_list ap)
+{
+	return __printxf(pxf, fp, fmt, NULL, ap);
 }
 
 int fprintxf(struct printxf *pxf, FILE *fp, const char *fmt, ...)
