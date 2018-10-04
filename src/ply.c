@@ -74,24 +74,29 @@ static void memlock_uncap(void)
 
 void dump(struct ply *ply)
 {
+	struct ply_probe *pb;
+
 	if (!ply->probes) {
 		printf("NO PROBES\n");
 		return;
 	}
 
-	printf("%s\n", ply->probes->probe ? : "<null>");
-
-	if (ply->probes->ast)
-		ast_fprint(stdout, ply->probes->ast);
-	else
-		printf("NO AST\n");
-
 	printf("\n\n-- globals\n");
 	symtab_dump(&ply->globals, stdout);
-	printf("\n-- locals\n");
-	symtab_dump(&ply->probes->locals, stdout);
-	printf("-- ir\n");
-	ir_dump(ply->probes->ir, stdout);
+
+	ply_probe_foreach(ply, pb) {
+		printf("%s\n", pb->probe ? : "<null>");
+
+		if (pb->ast)
+			ast_fprint(stdout, pb->ast);
+		else
+			printf("NO AST\n");
+
+		printf("\n-- locals\n");
+		symtab_dump(&pb->locals, stdout);
+		printf("-- ir\n");
+		ir_dump(pb->ir, stdout);
+	}
 }
 
 static void version()
