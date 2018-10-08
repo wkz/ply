@@ -468,6 +468,7 @@ struct type t_time = {
 	},
 
 	.fprint = time_fprint,
+	.fprint_log2 = 1,
 };
 
 struct type t_time_func = {

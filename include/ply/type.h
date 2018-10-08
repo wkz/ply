@@ -86,6 +86,7 @@ struct type {
 
 	int (*fprint)(struct type *t, FILE *fp, const void *data);
 	void *priv;
+	unsigned fprint_log2:1;
 };
 
 struct type *type_scalar_promote(struct type *t);

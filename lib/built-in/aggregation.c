@@ -112,11 +112,42 @@ static int __quantize_normalize(int log2, char const **suffix)
 	return (1 << log2);
 }
 
+static int __quantize_fprint_bucket_ext(struct type *t, FILE *fp, int i)
+{
+	struct type *arg_type = t->priv;
+	int64_t slo, shi;
+	uint64_t ulo, uhi;
+
+	slo = i ? (1LL  << i) : 0;
+	ulo = i ? (1ULL << i) : 0;
+
+	shi = (1LL  << (i + 1)) - 1;
+	uhi = (1ULL << (i + 1)) - 1;
+
+	fputs("\t[", fp);
+	if (type_base(arg_type)->scalar.unsignd)
+		type_fprint(arg_type, fp, &ulo);
+	else
+		type_fprint(arg_type, fp, &slo);
+
+	fputs(", ", fp);
+	if (type_base(arg_type)->scalar.unsignd)
+		type_fprint(arg_type, fp, &uhi);
+	else
+		type_fprint(arg_type, fp, &shi);
+
+	fputs("]", fp);
+	return 0;
+}
+
 static int __quantize_fprint_bucket(struct type *t, FILE *fp, int i)
 {
 	struct type *arg_type = t->priv;
 	const char *ls, *hs;
 	int lo, hi;
+
+	if (arg_type->fprint_log2)
+		return __quantize_fprint_bucket_ext(t, fp, i);
 
 	lo = __quantize_normalize(i    , &ls);
 	hi = __quantize_normalize(i + 1, &hs);
