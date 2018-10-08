@@ -173,10 +173,10 @@ static inline struct type *type_base(struct type *t)
 
 static inline struct type *type_return(struct type *t)
 {
-	t = type_base(t);
+	struct type *base = type_base(t);
 
-	if (t->ttype == T_FUNC)
-		return t->func.type;
+	if (base->ttype == T_FUNC)
+		return base->func.type;
 
 	return t;
 }
