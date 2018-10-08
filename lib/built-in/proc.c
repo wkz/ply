@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <time.h>
 
 #include <ply/ply.h>
 #include <ply/internal.h>
@@ -336,6 +337,127 @@ __ply_built_in const struct func execname_func = {
 	.ir_post = comm_ir_post,
 };
 
+#define SECOND 1000000000LL
+
+static int64_t to_walltime = 0;
+
+__attribute__((constructor))
+static void walltime_init(void)
+{
+	struct timespec mono, wall;
+
+	if (clock_gettime(CLOCK_MONOTONIC_RAW, &mono) ||
+	    clock_gettime(CLOCK_REALTIME, &wall))
+		return;
+
+	wall.tv_nsec -= mono.tv_nsec;
+	if (wall.tv_nsec < 0) {
+		wall.tv_sec--;
+		wall.tv_nsec += SECOND;
+	}
+
+	wall.tv_sec -= mono.tv_sec;
+
+	to_walltime = wall.tv_sec * SECOND + wall.tv_nsec;
+}
+
+static int walltime_fprint(struct type *t, FILE *fp, const void *data)
+{
+	int64_t ns = *(int64_t *)data;
+	char tstr[0x20] = { '\0' };
+	struct tm tm;
+	time_t s;
+
+	ns += to_walltime;
+
+	s   = ns / SECOND;
+	ns %= SECOND;
+
+	localtime_r(&s, &tm);
+	strftime(tstr, sizeof(tstr), "%T", &tm);
+	fputs(tstr, fp);
+	fprintf(fp, ".%09"PRId64, ns);
+	return 0;
+}
+
+struct type t_walltime = {
+	.ttype = T_TYPEDEF,
+
+	.tdef = {
+		.name = ":walltime",
+		.type = &t_s64,
+	},
+
+	.fprint = walltime_fprint,
+};
+
+struct type t_walltime_func = {
+	.ttype = T_FUNC,
+
+	.func = { .type = &t_walltime },
+};
+
+static int time_fprint_long(FILE *fp, int64_t ns)
+{
+	char tstr[0x10] = { '\0' };
+	struct tm *tm;
+	time_t s;
+
+	s = ns / SECOND;
+
+	tm = gmtime(&s);
+	strftime(tstr, sizeof(tstr), "%T", tm);
+	fputs(tstr, fp);
+	return 0;
+}
+
+struct timefmt {
+	int cutoff;
+	int next;
+
+	const char *fmt;
+	int radix;
+};
+
+static int time_fprint(struct type *t, FILE *fp, const void *data)
+{
+	static const struct timefmt fmts[] = {
+		{  999,  10, "%4dns", 1 },
+		{  999,  10, "%1d.%02dus", 100 },
+		{  999,  10, "%2d.%01dus", 10 },
+		{  999,  10, "%4dus", 1 },
+		{  999,  10, "%1d.%02dms", 100 },
+		{  999,  10, "%2d.%01dms", 10 },
+		{  999,  10, "%4dms", 1 },
+		{  999,  10, "%1d.%02d s", 100 },
+		{  999,  10, "%2d.%01d s", 10 },
+		{  999,  60, "%4d s", 1 },
+		{  999,  60, "%4d M", 1 },
+		{  999,  24, "%4d H", 1 },
+		{  999, 365, "%4d D", 1 },
+		{  999,   1, "%4d Y", 1 },
+
+		{ 0, 0, NULL, 0 }
+	};
+
+	int64_t ns = *(int64_t *)data;
+	const struct timefmt *fmt;
+
+	for (fmt = fmts; fmt->fmt; fmt++) {
+		if (ns <= fmt->cutoff)
+			break;
+
+		ns /= fmt->next;
+	}
+
+	assert(fmt && fmt->fmt);
+
+	if (fmt->radix == 1)
+		return fprintf(fp, fmt->fmt, (int)ns);
+	else
+		return fprintf(fp, fmt->fmt,
+			       (int)ns/fmt->radix, (int)ns%fmt->radix);
+}
 
 struct type t_time = {
 	.ttype = T_TYPEDEF,
@@ -343,9 +465,9 @@ struct type t_time = {
 	.tdef = {
 		.name = ":time",
 		.type = &t_s64,
-
-		/* .fprint = time_fprint, */
 	},
+
+	.fprint = time_fprint,
 };
 
 struct type t_time_func = {
@@ -369,6 +491,14 @@ static int time_ir_post(const struct func *func, struct node *n,
 __ply_built_in const struct func time_func = {
 	.name = "time",
 	.type = &t_time_func,
+	.static_ret = 1,
+
+	.ir_post = time_ir_post,
+};
+
+__ply_built_in const struct func walltime_func = {
+	.name = "walltime",
+	.type = &t_walltime_func,
 	.static_ret = 1,
 
 	.ir_post = time_ir_post,
