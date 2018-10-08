@@ -60,7 +60,7 @@ int __printxf(struct printxf *pxf, FILE *fp, const char *fmt,
 			continue;
 		}
 		
-		ssize = strspn(fmt + 1, " #$'*+,-.0123456789:;L_hjlqtz") + 1;
+		ssize = strspn(fmt + 1, " #'*+,-.0123456789Lhjlqtz") + 1;
 
 		if (!fmt[ssize]) {
 			/* corner case. fmt ends with an unterminated
@@ -87,8 +87,64 @@ int __printxf(struct printxf *pxf, FILE *fp, const char *fmt,
 
 		if (priv)
 			tsize += pxf->xfprintxf[type](pxf, fp, spec, priv);
-		else
-			tsize += pxf->vfprintxf[type](pxf, fp, spec, ap);
+		else {
+			va_list aq;
+			char *tmp;
+
+			va_copy(aq, ap);
+			tsize += pxf->vfprintxf[type](pxf, fp, spec, aq);
+			va_end(aq);
+
+			/* After printing the specifier using a copy
+			 * of `ap`, fast forward the original `ap` to
+			 * the same state. */
+
+			for (tmp = spec; *tmp; tmp++) {
+				if (*tmp == '*') {
+					int dummy_int = va_arg(ap, int);
+				}
+			}
+
+			/* This is ugly, but this is the only portable
+			 * way I can think of that let's us use our
+			 * libc's vfprintf implementation. NOTE: We
+			 * can assume nothing about the underlying
+			 * type of `va_list` as it varies between
+			 * architectures, we can only use the va_*
+			 * family of functions/macros. */
+			switch (type) {
+			case 'a': case 'A':
+			case 'e': case 'E':
+			case 'f': case 'F':
+			case 'g': case 'G':
+				if (strstr(spec, "L")) {
+					long double dummy_ld = va_arg(ap, long double);
+				} else {
+					double dummy_d = va_arg(ap, double);
+				}
+				break;
+
+			case 'c':
+			case 'd': case 'i':
+			case 'o': case 'u':
+			case 'x': case 'X':
+				if (strstr(spec, "ll") || strstr(spec, "q")) {
+					long long int dummy_ll = va_arg(ap, long long int);
+				} else if (strstr(spec, "l")) {
+					long int dummy_l = va_arg(ap, long int);
+				} else {
+					int dummy_int = va_arg(ap, int);
+				}
+				break;
+
+			case 'p': case 's':
+			default:
+				/* Extensions must consume exactly one
+				 * pointer. */
+				do { void *dummy_ptr = va_arg(ap, void *); } while (0);
+				break;
+			}
+		}
 	}
 
 	return tsize;
