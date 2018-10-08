@@ -96,6 +96,9 @@ static int if_type_infer(const struct func *func, struct node *n)
 {
 	struct node *expr = n->expr.args;
 
+	if (!expr->sym->type)
+		return 0;
+
 	if (type_base(expr->sym->type)->ttype != T_SCALAR) {
 		_ne(expr, "condition of '%N' must be a scalar value, "
 		    "but '%N' is of type '%T'\n", n, expr, expr->sym->type);
