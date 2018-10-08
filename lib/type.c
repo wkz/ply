@@ -496,12 +496,16 @@ int type_equal(struct type *a, struct type *b)
 int type_compatible(struct type *a, struct type *b)
 {
 
-	a = type_base(a);
-	b = type_base(b);
+	a = type_base(type_return(a));
+	b = type_base(type_return(b));
+
+	if (a->ttype != b->ttype)
+		return 0;
 
 	switch (a->ttype){
-	case T_VOID:
 	case T_SCALAR:
+		return a->scalar.size == b->scalar.size;
+	case T_VOID:
 	case T_POINTER:
 		return 1;
 	case T_ARRAY:
