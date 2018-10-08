@@ -730,8 +730,10 @@ static int assign_type_infer(const struct func *func, struct node *n)
 			return err;
 	}
 
-	if (type_compatible(lval->sym->type, rval->sym->type))
+	if (type_compatible(lval->sym->type, rval->sym->type)) {
+		n->sym->type = &t_void;
 		return 0;
+	}
 
 	_ne(n, "can't assign %N (type '%T'), to %N (type '%T').\n",
 	    rval, rval->sym->type, lval, lval->sym->type);
