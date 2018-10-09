@@ -405,8 +405,7 @@ void ir_emit_read_to_sym(struct ir *ir, struct sym *dst, uint16_t src)
 
 	assert(irs->loc == LOC_STACK);
 
-	ir_emit_insn(ir, MOV, BPF_REG_1, BPF_REG_BP);
-	ir_emit_insn(ir, ALU_IMM(BPF_ADD, irs->stack), BPF_REG_1, 0);
+	ir_emit_ldbp(ir, BPF_REG_1, irs->stack);
 	ir_emit_insn(ir, MOV_IMM((int32_t)irs->size), BPF_REG_2, 0);
 	if (src != BPF_REG_3)
 		ir_emit_insn(ir, MOV, BPF_REG_3, src);
@@ -494,8 +493,7 @@ void ir_emit_perf_event_output(struct ir *ir,
 	ir_emit_sym_to_reg(ir, BPF_REG_1, regs);
 	ir_emit_ldmap(ir, BPF_REG_2, map);
 	ir_emit_insn(ir, MOV32_IMM(BPF_F_CURRENT_CPU), BPF_REG_3, 0);
-	ir_emit_insn(ir, MOV, BPF_REG_4, BPF_REG_BP);
-	ir_emit_insn(ir, ALU_IMM(BPF_ADD, ev->irs.stack), BPF_REG_4, 0);
+	ir_emit_ldbp(ir, BPF_REG_4, ev->irs.stack);
 	ir_emit_insn(ir, MOV_IMM(ev->irs.size), BPF_REG_5, 0);
 	ir_emit_insn(ir, CALL(BPF_FUNC_perf_event_output), 0, 0);
 }

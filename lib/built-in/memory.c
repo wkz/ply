@@ -132,8 +132,7 @@ static int str_ir_post(const struct func *func, struct node *n,
 
 	ir_emit_bzero(ir, n->sym->irs.stack, (size_t)type_sizeof(n->sym->type));
 
-	ir_emit_insn(ir, MOV, BPF_REG_1, BPF_REG_BP);
-	ir_emit_insn(ir, ALU_IMM(BPF_ADD, n->sym->irs.stack), BPF_REG_1, 0);
+	ir_emit_ldbp(pb->ir, BPF_REG_1, n->sym->irs.stack);
 	ir_emit_insn(ir, MOV_IMM((int32_t)type_sizeof(n->sym->type)), BPF_REG_2, 0);
 	ir_emit_sym_to_reg(ir, BPF_REG_3, ptr->sym);
 	ir_emit_insn(ir, CALL(BPF_FUNC_probe_read_str), 0, 0);
@@ -328,7 +327,7 @@ static int struct_dot_ir_post(const struct func *func, struct node *n,
 		struct node *ptr = sou->expr.args;
 
 		ir_emit_sym_to_reg(pb->ir, BPF_REG_3, ptr->sym);
-		ir_emit_insn(pb->ir, ALU_IMM(BPF_ADD, offset), BPF_REG_3, 0);
+		ir_emit_insn(pb->ir, ALU64_IMM(BPF_ADD, offset), BPF_REG_3, 0);
 		goto probe_read;
 	}
 
@@ -343,8 +342,7 @@ static int struct_dot_ir_post(const struct func *func, struct node *n,
 	ir_emit_insn(pb->ir, ALU_IMM(BPF_ADD, offset), BPF_REG_3, 0);
 probe_read:
 	ir_emit_insn(pb->ir, MOV_IMM((int32_t)dst->size), BPF_REG_2, 0);
-	ir_emit_insn(pb->ir, MOV, BPF_REG_1, BPF_REG_BP);
-	ir_emit_insn(pb->ir, ALU_IMM(BPF_ADD, dst->stack), BPF_REG_1, 0);
+	ir_emit_ldbp(pb->ir, BPF_REG_1, dst->stack);
 	ir_emit_insn(pb->ir, CALL(BPF_FUNC_probe_read), 0, 0);
 	/* TODO if (r0) exit(r0); */
 	return 0;
@@ -561,10 +559,8 @@ static int map_ir_update(struct node *n, struct ply_probe *pb)
 	key = map->next;
 
 	ir_emit_ldmap(pb->ir, BPF_REG_1, map->sym);
-	ir_emit_insn(pb->ir, MOV, BPF_REG_2, BPF_REG_BP);
-	ir_emit_insn(pb->ir, ALU_IMM(BPF_ADD, key->sym->irs.stack), BPF_REG_2, 0);
-	ir_emit_insn(pb->ir, MOV, BPF_REG_3, BPF_REG_BP);
-	ir_emit_insn(pb->ir, ALU_IMM(BPF_ADD, n->sym->irs.stack), BPF_REG_3, 0);
+	ir_emit_ldbp(pb->ir, BPF_REG_2, key->sym->irs.stack);
+	ir_emit_ldbp(pb->ir, BPF_REG_3, n->sym->irs.stack);
 	ir_emit_insn(pb->ir, MOV_IMM(0), BPF_REG_4, 0);
 	ir_emit_insn(pb->ir, CALL(BPF_FUNC_map_update_elem), 0, 0);
 	/* TODO: if (r0) exit(r0); */
@@ -594,8 +590,7 @@ static int map_ir_post(const struct func *func, struct node *n,
 		return 0;
 
 	ir_emit_ldmap(pb->ir, BPF_REG_1, map->sym);
-	ir_emit_insn(pb->ir, MOV, BPF_REG_2, BPF_REG_BP);
-	ir_emit_insn(pb->ir, ALU_IMM(BPF_ADD, stack), BPF_REG_2, 0);
+	ir_emit_ldbp(pb->ir, BPF_REG_2, stack);
 	ir_emit_insn(pb->ir, CALL(BPF_FUNC_map_lookup_elem), 0, 0);
 
 	lmiss = ir_alloc_label(pb->ir);

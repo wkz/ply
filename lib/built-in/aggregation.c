@@ -247,9 +247,8 @@ static int quantize_ir_post(const struct func *func, struct node *n,
 		assert(0);
 	}
 
-	ir_emit_insn(pb->ir, MOV, BPF_REG_1, BPF_REG_BP);
-	ir_emit_insn(pb->ir, ALU_IMM(BPF_ADD, mapop->sym->irs.stack), BPF_REG_1, 0);
-	ir_emit_insn(pb->ir, ALU(BPF_ADD), BPF_REG_1, BPF_REG_0);
+	ir_emit_ldbp(pb->ir, BPF_REG_1, mapop->sym->irs.stack);
+	ir_emit_insn(pb->ir, ALU64(BPF_ADD), BPF_REG_1, BPF_REG_0);
 
 	ir_emit_insn(pb->ir, MOV_IMM(1), BPF_REG_0, 0);
 	ir_emit_insn(pb->ir, ST_XADD(bpf_width(bucketsz), 0), BPF_REG_1, BPF_REG_0);

@@ -140,11 +140,17 @@ int kprobe_ir_pre(struct ply_probe *pb)
 		if ((*sym)->name && (*sym)->func == &kprobe_regs_func) {
 			ir_init_sym(pb->ir, *sym);
 
-			/* kernel sets r1 to the address of the
+			/* 'regs' is a pointer, but the kernel
+			 * verifier will mark 32-bit accesses as
+			 * invalid even on 32-bit ISAs, so we always
+			 * treat it as a 64-bit value. */
+			(*sym)->irs.size = sizeof(uint64_t);
+			
+			/* Kernel sets r1 to the address of the
 			 * pt_regs struct, which ply denotes as
-			 * 'regs'. if we're using it we need to get a
+			 * 'regs'. If we're using it we need to get a
 			 * reference to it before it is clobbered. */
-			ir_emit_insn(pb->ir, MOV, (*sym)->irs.reg, BPF_REG_1);
+			ir_emit_reg_to_sym(pb->ir, *sym, BPF_REG_1);
 		}
 	}
 

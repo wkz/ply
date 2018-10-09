@@ -158,6 +158,14 @@ void ir_emit_ldmap  (struct ir *ir, uint16_t dst, struct sym *map);
 void ir_emit_label  (struct ir *ir, int16_t label);
 void ir_emit_comment(struct ir *ir, const char *comment);
 
+static inline void ir_emit_ldbp(struct ir *ir, uint16_t dst, ssize_t offset)
+{
+	/* Always use 64-bit operations. Otherwise kernel will mark
+	 * `dst` as invalid even if the underlying ISA is 32-bit. */
+	ir_emit_insn(ir, MOV64, dst, BPF_REG_BP);
+	ir_emit_insn(ir, ALU64_IMM(BPF_ADD, offset), dst, 0);
+}
+
 void ir_emit_sym_to_reg  (struct ir *ir, uint16_t dst, struct sym *src);
 void ir_emit_reg_to_sym  (struct ir *ir, struct sym *dst, uint16_t src);
 void ir_emit_sym_to_stack(struct ir *ir, ssize_t offset, struct sym *src);

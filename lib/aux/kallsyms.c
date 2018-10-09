@@ -87,7 +87,7 @@ int ksym_fprint(struct ksyms *ks, FILE *fp, uintptr_t addr)
 	} else {
 		int w = (int)(sizeof(addr) * 2);
 
-		return fprintf(fp, "<%*.*lx>", w, w, addr);
+		return fprintf(fp, "<%*.*"PRIxPTR">", w, w, addr);
 	}
 }
 

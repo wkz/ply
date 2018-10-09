@@ -313,8 +313,7 @@ static int comm_ir_post(const struct func *func, struct node *n,
 
 	ir_emit_bzero(pb->ir, n->sym->irs.stack, type_sizeof(n->sym->type));
 
-	ir_emit_insn(pb->ir, MOV, BPF_REG_1, BPF_REG_BP);
-	ir_emit_insn(pb->ir, ALU_IMM(BPF_ADD, n->sym->irs.stack), BPF_REG_1, 0);
+	ir_emit_ldbp(pb->ir, BPF_REG_1, n->sym->irs.stack);
 	ir_emit_insn(pb->ir, MOV_IMM(type_sizeof(n->sym->type)), BPF_REG_2, 0);
 	ir_emit_insn(pb->ir, CALL(BPF_FUNC_get_current_comm), 0, 0);
 	return 0;
