@@ -19,13 +19,21 @@ static int xprobe_stem(struct ply_probe *pb, char type, char *stem, size_t size)
 
 static int __xprobe_create(FILE *ctrl, const char *stem, const char *func)
 {
-	int len = 
+	char *funcname = strdup(func);
+	char *offs;
 
-	fputs(stem, ctrl);
-	fputs(func, ctrl);
-	fputc( ' ', ctrl);
-	fputs(func, ctrl);
-	fputc('\n', ctrl);
+	assert(funcname);
+	offs = strchr(funcname, '+');
+	if (offs)
+		*offs = '_';
+
+	fputs(stem,     ctrl);
+	fputs(funcname, ctrl);
+	fputc( ' ',     ctrl);
+	fputs(func,     ctrl);
+	fputc('\n',     ctrl);
+
+	free(funcname);
 	return strlen(stem) + 2 * strlen(func) + 2;
 }
 
