@@ -21,6 +21,7 @@ struct tscalar {
 
 struct tptr {
 	struct type *type;
+	unsigned bpf:1;
 };
 
 struct tarray {
@@ -50,14 +51,14 @@ struct tstruct {
 	char *name;
 	struct tfield *fields;
 
-	int packed:1;
+	unsigned packed:1;
 };
 
 struct tfunc {
 	struct type *type;
 	struct tfield *args;
 
-	int vargs:1;
+	unsigned vargs:1;
 };
 
 enum ttype {
@@ -114,7 +115,7 @@ struct type *type_typedef (struct type *type, const char *name);
 struct type *type_array_of(struct type *type, size_t len);
 struct type *type_map_of  (struct type *ktype, struct type *vtype,
 			   enum bpf_map_type mtype, size_t len);
-struct type *type_ptr_of  (struct type *type);
+struct type *type_ptr_of  (struct type *type, unsigned bpf);
 
 
 /* built-in types */

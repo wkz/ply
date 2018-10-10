@@ -74,6 +74,10 @@ void type_dump(struct type *t, const char *name, FILE *fp)
 		break;
 	case T_POINTER:
 		type_dump(t->ptr.type, NULL, fp);
+
+		if (t->ptr.bpf)
+			fputs(" __bpf", fp);
+
 		fputs(" *", fp);
 		__bold(fp, name);
 		return;
@@ -186,7 +190,10 @@ static int type_fprint_scalar(struct type *t, FILE *fp, const void *data)
 
 static int type_fprint_pointer(struct type *t, FILE *fp, const void *data)
 {
-	return fprintf(fp, "<%"PRIxPTR">", *((uintptr_t *)data));
+	if (t->ptr.bpf)
+		return fprintf(fp, "<%"PRIx64">", *((uint64_t *)data));
+	else
+		return fprintf(fp, "<%"PRIxPTR">", *((uintptr_t *)data));
 }
 
 static void __hexdump_line(FILE *fp, size_t offset,
@@ -321,8 +328,6 @@ int type_fprint_struct(struct type *t, FILE *fp, const void *data)
 
 int type_fprint(struct type *t, FILE *fp, const void *data)
 {
-	int err;
-
 	if (t->fprint)
 		return t->fprint(t, fp, data);
 
@@ -334,11 +339,9 @@ int type_fprint(struct type *t, FILE *fp, const void *data)
 	case T_SCALAR:
 		return type_fprint_scalar(t, fp, data);
 	case T_POINTER:
+		return type_fprint_pointer(t, fp, data);
 	case T_FUNC:
-		fputc('<', fp);
-		err = type_fprint_scalar(t, fp, data);
-		fputc('>', fp);
-		return err;
+		return type_fprint_pointer(type_ptr_of(&t_void, 0), fp, data);
 	case T_ARRAY:
 		return type_fprint_array(t, fp, data);
 	case T_MAP:
@@ -354,13 +357,7 @@ int type_fprint(struct type *t, FILE *fp, const void *data)
 
 static int type_cmp_scalar(const void *a, const void *b, struct type *t)
 {
-	size_t size;
-	int unsignd;
-
-	size = (t->ttype == T_SCALAR) ? t->scalar.size : sizeof(uintptr_t);
-	unsignd = (t->ttype == T_SCALAR) ? t->scalar.unsignd : 0;
-
-	switch ((size << 1) | unsignd) {
+	switch ((t->scalar.size << 1) | t->scalar.unsignd) {
 	case (1 << 1) | 1:
 		return *((uint8_t *)a) - *((uint8_t *)b);
 	case (1 << 1) | 0:
@@ -381,6 +378,17 @@ static int type_cmp_scalar(const void *a, const void *b, struct type *t)
 
 	assert(0);
 	return 0;
+}
+
+static int type_cmp_pointer(const void *a, const void *b, struct type *t)
+{
+	size_t size;
+	int unsignd;
+
+	if (t->ptr.bpf)
+		return *((uint64_t *)a) - *((uint64_t *)b);
+
+	return *((uintptr_t *)a) - *((uintptr_t *)b);
 }
 
 static int type_cmp_array(const void *a, const void *b, struct type *t)
@@ -438,9 +446,11 @@ int type_cmp(const void *a, const void *b, void *_type)
 	case T_TYPEDEF:
 		return type_cmp(a, b, t->tdef.type);
 	case T_SCALAR:
-	case T_POINTER:
-	case T_FUNC:
 		return type_cmp_scalar(a, b, t);
+	case T_POINTER:
+		return type_cmp_pointer(a, b, t);
+	case T_FUNC:
+		return type_cmp_pointer(a, b, type_ptr_of(&t_void, 0));
 	case T_ARRAY:
 		return type_cmp_array(a, b, t);
 	case T_MAP:
@@ -506,8 +516,9 @@ int type_compatible(struct type *a, struct type *b)
 	case T_SCALAR:
 		return a->scalar.size == b->scalar.size;
 	case T_VOID:
-	case T_POINTER:
 		return 1;
+	case T_POINTER:
+		return a->ptr.bpf == b->ptr.bpf;
 	case T_ARRAY:
 		if (a->array.len != b->array.len)
 			return 0;
@@ -640,6 +651,9 @@ ssize_t type_sizeof(struct type *t)
 	case T_TYPEDEF:
 		return type_sizeof(t->tdef.type);
 	case T_POINTER:
+		if (t->ptr.bpf)
+			return sizeof(uint64_t);
+		/* fall-through */
 	case T_FUNC:
 		return sizeof(void *);
 	case T_ARRAY:
@@ -789,20 +803,22 @@ struct type *type_map_of(struct type *ktype, struct type *vtype,
 	return t;
 }
 
-struct type *type_ptr_of(struct type *type)
+struct type *type_ptr_of(struct type *type, unsigned bpf)
 {
 	struct type **ti, *t;
 
 	types_foreach(ti) {
 		t = *ti;
 		if ((t->ttype == T_POINTER)
-		    && (t->ptr.type == type))
+		    && (t->ptr.type == type)
+		    && (t->ptr.bpf  == bpf))
 			return t;
 	}
 
 	t = xcalloc(1, sizeof(*t));
 	t->ttype = T_POINTER;
 	t->ptr.type = type;
+	t->ptr.bpf = bpf;
 	type_add(t);
 	return t;
 }
