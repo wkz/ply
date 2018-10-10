@@ -33,6 +33,7 @@ static int stack_fprint(struct type *t, FILE *fp, const void *data)
 		if (!sp->bt[i].addr)
 			break;
 
+		fputc('\t', fp);
 		ksym_fprint(sp->ks, fp, sp->bt[i].addr);
 		fputc('\n', fp);
 	}
