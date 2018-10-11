@@ -12,11 +12,7 @@ struct stack_priv {
 	struct ksyms *ks;
 	struct sym *sym;
 
-	union {
-		/* frames are always 64 bits, even on 32 bit ISAs */
-		uintptr_t addr;
-		uint64_t u64;
-	} bt[0];
+	uint64_t bt[0];
 };
 
 static int stack_fprint(struct type *t, FILE *fp, const void *data)
@@ -30,11 +26,11 @@ static int stack_fprint(struct type *t, FILE *fp, const void *data)
 
 	fputc('\n', fp);
 	for (i = 0; i < ply_config.stack_depth; i++) {
-		if (!sp->bt[i].addr)
+		if (!sp->bt[i])
 			break;
 
 		fputc('\t', fp);
-		ksym_fprint(sp->ks, fp, sp->bt[i].addr);
+		ksym_fprint(sp->ks, fp, (uintptr_t)sp->bt[i]);
 		fputc('\n', fp);
 	}
 
