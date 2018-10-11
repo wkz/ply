@@ -41,7 +41,7 @@ static const struct func kretprobe_retval_func = {
 
 	/* for now, in the future we could read dwarf symbols to
 	 * figure out the real type. */
-	.type = &t_s64,
+	.type = &t_long,
 	.static_ret = 1,
 
 	.rewrite = kretprobe_retval_rewrite,
