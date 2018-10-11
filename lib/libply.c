@@ -75,10 +75,10 @@ void ply_maps_print(struct ply *ply)
 	symtab_foreach(&ply->globals, symp) {
 		sym = *symp;
 
-		if (sym->type->ttype != T_MAP)
-			continue;
-
-		ply_map_print(ply, sym);
+		if (sym->type->ttype == T_MAP
+		    && sym->type->map.mtype != BPF_MAP_TYPE_PERF_EVENT_ARRAY
+		    && sym->type->map.mtype != BPF_MAP_TYPE_STACK_TRACE)
+			ply_map_print(ply, sym);
 	}	
 }
 
