@@ -4,7 +4,7 @@ ply(1) -- dynamically instrument the kernel
 ## SYNOPSIS
 
 `ply` <program-file> <br>
-`ply` -c <program-text>
+`ply` <program-text>
 
 ## DESCRIPTION
 
@@ -18,21 +18,25 @@ using kprobes and tracepoints.
   * `-A`, `--ascii`:
     Restrict output to ASCII, no Unicode runes.
 
-  * `-c`, `--command`:
-    The program is supplied as an argument, rather than in a file.
+  * `-c` <command>, `--command`=<command>:
+    When all probes are running, run <command>. When the command
+    exits, stop all probes and exit. The command is run as if invoked
+    with `sh -c <command>`.
 
   * `-d`, `--debug`:
     Enable debugging output.
 
-  * `-D`, `--dump`:
-    Do not execute the program, instead dump the generated Linux BPF
-    instructions.
+  * `-e`, `--dry-run`:
+    Exit after compilation, without actually instrumenting the
+    system. Typically used in conjunction with `--dump`.
 
   * `-h`, `--help`:
     Print usage message.
 
-  * `-t`, `--timeout`=<seconds>:
-    Terminate the program after the specified time.
+  * `-S`, `--dump`:
+    After compilation, dump the internal AST, generated BPF
+    instructions and other internal information. This is very useful
+    to include when reporting a bug.
 
   * `-v`, `--version`:
     Print version information.
@@ -66,17 +70,15 @@ i.e. an expression that must evaluate to a non-zero value in order for
 the probe to be executed.
 
 Then follows a block of _statements_ that perform the actual information
-gathering. All but the last statement of a probe must be terminated
-with a semi-colon. Specifically, a simple probe containing only one
-statement does not need one.
+gathering.
 
-A provider may define a default probe to be used if the user does not
-supply a block.
+A provider may define a default probe clause to be used if the user
+does not supply one.
 
 
 ### Control of Flow
 
-Probes support two different types of flow control, the first is the
+Probes support basic conditional control of flow via an
 _if-statement_, which conforms to the same rules as C's equivalent:
 
     'if' '(' expr ')'
@@ -85,33 +87,28 @@ _if-statement_, which conforms to the same rules as C's equivalent:
         statement ';' | block]
 
 In order to ensure that a probe will have a finite run-time the kernel
-does not allow backwards branching. As a result, ply does not have a
-traditional loop construct like _for_ or _while_. Instead it provides
-an _unroll_ statement that simply copies the contained _statements_
-_N_ times to the output program:
-
-    'unroll' '(' N ')'
-        statement ';' | block
+does not allow backwards branching. As a result, ply does not have any
+loop construct like _for_ or _while_. A simple _for_ statement with an
+invariant that is known at compile-time could be added later. In that
+case we could unroll the loop when generating BPF.
 
 
 ### Type System
 
-The type system is rudimentary, containing only three (3) types:
+The type system is modeled after C. As such ply understands the
+difference between signed and unsigned integers, the difference
+between a short and a long long, what separates an integer from a
+pointer, how a struct is laid out in memory and so on. It is not
+complete though, notably floating point numbers and unions are
+missing.
 
-  * `Numbers`:
-    Represented as 64-bit signed integers, initialized to zero (0).
-
-  * `Strings`:
-    Of arbitrary length, initialized to the empty string.
-
-  * `Records`:
-    Compound type holding any number of `Numbers` and `Strings` with
-    each component initialized to its zero value.
+Programs are statically typed, but all types are inferred
+automatically. Thus, the type system is mostly hidden from the
+user. Plans are to expose more of it in the future by allowing casts,
+type declarations and so on.
 
 Numbers and string literals are specified in the same way as in
-C. Records use the following syntax:
-
-    '[' expr [ ',' expr ... ] ']'
+C.
 
 
 ### Maps
@@ -121,13 +118,10 @@ i.e. in a hash table. Like awk(1), ply dynamically creates any
 referenced maps and their key and value types are inferred from the
 context in which they are used. All maps are in the global scope and
 can thus be used both for extracting data to the end-user, and for
-carrying data between probes. A map name must begin with the at sign
-'@' and then follows the rules of identifiers from C. For small
-scripts where only one map is used, it is convenient and idiomatic to
-simply name it '@'. After the name comes a record specifier which is
-used as the key in the map.
+carrying data between probes. Map names follow the rules of
+identifiers from C.
 
-    @mapname[exprs]
+    mapname[exprs]
 
 Data can be stored in a map by assigning a value to a given key:
 
@@ -136,111 +130,79 @@ Data can be stored in a map by assigning a value to a given key:
 If a map key is assigned the special value _nil_, the key is deleted
 and will return its zero value if referenced again.
 
-A more common way is to _aggregate_ data using _methods_, i.e. functions
-that operate on the data stored in a map:
 
-  * `@mapname[exprs].count()`:
-    Bumps a counter.
+### Aggregations
 
-  * `@mapname[exprs].quantize(number-expr)`:
+More often than not, looking at each individual datum from a trace is
+not nearly as helpful as an _aggregation_ of the data. Therefore ply
+supports aggregating data at the source, thereby reducing tracing
+overhead. Aggregations are syntactically similar to maps, indeed they
+are a kind of map, but they are distinguished by a leading '@'. Also,
+they can only be assigned the result of one of the following
+aggregation functions:
+
+  * `@agg[exprs] = count()`:
+    Bump a counter.
+
+  * `@agg[exprs] = quantize(scalar-expr)`:
     Evaluates the argument and aggregates on the most significant bit
     of the result. In other words, it stores the distribution of the
     expression.
 
 
-### Variables
-
-Variables are typically used for storing temporary data, like loop
-counters or results of computations that are used multiple times in a
-probe. They are local to the probe in which they are defined, i.e. the
-same identifier may be used independently in multiple probes. Their
-names follows the C identifier rules.
-
-
 ## PROVIDERS
 
 A _provider_ makes data available to the user by exporting functions
-to the probe. Function calls use the same syntax as most languages
-that inherit from C. In addition to the provider-specific functions,
-all providers inherits a set of common functions:
+and variables to the probe. Function calls use the same syntax as most
+languages that inherit from C. In addition to the provider-specific
+functions, all providers inherits a set of common functions and
+variables:
 
-  * `comm()`, `execname()` => string:
-    Returns the _name_ of the running process's executable.
+  * `char[16] comm`, `char[16] execname`
+    _name_ of the running process's executable.
 
-  * `cpu()` => number:
-    Returns the _CPU ID_ of the processor on which the probe fired.
+  * `u32 cpu`
+    _CPU ID_ of the processor on which the probe fired.
 
-  * `gid()` => number:
-    Returns the _group ID_ of the running process.
+  * `u32 gid`
+    _Group ID_ of the running process.
 
-  * `log2(number-expression)` => number:
-    Returns the logarithm, base 2, of the argument.
+  * `u32 kpid`:
+    _Kernel PID_ of the running process. Also known as _pid_ by the
+    kernel. For a single-threaded process _kpid_ is equal to
+    _pid_. For multi-threaded processes, _kpid_ will be unique while
+    _pid_ will be the same across all threads.
 
-  * `mem(address, format)` => TYPE:
+  * `char[N] mem(void *address [, int size])`
+    Copy _size_ bytes from _address_. If _size_ is omitted, 64 bytes
+    will be copied.
 
-    Copy from _address_, using the _format_ specifier to determine the
-    desired size and type. The format specifier takes inspiration from
-    python(1)'s _struct_ module:
+  * `s64 time`, `s64 walltime`:
+    Nanoseconds elaped since system boot. _time_ is intended for time
+    deltas and _walltime_ should be used for timestamps. They refer to
+    the same data, but with different default output formats.
 
-    [repeat]type[[<repeat>]<type> ...]
+  * `u32 pid`:
+    _Process ID_ of the running process. Also known as _thread group
+    ID_ (tgid) by the kernel.
 
-    _repeat_ is an optional number, indicating that this member is an
-    array of the following type. The recognized types are:
+  * `void print(...)`:
+    _Print_ each expression with its default output format, separated
+    by commas and terminated with a newline, to ply's standard out.
 
-    _b_/_B_: Signed/unsigned  8-bit integer. <br>
-    _h_/_H_: Signed/unsigned 16-bit integer. <br>
-    _w_/_W_: Signed/unsigned 32-bit integer. <br>
-    _q_/_Q_: Signed/unsigned 64-bit integer. <br>
-    _i_/_I_: Signed/unsigned    int integer. <br>
-    _l_/_L_: Signed/unsigned   long integer. <br>
-    _s_: String. _repeat_ means maximum length. <br>
-    _p_: Pointer.
-
-    If more than one type is specified, _mem()_'s output will be
-    of record type.
-
-  * `nsecs()` => number:
-    Returns the time since the system started, in nanoseconds.
-
-  * `pid()` => number:
-    Returns the _process ID_ of the running process. Also known as
-    _thread group ID_ by the kernel.
-
-  * `printf(format [, expression, expression ... ])`:
+  * `void printf(format, ...)`:
     Prints _formatted output_ to ply's standard out. In addition to
     the formats recognized by the printf sitting in your <stdio.h>,
     ply's also recognizes '%v' which will dump the value according to
-    the inferred type's default.
+    the inferred type's default (i.e. how _print_ would print it).
 
-    Beware that while there are times when it is useful to print data
-    from a probe, it is very often not the best way of obtaining the
-    insight that is sought.
-
-    Many of the kernel's functions may be called at rates well above
-    the 1k calls/s mark, at which point making sense of print output
-    becomes very hard. In such cases, consider using some type of
-    aggregation to limit the amount of data. Then, once you have
-    zeroed in on the problem, printing might become useful.
-
-  * `secs()` => number:
-    Returns the time since the system started, in seconds.
-
-  * `sizeof(format)` => number:
-    Returns the number of bytes required to store an object specified
-    in _format_. See _mem()_ for the interpretation of the format
-    specifier.
-
-  * `strcmp(string-expression, string-expression)` => number:
+  * `int strcmp(char *a, char *b)`:
     Returns -1, 0 or 1 if the first argument is less than, equal to or
     greater than the second argument respectively. Strings are
     compared by their lexicographical order.
 
-  * `tid()` => number:
-    Returns the _task ID_ of the running process, i.e. the kernel's
-    identifier for the current thread of execution.
-
-  * `uid()` => number:
-    Returns the _user ID_ of the running process.
+  * `u32 uid`:
+    _User ID_ of the running process.
 
 
 ### kprobe and kretprobe
@@ -249,136 +211,66 @@ These providers use the corresponding kernel features to instrument
 arbitrary instructions in the kernel. The _probe-definition_ may be
 either an address or a symbol name. When using a symbol name, glob
 expansion is performed allowing a single probe to be inserted at
-multiple locations. E.g. _kprobe:SyS\_*_, would match every syscall.
+multiple locations. An offset relative to a symbol may also be
+specfied for kprobes.
 
-Shared functions:
+Examples:
 
-  * `reg(number)`, `reg(string)` => number:
-    If called with a number, it returns the value of the n:th CPU
-    _register_, according to the order in the architecture specific
-    _pt_regs_ struct. If called with a string, the string is looked up
-    against the register names as they are defined in the _pt_regs_
-    struct.
+  * _kretprobe:schedule_: Trace every time `schedule` returns.
+  * _kprobe:SyS\_*_: Trace every time a syscall is made.
+  * _kprobe:dev_hard_start_xmit+8_: Trace function with offset.
 
-  * `stack()` => number:
-    Get a _stack trace_ of the current probe. This is just returns an
+
+Shared variables:
+
+  * `struct pt_regs *regs`:
+    Hardware register contents from when the probe was triggered. This
+    matches the definition in <sys/ptrace.h> on your system.
+
+  * `u32 stack`:
+    _Stack trace ID_ of the current probe. This is just returns an
     index into a separate map containing the actual instruction
     pointers. As a user though, you can think of this function as
     returning a string containing the stack trace at the current
-    location. Indeed _printf("%v\n", stack())_ will produce exactly
-    that.
+    location. Indeed _print(stack)_ will produce exactly that.
+
+    CAUTION: On some architectures (looking at you, ARM), capturing
+    stack traces at the entry of a function, before the prologue has
+    run, does not work. Setting your probe after the prologue will
+    work around the issue (typically two instructions, or +8, on ARM).
 
 _kprobe_ specific functions:
 
-  * `arg(number)` => number:
+  * `arg0`, `arg1` ... `argN`:
+
     Returns the value of the specified _argument_ of the function to
-    which the probe was attached, zero-indexed. I.e. arg(0) is the 1st
-    argument, arg(1) is the 2nd, and so on.
+    which the probe was attached, zero-indexed. I.e. arg0 is the 1st
+    argument, arg1 is the 2nd, and so on.
 
-    CAUTION: This is just syntactic sugar on top of _reg()_, using the
-    relevant architecture's calling convention as a mapping. If your
-    compiler decides to optimize out arguments or do other sneaky
-    things, ply will be utterly oblivious to that.
+    CAUTION: ply simply maps registers to arguments according to the
+    syscall ABI. If your compiler decides to optimize out arguments or
+    do other sneaky things, ply will be utterly oblivious to that.
 
-  * `func()`, `probefunc()` => number:
-    Returns the kernel address of the _function_ to which the probe
-    was attached. It also marks it as being a symbol, which means that
-    _printf()_ will know to print it as a symbol if possible.
-
-    This is also just syntactic sugar on top of _reg()_ mapping to the
-    architecture's instruction pointer register.
+  * `void *caller`:
+    The program counter, as recorded in `regs`, at the time the probe
+    was triggered.  was attached. The default output format will
+    resolve it to a symbolic name if one is available.
 
 _kretprobe_ specific function:
 
-  * `retval()` => number:
-    Returns the return value of the probed function.
+  * `retval`:
+    Return value of the probed function.
 
-
-### trace
-
-The _trace_ provider allows you to attach probes to the kernel's
-_tracepoint_ infrastructure. The _probe-definition_ is matched against
-the _debugfs_ path located at
-_/sys/kernel/debug/tracing/events_. E.g. _trace:sched/sched_switch_
-would run the probe every time the kernel schedules a new task.
-
-A tracepoint's data is defined in its _format_ file,
-e.g. _/sys/kernel/debug/tracing/events/sched/sched_switch/format_. The
-trace provider will export each field as a function. Say the _format_
-file has the following content:
-
-    name: sched_switch
-    ID: 287
-    format:
-	field:unsigned short common_type;	offset:0;	size:2;	signed:0;
-	field:unsigned char common_flags;	offset:2;	size:1;	signed:0;
-	field:unsigned char common_preempt_count;	offset:3;	size:1;	signed:0;
-	field:int common_pid;	offset:4;	size:4;	signed:1;
-
-	field:char prev_comm[16];	offset:8;	size:16;	signed:1;
-	field:pid_t prev_pid;	offset:24;	size:4;	signed:1;
-	field:int prev_prio;	offset:28;	size:4;	signed:1;
-	field:long prev_state;	offset:32;	size:8;	signed:1;
-	field:char next_comm[16];	offset:40;	size:16;	signed:1;
-	field:pid_t next_pid;	offset:56;	size:4;	signed:1;
-	field:int next_prio;	offset:60;	size:4;	signed:1;
-
-The probe may then call the following functions:
-
-  `common_type()` => number <br>
-  `common_flags()` => number <br>
-  `common_preempt_count()` => number <br>
-  `common_pid()` => number
-
-  `prev_comm()` => string <br>
-  `prev_pid()` => number <br>
-  `prev_prio()` => number <br>
-  `prev_state()` => number <br>
-  `next_comm()` => string <br>
-  `next_pid()` => number <br>
-  `next_prio()` => number <br>
-
-
-### profile
-
-The profile provider supports profiling by allowing the user to specify
-how many times it will fire per-second.  Values of 1-1000 are supported,
-and the profile provider supports two probe formats:
-
-  `profile:[n]hz` => profile on all CPUs N times per second <br>
-  `profile:[c]:[n]hz` => profile on CPU c N times per second <br>
-
-### uprobes and uretprobes
-
-The u[ret]probes provider supports probing of user-space programs.
-At present probes are specified by the instruction offset in the
-text section.  For example, according to
-
-$ objdump -j .text -T /usr/bin/bash |grep shell_execve
-000000000042fbd0 g    DF .text	0000000000000a2b  Base        shell_execve
-
-...bash's shell_execve() function is at 000000000042fbd0.  If we run
-
-$ cat /proc//maps |grep /usr/bin/bash |grep r-xp
-00400000-004dd000 r-xp 00000000 fc:00 12433 /usr/bin/bash
-
-...we see that the text section starts at 400000. So that means our address
-is 0x2fbd0 (42fbd0 - 400000).  So we can specify
-
-uprobe:/usr/bin/bash:0x2fbd0
-
-...as a probe for entry to that function.  Future work will provide
-symbol resolution.
 
 ## EXAMPLE
 
 ### Extracting data
 
-Print all opened files on the system, and who opened them:
+Print all `openat`ed files on the system, and who opened them:
 
-    kprobe:SyS_open
+    kprobe:SyS_openat
     {
-        printf("%v: %v\n", comm(), mem(arg(0), "128s"))
+        print(comm, pid, str(arg1));
     }
 
 ### Quantize
@@ -387,7 +279,7 @@ Record the distribution of the return value of read(2):
 
     kretprobe:SyS_read
     {
-        @.quantize(retval())
+        @["dist"] = quantize(retval);
     }
 
 
@@ -397,7 +289,7 @@ Count all syscalls made on the system, grouped by function:
 
     kprobe:SyS_*
     {
-        @[func()].count()
+        @[caller] = count();
     }
 
 
@@ -405,7 +297,7 @@ Count all syscalls made by every dd(1) process, grouped by function:
 
     kprobe:SyS_* / !strcmp(execname, "dd") /
     {
-        @[func()].count()
+        @[caller] = count();
     }
 
 
@@ -416,13 +308,12 @@ _netif_receive_ to _ip_rcv_:
 
     kprobe:__netif_receive_skb_core
     {
-        @rx[arg(0)] = nsecs()
+        rx[arg0] = time;
     }
 
-    kprobe:ip_rcv / @rx[arg(0)] /
+    kprobe:ip_rcv / rx[arg0] /
     {
-        @diff.quantize(nsecs() - @rx[arg(0)]);
-        @rx[arg(0)] = nil;
+        @["diff"] = quantize(time - rx[arg0]);
     }
 
 
@@ -441,7 +332,7 @@ Tobias Waldekranz <tobias@waldekranz.com>
 
 ## COPYRIGHT
 
-Copyright 2015-2017 Tobias Waldekranz
+Copyright 2018 Tobias Waldekranz
 
 License: GPLv2
 
