@@ -1,3 +1,9 @@
+/*
+ * Copyright Tobias Waldekranz <tobias@waldekranz.com>
+ *
+ * SPDX-License-Identifier: GPL-2.0
+ */
+
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>

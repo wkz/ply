@@ -1,3 +1,9 @@
+/*
+ * Copyright Tobias Waldekranz <tobias@waldekranz.com>
+ *
+ * SPDX-License-Identifier: GPL-2.0
+ */
+
 #ifndef _PRINTXF_H
 #define _PRINTXF_H
 

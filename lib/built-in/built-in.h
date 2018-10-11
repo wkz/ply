@@ -1,3 +1,9 @@
+/*
+ * Copyright Tobias Waldekranz <tobias@waldekranz.com>
+ *
+ * SPDX-License-Identifier: GPL-2.0
+ */
+
 #ifndef _PLY_BUILT_IN_H
 #define _PLY_BUILT_IN_H
 

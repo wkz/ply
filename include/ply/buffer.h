@@ -1,3 +1,9 @@
+/*
+ * Copyright Tobias Waldekranz <tobias@waldekranz.com>
+ *
+ * SPDX-License-Identifier: GPL-2.0
+ */
+
 #ifndef _PLY_BUFFER_H
 #define _PLY_BUFFER_H
 
