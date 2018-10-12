@@ -69,7 +69,9 @@ probe
  * `provider:probe if (pid == 42) @ = count();` is equivalent to
  * `provider:probe / pid == 42 / { @ = count(); }`. */
 predicate
-: '/' expr ENDPRED stmts '}' { $$ = node_expr(&@$, "if", $2, $4, NULL); }
+: '/' expr ENDPRED stmts '}' {
+	$$ = node_expr(&@$, "if", $2, node_expr(&@$, "{}", $4, NULL), NULL);
+ }
 
 stmts
 : stmt
