@@ -76,8 +76,8 @@ int __printxf(struct printxf *pxf, FILE *fp, const char *fmt,
 		}
 
 		type = fmt[ssize] & 0x7f;
-		if ((priv && !pxf->xfprintxf[type])
-		    || !pxf->vfprintxf[type]) {
+		if (( priv && !pxf->xfprintxf[type]) ||
+		    (!priv && !pxf->vfprintxf[type])) {
 			/* unsupported specifier, write the entire
 			 * specifier unformatted to the output */
 			if (__printxf_wsegment(fp, &fmt, ssize + 1, &tsize))

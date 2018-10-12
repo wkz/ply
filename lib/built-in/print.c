@@ -117,7 +117,7 @@ int printf_float(FILE *fp, const char *spec, const char *type, union value *val)
 	return 0;
 }
 
-int printf_vfprintxf(struct printxf *pxf,
+int printf_xfprintxf(struct printxf *pxf,
 		     FILE *fp, const char *spec, void *_pd)
 {
 	struct printf_data *pd = _pd;
@@ -181,15 +181,15 @@ int printf_vfprintxf(struct printxf *pxf,
 
 struct printxf printf_printxf = {
 	.xfprintxf = {
-		['a'] = printf_vfprintxf, ['A'] = printf_vfprintxf,
-		['c'] = printf_vfprintxf, ['d'] = printf_vfprintxf,
-		['e'] = printf_vfprintxf, ['E'] = printf_vfprintxf,
-		['f'] = printf_vfprintxf, ['F'] = printf_vfprintxf,
-		['g'] = printf_vfprintxf, ['G'] = printf_vfprintxf,
-		['i'] = printf_vfprintxf, ['o'] = printf_vfprintxf,
-		['p'] = printf_vfprintxf, ['s'] = printf_vfprintxf,
-		['u'] = printf_vfprintxf, ['v'] = printf_vfprintxf,
-		['x'] = printf_vfprintxf, ['X'] = printf_vfprintxf,
+		['a'] = printf_xfprintxf, ['A'] = printf_xfprintxf,
+		['c'] = printf_xfprintxf, ['d'] = printf_xfprintxf,
+		['e'] = printf_xfprintxf, ['E'] = printf_xfprintxf,
+		['f'] = printf_xfprintxf, ['F'] = printf_xfprintxf,
+		['g'] = printf_xfprintxf, ['G'] = printf_xfprintxf,
+		['i'] = printf_xfprintxf, ['o'] = printf_xfprintxf,
+		['p'] = printf_xfprintxf, ['s'] = printf_xfprintxf,
+		['u'] = printf_xfprintxf, ['v'] = printf_xfprintxf,
+		['x'] = printf_xfprintxf, ['X'] = printf_xfprintxf,
 	},
 };
 
