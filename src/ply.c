@@ -275,13 +275,19 @@ int main(int argc, char **argv)
 
 	if (cmd) {
 		int err = 0;
-		write(inftrig, &err, sizeof(err));
+
+		if (write(inftrig, &err, sizeof(err)) != sizeof(err)) {
+			fprintf(stderr, "ply: unable to start command\n");
+			ret.err = 1;
+			ret.val = -EIO;
+			goto stop;
+		}
 	}
 
 	ret = ply_loop(ply);
 	if (ret.err && (ret.val == EINTR) && term_sig)
 		ret.err = 0;
-
+stop:
 	fprintf(stderr, "ply: deactivating\n");
 	ply_stop(ply);
 
