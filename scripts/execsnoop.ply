@@ -1,33 +1,9 @@
-#!/usr/bin/env ply
+#!/sbin/ply
 
 kprobe:SyS_execve {
-	@exec[tid()] = mem(arg(0), "128s");
-
-	i = 0;
-	unroll(16) {
-		argi = mem(arg(1) + i * sizeof("p"), "p");
-		if (!argi)
-			return;
-
-		@argv[tid(), i] = mem(argi, "128s");
-
-		i = i + 1;
-	}
+	execs[kpid] = str(arg0, 48);
 }
 
 kretprobe:SyS_execve {
-	printf("cpu:%d uid:%d ret:%d bin:%-20s argv:",
-	       cpu(), uid(), retval(), @exec[tid()]);
-
-	@exec[tid()] = nil;
-
-	i = 0;
-	unroll(16) {
-		printf("%s ", @argv[tid(), i]);
-		@argv[tid(), i] = nil;
-
-		i = i + 1;
-	}
-
-	printf("\n");
+	printf("(%4u) %v %3ld\n", uid, execs[kpid], retval);
 }

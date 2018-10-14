@@ -1,26 +1,11 @@
-#!/usr/bin/env ply
-/*
- * opensnoop	trace file opens.
- */
-
-# should have a BEGIN for column headings, pending issue #14
+#!/sbin/ply
 
 kprobe:do_sys_open
 {
-	# should just save ptr, pending issue #13
-	@path[tid()] = mem(arg(1), "128s");
+	path[kpid] = str(arg1);
 }
 
-kretprobe:do_sys_open / @path[tid()] /
+kretprobe:do_sys_open
 {
-	if (retval() > 0) {
-		fd = retval();
-		errno = 0;
-	} else {
-		fd = -1;
-		errno = -1 * retval();
-	}
-
-	printf("%-6d %-16s %4d %3d %s\n", pid(), comm(), fd, errno, @path[tid()]);
-	@path[tid()] = nil;
+	printf("%v %v %v :%d\n", pid, comm, path[kpid], retval);
 }

@@ -1,10 +1,11 @@
+#!/sbin/ply
+
 kprobe:__netif_receive_skb_core
 {
-	@rx[arg(0)] = nsecs();
+	rx[arg0] = time;
 }
 
-kprobe:ip_rcv_finish / @rx[arg(2)] /
+kprobe:ip_rcv_finish / rx[arg2] /
 {
-	@[""].quantize(nsecs() - @rx[arg(2)]);
-	@rx[arg(2)] = nil;
+	@["rx"] = quantize(time - rx[arg2]);
 }
