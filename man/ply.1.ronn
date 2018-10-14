@@ -125,7 +125,7 @@ identifiers from C.
 
 Data can be stored in a map by assigning a value to a given key:
 
-    @mapname[exprs] = expr
+    mapname[exprs] = expr
 
 If a map key is assigned the special value _nil_, the key is deleted
 and will return its zero value if referenced again.
