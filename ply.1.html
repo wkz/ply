@@ -99,7 +99,7 @@
 <h2 id="SYNOPSIS">SYNOPSIS</h2>
 
 <p><code>ply</code> <var>program-file</var> <br />
-<code>ply</code> -c <var>program-text</var></p>
+<code>ply</code> <var>program-text</var></p>
 
 <h2 id="DESCRIPTION">DESCRIPTION</h2>
 
@@ -112,12 +112,16 @@ using kprobes and tracepoints.</p>
 
 <dl>
 <dt><code>-A</code>, <code>--ascii</code></dt><dd><p>Restrict output to ASCII, no Unicode runes.</p></dd>
-<dt><code>-c</code>, <code>--command</code></dt><dd><p>The program is supplied as an argument, rather than in a file.</p></dd>
+<dt><code>-c</code> <var>command</var>, <code>--command</code>=<var>command</var></dt><dd><p>When all probes are running, run <var>command</var>. When the command
+exits, stop all probes and exit. The command is run as if invoked
+with <code>sh -c &lt;command></code>.</p></dd>
 <dt><code>-d</code>, <code>--debug</code></dt><dd><p>Enable debugging output.</p></dd>
-<dt><code>-D</code>, <code>--dump</code></dt><dd><p>Do not execute the program, instead dump the generated Linux BPF
-instructions.</p></dd>
+<dt><code>-e</code>, <code>--dry-run</code></dt><dd><p>Exit after compilation, without actually instrumenting the
+system. Typically used in conjunction with <code>--dump</code>.</p></dd>
 <dt><code>-h</code>, <code>--help</code></dt><dd><p>Print usage message.</p></dd>
-<dt><code>-t</code>, <code>--timeout</code>=<var>seconds</var></dt><dd><p>Terminate the program after the specified time.</p></dd>
+<dt><code>-S</code>, <code>--dump</code></dt><dd><p>After compilation, dump the internal AST, generated BPF
+instructions and other internal information. This is very useful
+to include when reporting a bug.</p></dd>
 <dt><code>-v</code>, <code>--version</code></dt><dd><p>Print version information.</p></dd>
 </dl>
 
@@ -150,16 +154,14 @@ i.e. an expression that must evaluate to a non-zero value in order for
 the probe to be executed.</p>
 
 <p>Then follows a block of <em>statements</em> that perform the actual information
-gathering. All but the last statement of a probe must be terminated
-with a semi-colon. Specifically, a simple probe containing only one
-statement does not need one.</p>
+gathering.</p>
 
-<p>A provider may define a default probe to be used if the user does not
-supply a block.</p>
+<p>A provider may define a default probe clause to be used if the user
+does not supply one.</p>
 
 <h3 id="Control-of-Flow">Control of Flow</h3>
 
-<p>Probes support two different types of flow control, the first is the
+<p>Probes support basic conditional control of flow via an
 <em>if-statement</em>, which conforms to the same rules as C's equivalent:</p>
 
 <pre><code>'if' '(' expr ')'
@@ -169,32 +171,27 @@ supply a block.</p>
 </code></pre>
 
 <p>In order to ensure that a probe will have a finite run-time the kernel
-does not allow backwards branching. As a result, ply does not have a
-traditional loop construct like <em>for</em> or <em>while</em>. Instead it provides
-an <em>unroll</em> statement that simply copies the contained <em>statements</em>
-<em>N</em> times to the output program:</p>
-
-<pre><code>'unroll' '(' N ')'
-    statement ';' | block
-</code></pre>
+does not allow backwards branching. As a result, ply does not have any
+loop construct like <em>for</em> or <em>while</em>. A simple <em>for</em> statement with an
+invariant that is known at compile-time could be added later. In that
+case we could unroll the loop when generating BPF.</p>
 
 <h3 id="Type-System">Type System</h3>
 
-<p>The type system is rudimentary, containing only three (3) types:</p>
+<p>The type system is modeled after C. As such ply understands the
+difference between signed and unsigned integers, the difference
+between a short and a long long, what separates an integer from a
+pointer, how a struct is laid out in memory and so on. It is not
+complete though, notably floating point numbers and unions are
+missing.</p>
 
-<dl>
-<dt class="flush"><code>Numbers</code></dt><dd><p>Represented as 64-bit signed integers, initialized to zero (0).</p></dd>
-<dt class="flush"><code>Strings</code></dt><dd><p>Of arbitrary length, initialized to the empty string.</p></dd>
-<dt class="flush"><code>Records</code></dt><dd><p>Compound type holding any number of <code>Numbers</code> and <code>Strings</code> with
-each component initialized to its zero value.</p></dd>
-</dl>
-
+<p>Programs are statically typed, but all types are inferred
+automatically. Thus, the type system is mostly hidden from the
+user. Plans are to expose more of it in the future by allowing casts,
+type declarations and so on.</p>
 
 <p>Numbers and string literals are specified in the same way as in
-C. Records use the following syntax:</p>
-
-<pre><code>'[' expr [ ',' expr ... ] ']'
-</code></pre>
+C.</p>
 
 <h3 id="Maps">Maps</h3>
 
@@ -203,102 +200,83 @@ i.e. in a hash table. Like <a class="man-ref" href="http://man7.org/linux/man-pa
 referenced maps and their key and value types are inferred from the
 context in which they are used. All maps are in the global scope and
 can thus be used both for extracting data to the end-user, and for
-carrying data between probes. A map name must begin with the at sign
-'@' and then follows the rules of identifiers from C. For small
-scripts where only one map is used, it is convenient and idiomatic to
-simply name it '@'. After the name comes a record specifier which is
-used as the key in the map.</p>
+carrying data between probes. Map names follow the rules of
+identifiers from C.</p>
 
-<pre><code>@mapname[exprs]
+<pre><code>mapname[exprs]
 </code></pre>
 
 <p>Data can be stored in a map by assigning a value to a given key:</p>
 
-<pre><code>@mapname[exprs] = expr
+<pre><code>mapname[exprs] = expr
 </code></pre>
 
 <p>If a map key is assigned the special value <em>nil</em>, the key is deleted
 and will return its zero value if referenced again.</p>
 
-<p>A more common way is to <em>aggregate</em> data using <em>methods</em>, i.e. functions
-that operate on the data stored in a map:</p>
+<h3 id="Aggregations">Aggregations</h3>
+
+<p>More often than not, looking at each individual datum from a trace is
+not nearly as helpful as an <em>aggregation</em> of the data. Therefore ply
+supports aggregating data at the source, thereby reducing tracing
+overhead. Aggregations are syntactically similar to maps, indeed they
+are a kind of map, but they are distinguished by a leading '@'. Also,
+they can only be assigned the result of one of the following
+aggregation functions:</p>
 
 <dl>
-<dt><code>@mapname[exprs].count()</code></dt><dd><p>Bumps a counter.</p></dd>
-<dt><code>@mapname[exprs].quantize(number-expr)</code></dt><dd><p>Evaluates the argument and aggregates on the most significant bit
+<dt><code>@agg[exprs] = count()</code></dt><dd><p>Bump a counter.</p></dd>
+<dt><code>@agg[exprs] = quantize(scalar-expr)</code></dt><dd><p>Evaluates the argument and aggregates on the most significant bit
 of the result. In other words, it stores the distribution of the
 expression.</p></dd>
 </dl>
 
 
-<h3 id="Variables">Variables</h3>
-
-<p>Variables are typically used for storing temporary data, like loop
-counters or results of computations that are used multiple times in a
-probe. They are local to the probe in which they are defined, i.e. the
-same identifier may be used independently in multiple probes. Their
-names follows the C identifier rules.</p>
-
 <h2 id="PROVIDERS">PROVIDERS</h2>
 
 <p>A <em>provider</em> makes data available to the user by exporting functions
-to the probe. Function calls use the same syntax as most languages
-that inherit from C. In addition to the provider-specific functions,
-all providers inherits a set of common functions:</p>
+and variables to the probe. Function calls use the same syntax as most
+languages that inherit from C. In addition to the provider-specific
+functions, all providers inherits a set of common functions and
+variables:</p>
 
-<dl>
-<dt><code>comm()</code>, <code>execname()</code> => string</dt><dd><p>Returns the <em>name</em> of the running process's executable.</p></dd>
-<dt><code>cpu()</code> => number</dt><dd><p>Returns the <em>CPU ID</em> of the processor on which the probe fired.</p></dd>
-<dt><code>gid()</code> => number</dt><dd><p>Returns the <em>group ID</em> of the running process.</p></dd>
-<dt><code>log2(number-expression)</code> => number</dt><dd><p>Returns the logarithm, base 2, of the argument.</p></dd>
-<dt><code>mem(address, format)</code> => TYPE:</dt><dd><p></p>
-
-<p>Copy from <em>address</em>, using the <em>format</em> specifier to determine the
-desired size and type. The format specifier takes inspiration from
-<span class="man-ref">python<span class="s">(1)</span></span>'s <em>struct</em> module:</p>
-
-<p>[repeat]type[[<var>repeat</var>]<var>type</var> ...]</p>
-
-<p><em>repeat</em> is an optional number, indicating that this member is an
-array of the following type. The recognized types are:</p>
-
-<p><em>b</em>/<em>B</em>: Signed/unsigned  8-bit integer. <br />
-<em>h</em>/<em>H</em>: Signed/unsigned 16-bit integer. <br />
-<em>w</em>/<em>W</em>: Signed/unsigned 32-bit integer. <br />
-<em>q</em>/<em>Q</em>: Signed/unsigned 64-bit integer. <br />
-<em>i</em>/<em>I</em>: Signed/unsigned    int integer. <br />
-<em>l</em>/<em>L</em>: Signed/unsigned   long integer. <br />
-<em>s</em>: String. <em>repeat</em> means maximum length. <br />
-<em>p</em>: Pointer.</p>
-
-<p>If more than one type is specified, <em>mem()</em>'s output will be
-of record type.</p></dd>
-<dt><code>nsecs()</code> => number</dt><dd><p>Returns the time since the system started, in nanoseconds.</p></dd>
-<dt><code>pid()</code> => number</dt><dd><p>Returns the <em>process ID</em> of the running process.</p></dd>
-<dt><code>printf(format [, expression, expression ... ])</code></dt><dd><p>Prints <em>formatted output</em> to ply's standard out. In addition to
+<ul>
+<li><p><code>char[16] comm</code>, <code>char[16] execname</code>
+<em>name</em> of the running process's executable.</p></li>
+<li><p><code>u32 cpu</code>
+<em>CPU ID</em> of the processor on which the probe fired.</p></li>
+<li><p><code>u32 gid</code>
+<em>Group ID</em> of the running process.</p></li>
+<li><p><code>u32 kpid</code>:
+<em>Kernel PID</em> of the running process. Also known as <em>pid</em> by the
+kernel. For a single-threaded process <em>kpid</em> is equal to
+<em>pid</em>. For multi-threaded processes, <em>kpid</em> will be unique while
+<em>pid</em> will be the same across all threads.</p></li>
+<li><p><code>char[N] mem(void *address [, int size])</code>
+Copy <em>size</em> bytes from <em>address</em>. If <em>size</em> is omitted, 64 bytes
+will be copied.</p></li>
+<li><p><code>s64 time</code>, <code>s64 walltime</code>:
+Nanoseconds elaped since system boot. <em>time</em> is intended for time
+deltas and <em>walltime</em> should be used for timestamps. They refer to
+the same data, but with different default output formats.</p></li>
+<li><p><code>u32 pid</code>:
+<em>Process ID</em> of the running process. Also known as <em>thread group
+ID</em> (tgid) by the kernel.</p></li>
+<li><p><code>void print(...)</code>:
+<em>Print</em> each expression with its default output format, separated
+by commas and terminated with a newline, to ply's standard out.</p></li>
+<li><p><code>void printf(format, ...)</code>:
+Prints <em>formatted output</em> to ply's standard out. In addition to
 the formats recognized by the printf sitting in your &lt;stdio.h>,
 ply's also recognizes '%v' which will dump the value according to
-the inferred type's default.</p>
-
-<p>Beware that while there are times when it is useful to print data
-from a probe, it is very often not the best way of obtaining the
-insight that is sought.</p>
-
-<p>Many of the kernel's functions may be called at rates well above
-the 1k calls/s mark, at which point making sense of print output
-becomes very hard. In such cases, consider using some type of
-aggregation to limit the amount of data. Then, once you have
-zeroed in on the problem, printing might become useful.</p></dd>
-<dt><code>secs()</code> => number</dt><dd><p>Returns the time since the system started, in seconds.</p></dd>
-<dt><code>sizeof(format)</code> => number</dt><dd><p>Returns the number of bytes required to store an object specified
-in <em>format</em>. See <em>mem()</em> for the interpretation of the format
-specifier.</p></dd>
-<dt><code>strcmp(string-expression, string-expression)</code> => number</dt><dd><p>Returns -1, 0 or 1 if the first argument is less than, equal to or
+the inferred type's default (i.e. how <em>print</em> would print it).</p></li>
+<li><p><code>int strcmp(char *a, char *b)</code>:
+Returns -1, 0 or 1 if the first argument is less than, equal to or
 greater than the second argument respectively. Strings are
-compared by their lexicographical order.</p></dd>
-<dt><code>tgid()</code> => number</dt><dd><p>Returns the <em>thread group ID</em> of the running process.</p></dd>
-<dt><code>uid()</code> => number</dt><dd><p>Returns the <em>user ID</em> of the running process.</p></dd>
-</dl>
+compared by their lexicographical order.</p></li>
+<li><p><code>u32 uid</code>:
+<em>User ID</em> of the running process.</p></li>
+</ul>
 
 
 <h3 id="kprobe-and-kretprobe">kprobe and kretprobe</h3>
@@ -307,106 +285,70 @@ compared by their lexicographical order.</p></dd>
 arbitrary instructions in the kernel. The <em>probe-definition</em> may be
 either an address or a symbol name. When using a symbol name, glob
 expansion is performed allowing a single probe to be inserted at
-multiple locations. E.g. <em>kprobe:SyS_*</em>, would match every syscall.</p>
+multiple locations. An offset relative to a symbol may also be
+specfied for kprobes.</p>
 
-<p>Shared functions:</p>
+<p>Examples:</p>
+
+<ul>
+<li><em>kretprobe:schedule</em>: Trace every time <code>schedule</code> returns.</li>
+<li><em>kprobe:SyS_*</em>: Trace every time a syscall is made.</li>
+<li><em>kprobe:dev_hard_start_xmit+8</em>: Trace function with offset.</li>
+</ul>
+
+
+<p>Shared variables:</p>
 
 <dl>
-<dt><code>reg(number)</code>, <code>reg(string)</code> => number</dt><dd><p>If called with a number, it returns the value of the n:th CPU
-<em>register</em>, according to the order in the architecture specific
-<em>pt_regs</em> struct. If called with a string, the string is looked up
-against the register names as they are defined in the <em>pt_regs</em>
-struct.</p></dd>
-<dt><code>stack()</code> => number</dt><dd><p>Get a <em>stack trace</em> of the current probe. This is just returns an
+<dt><code>struct pt_regs *regs</code></dt><dd><p>Hardware register contents from when the probe was triggered. This
+matches the definition in &lt;sys/ptrace.h> on your system.</p></dd>
+<dt><code>u32 stack</code></dt><dd><p><em>Stack trace ID</em> of the current probe. This is just returns an
 index into a separate map containing the actual instruction
 pointers. As a user though, you can think of this function as
 returning a string containing the stack trace at the current
-location. Indeed <em>printf("%v\n", stack())</em> will produce exactly
-that.</p></dd>
+location. Indeed <em>print(stack)</em> will produce exactly that.</p>
+
+<p>CAUTION: On some architectures (looking at you, ARM), capturing
+stack traces at the entry of a function, before the prologue has
+run, does not work. Setting your probe after the prologue will
+work around the issue (typically two instructions, or +8, on ARM).</p></dd>
 </dl>
 
 
 <p><em>kprobe</em> specific functions:</p>
 
 <dl>
-<dt><code>arg(number)</code> => number</dt><dd><p>Returns the value of the specified <em>argument</em> of the function to
-which the probe was attached, zero-indexed. I.e. <span class="man-ref">arg<span class="s">(0)</span></span> is the 1st
-argument, <span class="man-ref">arg<span class="s">(1)</span></span> is the 2nd, and so on.</p>
+<dt><code>arg0</code>, <code>arg1</code> ... <code>argN</code>:</dt><dd><p></p>
 
-<p>CAUTION: This is just syntactic sugar on top of <em>reg()</em>, using the
-relevant architecture's calling convention as a mapping. If your
-compiler decides to optimize out arguments or do other sneaky
-things, ply will be utterly oblivious to that.</p></dd>
-<dt><code>func()</code>, <code>probefunc()</code> => number</dt><dd><p>Returns the kernel address of the <em>function</em> to which the probe
-was attached. It also marks it as being a symbol, which means that
-<em>printf()</em> will know to print it as a symbol if possible.</p>
+<p>Returns the value of the specified <em>argument</em> of the function to
+which the probe was attached, zero-indexed. I.e. arg0 is the 1st
+argument, arg1 is the 2nd, and so on.</p>
 
-<p>This is also just syntactic sugar on top of <em>reg()</em> mapping to the
-architecture's instruction pointer register.</p></dd>
+<p>CAUTION: ply simply maps registers to arguments according to the
+syscall ABI. If your compiler decides to optimize out arguments or
+do other sneaky things, ply will be utterly oblivious to that.</p></dd>
+<dt><code>void *caller</code></dt><dd><p>The program counter, as recorded in <code>regs</code>, at the time the probe
+was triggered.  was attached. The default output format will
+resolve it to a symbolic name if one is available.</p></dd>
 </dl>
 
 
 <p><em>kretprobe</em> specific function:</p>
 
 <dl>
-<dt><code>retval()</code> => number</dt><dd>Returns the return value of the probed function.</dd>
+<dt class="flush"><code>retval</code></dt><dd>Return value of the probed function.</dd>
 </dl>
 
-
-<h3 id="trace">trace</h3>
-
-<p>The <em>trace</em> provider allows you to attach probes to the kernel's
-<em>tracepoint</em> infrastructure. The <em>probe-definition</em> is matched against
-the <em>debugfs</em> path located at
-<em>/sys/kernel/debug/tracing/events</em>. E.g. <em>trace:sched/sched_switch</em>
-would run the probe every time the kernel schedules a new task.</p>
-
-<p>A tracepoint's data is defined in its <em>format</em> file,
-e.g. <em>/sys/kernel/debug/tracing/events/sched/sched_switch/format</em>. The
-trace provider will export each field as a function. Say the <em>format</em>
-file has the following content:</p>
-
-<pre><code>name: sched_switch
-ID: 287
-format:
-field:unsigned short common_type;   offset:0;   size:2; signed:0;
-field:unsigned char common_flags;   offset:2;   size:1; signed:0;
-field:unsigned char common_preempt_count;   offset:3;   size:1; signed:0;
-field:int common_pid;   offset:4;   size:4; signed:1;
-
-field:char prev_comm[16];   offset:8;   size:16;    signed:1;
-field:pid_t prev_pid;   offset:24;  size:4; signed:1;
-field:int prev_prio;    offset:28;  size:4; signed:1;
-field:long prev_state;  offset:32;  size:8; signed:1;
-field:char next_comm[16];   offset:40;  size:16;    signed:1;
-field:pid_t next_pid;   offset:56;  size:4; signed:1;
-field:int next_prio;    offset:60;  size:4; signed:1;
-</code></pre>
-
-<p>The probe may then call the following functions:</p>
-
-<p>  <code>common_type()</code> => number <br />
-  <code>common_flags()</code> => number <br />
-  <code>common_preempt_count()</code> => number <br />
-  <code>common_pid()</code> => number</p>
-
-<p>  <code>prev_comm()</code> => string <br />
-  <code>prev_pid()</code> => number <br />
-  <code>prev_prio()</code> => number <br />
-  <code>prev_state()</code> => number <br />
-  <code>next_comm()</code> => string <br />
-  <code>next_pid()</code> => number <br />
-  <code>next_prio()</code> => number <br /></p>
 
 <h2 id="EXAMPLE">EXAMPLE</h2>
 
 <h3 id="Extracting-data">Extracting data</h3>
 
-<p>Print all opened files on the system, and who opened them:</p>
+<p>Print all <code>openat</code>ed files on the system, and who opened them:</p>
 
-<pre><code>kprobe:SyS_open
+<pre><code>kprobe:SyS_openat
 {
-    printf("%v: %v\n", comm(), mem(arg(0), "128s"))
+    print(comm, pid, str(arg1));
 }
 </code></pre>
 
@@ -416,7 +358,7 @@ field:int next_prio;    offset:60;  size:4; signed:1;
 
 <pre><code>kretprobe:SyS_read
 {
-    @.quantize(retval())
+    @["dist"] = quantize(retval);
 }
 </code></pre>
 
@@ -426,7 +368,7 @@ field:int next_prio;    offset:60;  size:4; signed:1;
 
 <pre><code>kprobe:SyS_*
 {
-    @[func()].count()
+    @[caller] = count();
 }
 </code></pre>
 
@@ -434,7 +376,7 @@ field:int next_prio;    offset:60;  size:4; signed:1;
 
 <pre><code>kprobe:SyS_* / !strcmp(execname, "dd") /
 {
-    @[func()].count()
+    @[caller] = count();
 }
 </code></pre>
 
@@ -445,13 +387,12 @@ field:int next_prio;    offset:60;  size:4; signed:1;
 
 <pre><code>kprobe:__netif_receive_skb_core
 {
-    @rx[arg(0)] = nsecs()
+    rx[arg0] = time;
 }
 
-kprobe:ip_rcv / @rx[arg(0)] /
+kprobe:ip_rcv / rx[arg0] /
 {
-    @diff.quantize(nsecs() - @rx[arg(0)]);
-    @rx[arg(0)] = nil;
+    @["diff"] = quantize(time - rx[arg0]);
 }
 </code></pre>
 
@@ -465,11 +406,11 @@ kprobe:ip_rcv / @rx[arg(0)] /
 
 <h2 id="AUTHORS">AUTHORS</h2>
 
-<p>Tobias Waldekranz <a href="&#109;&#97;&#x69;&#108;&#116;&#111;&#58;&#x74;&#111;&#x62;&#105;&#97;&#115;&#64;&#119;&#x61;&#x6c;&#x64;&#x65;&#x6b;&#x72;&#97;&#110;&#x7a;&#x2e;&#x63;&#x6f;&#x6d;" data-bare-link="true">&#116;&#111;&#98;&#105;&#x61;&#115;&#64;&#x77;&#97;&#108;&#x64;&#101;&#x6b;&#x72;&#97;&#110;&#x7a;&#46;&#x63;&#x6f;&#x6d;</a></p>
+<p>Tobias Waldekranz <a href="&#x6d;&#97;&#x69;&#x6c;&#116;&#111;&#x3a;&#116;&#x6f;&#x62;&#105;&#x61;&#115;&#64;&#x77;&#x61;&#108;&#x64;&#x65;&#107;&#114;&#97;&#x6e;&#122;&#46;&#x63;&#x6f;&#109;" data-bare-link="true">&#x74;&#111;&#x62;&#105;&#x61;&#115;&#x40;&#x77;&#x61;&#x6c;&#100;&#101;&#107;&#114;&#97;&#110;&#122;&#x2e;&#x63;&#111;&#109;</a></p>
 
 <h2 id="COPYRIGHT">COPYRIGHT</h2>
 
-<p>Copyright 2015-2017 Tobias Waldekranz</p>
+<p>Copyright 2018 Tobias Waldekranz</p>
 
 <p>License: GPLv2</p>
 
@@ -479,8 +420,8 @@ kprobe:ip_rcv / @rx[arg(0)] /
 
 
   <ol class='man-decor man-foot man foot'>
-    <li class='tl'>ply Developers</li>
-    <li class='tc'>2017-02-22</li>
+    <li class='tl'></li>
+    <li class='tc'>October 2018</li>
     <li class='tr'>ply(1)</li>
   </ol>
 

@@ -50,10 +50,10 @@
         <h3>&gt;&lt; small</h2>
         <p class="text-justify">
 	  Designed with embedded systems in mind. Written in C, all
-	  ply needs to run is libc and a modern kernel with Linux
-	  BPF support. No external kernel modules, no LLVM, no
-	  python. Works on x86_64 and arm today, adding more
-	  architectures is easy.
+	  ply needs to run is libc and a modern kernel with Linux BPF
+	  support. No external kernel modules, no LLVM, no
+	  python. Works on aarch64, arm, powerpc, and x86_64 today &mdash;
+	  adding an ISA is easy.
 	</p>
       </div>
       <div class="col-md-4">
@@ -84,50 +84,53 @@
     </div>
     <div class="row text-justify">
       <div class="col-md-5">
-	<pre>#!/usr/sbin/ply
+	<pre>#!/usr/bin/env ply
 
 kprobe:SyS_*
 {
-    @syscalls[func()].count()
+    @syscalls[caller] = count();
 }</pre>
         <p>
 	  This probe will be attached to all functions whose name
 	  starts with <code>SyS_</code>, i.e. all syscalls. On each
 	  syscall, the probe will fire and index into the user-defined
-	  map <code>@syscalls</code> using the
-	  function <code>func()</code> as the key and bump a counter.
+	  aggregation <code>@syscalls</code> using the program counter
+	  <code>caller</code> as the key and bump a counter.
 	</p>
 	<p>
 	  ply will compile the script, attach it to the matching
 	  probes and start collecting data. On exit, ply will dump the
-	  values of all user-defined maps.
+	  values of all user-defined maps and aggregations.
 	</p>
       </div>
       <div class="col-md-5">
-	<pre>wkz@wkz-x260:~$ sudo ./n-syscalls.ply
-341 probes active
-^Cde-activating probes
+	<pre>~$ ply count-syscalls.ply
+ply: active
+^Cply: deactivating
 
 @syscalls:
-sys_tgkill          	       1
-sys_mprotect        	       1
-sys_lseek           	       1
-sys_readv           	       1
-sys_rename          	       1
-sys_statfs          	       1
-sys_bind            	       2
-sys_access          	       4
-sys_fdatasync       	       5
-sys_times           	       6
+{ sys_sigaltstack+1 }: 1
+{ sys_set_tid_address+1 }: 2
+{ sys_sysinfo+1 }: 2
+{ sys_alarm+1 }: 2
+{ sys_mincore+1 }: 2
+{ sys_pread64+1 }: 2
+{ sys_newlstat+1 }: 2
+{ sys_unlink+1 }: 2
 [REDACTED LINES]
-sys_epoll_wait      	    7211
-sys_ppoll           	    9836
-sys_poll            	   13446
-sys_futex           	   20034
-sys_ioctl           	   23806
-sys_recvmsg         	   23989
-sys_write           	   24791
-sys_read            	   32168</pre>
+{ sys_newfstat+1 }: 586
+{ sys_mmap_pgoff+1 }: 599
+{ sys_mmap+1 }: 600
+{ sys_rt_sigprocmask+1 }: 859
+{ sys_close+1 }: 863
+{ sys_ppoll+1 }: 1315
+{ sys_epoll_wait+1 }: 1731
+{ sys_poll+1 }: 2644
+{ sys_write+1 }: 3262
+{ sys_recvmsg+1 }: 3624
+{ sys_ioctl+1 }: 4423
+{ sys_read+1 }: 5059
+{ sys_futex+1 }: 7918</pre>
       </div>
     </div>
   </div>
@@ -140,11 +143,11 @@ sys_read            	   32168</pre>
     </div>
     <div class="row text-justify">
       <div class="col-md-5 offset-md-2">
-	<pre>#!/usr/sbin/ply
+	<pre>#!/usr/bin/env ply
 
 kretprobe:SyS_read
 {
-    @.quantize(retval());
+    @["retsize"] = quantize(retval);
 }</pre>
         <p>
 	  This example shows a very simple script that instruments the
@@ -152,36 +155,36 @@ kretprobe:SyS_read
 	  distribution of the return argument.
 	</p>
 	<p>
-	  User-defined maps in ply always start with <code>@</code>.
-	  When writing small scripts, only using one map, it is common
-	  and convenient to simply call it <code>@</code>.
+	  User-defined aggregations in ply always start
+	  with <code>@</code>.  When writing small scripts, only using
+	  one aggregation, it is common and convenient to simply call
+	  it <code>@</code>.
 	</p>
       </div>
       <div class="col-md-5">
-	<pre>wkz@wkz-x260:~$ sudo ./read-dist.ply
-1 probe active
-^Cde-activating probes
+	<pre>~$ sudo ./read-dist.ply
+ply: active
+^Cply: deactivating
 
 @:
-
-             < 0        8869 ┤███████           │
-               0         565 ┤▌                 │
-               1       13460 ┤██████████▋       │
-    [   2,    3]        1915 ┤█▌                │
-    [   4,    7]        1736 ┤█▍                │
-    [   8,   15]       10054 ┤████████          │
-    [  16,   31]        2583 ┤██                │
-    [  32,   63]         769 ┤▋                 │
-    [  64,  127]          55 ┤                  │
-    [ 128,  255]           5 ┤                  │
-    [ 256,  511]         202 ┤▏                 │
-    [ 512,   1k)          27 ┤                  │
-    [  1k,   2k)         157 ┤▏                 │
-    [  2k,   4k)           4 ┤                  │
-    [  4k,   8k)          20 ┤                  │
-    [  8k,  16k)           6 ┤                  │
-    [ 16k,  32k)          23 ┤                  │
-    [ 32k,  64k)          20 ┤                  │</pre>
+{ retsize }: 
+	         < 0	     861 ┤████████▏                       │
+	[   0,    1]	     865 ┤████████▏                       │
+	[   2,    3]	     372 ┤███▌                            │
+	[   4,    7]	       1 ┤                                │
+	[   8,   15]	    1090 ┤██████████▎                     │
+	[  16,   31]	     122 ┤█▏                              │
+	[  32,   63]	      22 ┤▎                               │
+	[  64,  127]	      25 ┤▎                               │
+	[ 128,  255]	       1 ┤                                │
+	...
+	[ 512,   1k)	      23 ┤▎                               │
+	[  1k,   2k)	       5 ┤                                │
+	...
+	[  4k,   8k)	       2 ┤                                │
+	...
+	[ 16k,  32k)	      11 ┤▏                               │
+</pre>
       </div>
     </div>
   </div>
@@ -194,18 +197,16 @@ kretprobe:SyS_read
     </div>
     <div class="row text-justify">
       <div class="col-md-5">
-	<pre>#!/usr/sbin/ply
+	<pre>#!/usr/bin/env ply
 
 kprobe:i2c_transfer
 {
-    printf("%v\n", stack())
+    print(stack);
 }</pre>
         <p>
 	  Sometimes it can be useful to know how a particular location
 	  is reached. <code>kprobes</code> can get the current stack
-	  trace via the <code>stack()</code> function. Using the
-	  format specifier <code>%v</code> tells ply to use the
-	  default format of the inferred type of the argument.
+	  trace via the <code>stack</code> variable.
 	</p>
 	<p>
 	  In this example, the stack trace is simply printed to
@@ -216,7 +217,7 @@ kprobe:i2c_transfer
       </div>
       <div class="col-md-5">
 	<pre>root@chaos:~ $ ply ./i2c-stack.ply &
-root@chaos:~ $ 1 probe active
+root@chaos:~ $ ply: active
 
 root@chaos:~ $ hwclock -r
 
@@ -233,7 +234,7 @@ root@chaos:~ $ hwclock -r
 Mon Feb 20 18:33:33 2017  0.000000 seconds
 root@chaos:~ $ fg
 ply ./i2c_stack.ply
-^Cde-activating probes
+^Cply: deactivating
 root@chaos:~ $</pre>
       </div>
     </div>
@@ -247,45 +248,45 @@ root@chaos:~ $</pre>
     </div>
     <div class="row text-justify">
       <div class="col-md-5 offset-md-2">
-	<pre>#!/usr/sbin/ply
+	<pre>#!/usr/bin/env ply
 
-kprobe:SyS_open
+kprobe:do_sys_open
 {
-    printf("%16s(%5d): %s\n",
-           comm(), pid(), mem(arg(0), "128s"));
+    printf("%v(%v): %s\n",
+           comm, pid, str(arg1));
 }</pre>
         <p>
 	  Every time a process calls <code>open(2)</code> print the calling process's
 	  <code>comm</code>, i.e. executable name, PID and the
 	  filename by extracting a 128-byte string from the address of
-	  the first argument using the <code>mem()</code> function.
+	  the first argument using the <code>str()</code> function.
 	</p>
       </div>
       <div class="col-md-5">
-	<pre>wkz@wkz-x260:~$ sudo ./opensoop.ply
-1 probe active
-             ply(28836): /sys/kernel/debug/tracing/events/enable
- SimpleCacheWork( 5818): /home/wkz/.cache/google-chrome/Default/Cache/37586f4b9464a393_0
-      irqbalance( 1083): /proc/interrupts
-      irqbalance( 1083): /proc/stat
-      irqbalance( 1083): /proc/irq/18/smp_affinity
-      irqbalance( 1083): /proc/irq/126/smp_affinity
-      irqbalance( 1083): /proc/irq/128/smp_affinity
-      irqbalance( 1083): /proc/irq/122/smp_affinity
-      irqbalance( 1083): /proc/irq/11/smp_affinity
-      irqbalance( 1083): /proc/irq/124/smp_affinity
-      irqbalance( 1083): /proc/irq/16/smp_affinity
-      irqbalance( 1083): /proc/irq/1/smp_affinity
-      irqbalance( 1083): /proc/irq/8/smp_affinity
-      irqbalance( 1083): /proc/irq/9/smp_affinity
-      irqbalance( 1083): /proc/irq/12/smp_affinity
-      irqbalance( 1083): /proc/irq/120/smp_affinity
-      irqbalance( 1083): /proc/irq/121/smp_affinity
- Chrome_IOThread( 5361): /dev/shm/.org.chromium.Chromium.59XkZF
- SimpleCacheWork( 5818): /home/wkz/.cache/google-chrome/Default/Cache/37586f4b9464a393_0
-     Core Thread( 5368): /home/wkz/.config/spotify/Users/wkz-user/pending-messages.tmp
-     Core Thread( 5368): /home/wkz/.config/spotify/Users/wkz-user/pending-messages.tmp
-^Cde-activating probes</pre>
+	<pre>~$ sudo ./opensoop.ply
+ply: active
+ply             (28836): /sys/kernel/debug/tracing/events/enable
+SimpleCacheWork ( 5818): /home/wkz/.cache/google-chrome/Default/Cache/37586f4b9464a393_0
+irqbalance      ( 1083): /proc/interrupts
+irqbalance      ( 1083): /proc/stat
+irqbalance      ( 1083): /proc/irq/18/smp_affinity
+irqbalance      ( 1083): /proc/irq/126/smp_affinity
+irqbalance      ( 1083): /proc/irq/128/smp_affinity
+irqbalance      ( 1083): /proc/irq/122/smp_affinity
+irqbalance      ( 1083): /proc/irq/11/smp_affinity
+irqbalance      ( 1083): /proc/irq/124/smp_affinity
+irqbalance      ( 1083): /proc/irq/16/smp_affinity
+irqbalance      ( 1083): /proc/irq/1/smp_affinity
+irqbalance      ( 1083): /proc/irq/8/smp_affinity
+irqbalance      ( 1083): /proc/irq/9/smp_affinity
+irqbalance      ( 1083): /proc/irq/12/smp_affinity
+irqbalance      ( 1083): /proc/irq/120/smp_affinity
+irqbalance      ( 1083): /proc/irq/121/smp_affinity
+Chrome_IOThread ( 5361): /dev/shm/.org.chromium.Chromium.59XkZF
+SimpleCacheWork ( 5818): /home/wkz/.cache/google-chrome/Default/Cache/37586f4b9464a393_0
+Core Thread     ( 5368): /home/wkz/.config/spotify/Users/wkz-user/pending-messages.tmp
+Core Thread     ( 5368): /home/wkz/.config/spotify/Users/wkz-user/pending-messages.tmp
+^Cply: deactivating</pre>
       </div>
     </div>
   </div>
