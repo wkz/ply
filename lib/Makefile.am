@@ -7,10 +7,7 @@ libply_la_LDFLAGS     = $(AM_LDFLAGS) -version-info 0:0:0
 AM_YFLAGS = -d -Wall
 AM_LFLAGS = --header-file=lexer.h
 
-lexer.h: lexer.c
-grammar.y: lexer.h
-
-BUILT_SOURCES = grammar.h lexer.h
+EXTRA_DIST = grammar.c grammar.h lexer.c lexer.h
 
 libply_la_SOURCES     = 	\
 	arch/@host_cpu@.c	\
@@ -21,8 +18,9 @@ libply_la_SOURCES     = 	\
 	aux/syscall.c		\
 	aux/utils.c		\
 	\
-	built-in/built-in.c	\
 	built-in/aggregation.c	\
+	built-in/built-in.c	\
+	built-in/built-in.h	\
 	built-in/buffer.c	\
 	built-in/flow.c		\
 	built-in/math.c		\
@@ -30,9 +28,11 @@ libply_la_SOURCES     = 	\
 	built-in/print.c	\
 	built-in/proc.c		\
 	\
-	provider/xprobe.c	\
 	provider/kprobe.c	\
+	provider/kprobe.h	\
 	provider/kretprobe.c	\
+	provider/xprobe.c	\
+	provider/xprobe.h	\
 	\
 	compile.c		\
 	func.c			\
@@ -46,3 +46,5 @@ libply_la_SOURCES     = 	\
 	\
 	libply.c
 
+lexer.h: lexer.c
+grammar.y: lexer.h

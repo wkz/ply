@@ -6,7 +6,7 @@ AM_SILENT_RULES([yes])
 LT_INIT
 
 AC_CONFIG_HEADER([include/ply/config.h])
-AC_CONFIG_FILES([Makefile lib/Makefile man/Makefile src/Makefile])
+AC_CONFIG_FILES([Makefile include/Makefile lib/Makefile man/Makefile src/Makefile])
 AC_CONFIG_MACRO_DIRS([m4])
 
 AC_PROG_CC
