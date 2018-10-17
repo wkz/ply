@@ -1,11 +1,12 @@
 AC_PREREQ(2.61)
-AC_INIT(ply, 2.0.0-beta1, https://github.com/wkz/ply/issues)
+AC_INIT(ply, m4_esyscmd_s(git describe --always --dirty),
+	     https://github.com/wkz/ply/issues)
 AM_INIT_AUTOMAKE([1.11 foreign subdir-objects])
 AM_SILENT_RULES([yes])
 
 LT_INIT
 
-AC_CONFIG_HEADER([include/ply/config.h])
+AC_CONFIG_HEADER([config.h])
 AC_CONFIG_FILES([Makefile include/Makefile lib/Makefile man/Makefile src/Makefile])
 AC_CONFIG_MACRO_DIRS([m4])
 

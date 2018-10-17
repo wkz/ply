@@ -16,6 +16,7 @@
 #include <sys/wait.h>
 
 #include <ply/ply.h>
+#include "../config.h"
 
 static void usage()
 {
@@ -106,12 +107,8 @@ void dump(struct ply *ply)
 
 static void version()
 {
-	/* fputs(PACKAGE "-" VERSION, stdout); */
-	/* if (strcmp(VERSION, GIT_VERSION)) */
-	/* 	fputs("(" GIT_VERSION ")", stdout); */
-
-	printf(" (linux-version:%u~%u.%u.%u)\n",
-	       LINUX_VERSION_CODE,
+	printf("%s (linux-version:%u~%u.%u.%u)\n",
+	       PACKAGE_STRING, LINUX_VERSION_CODE,
 	       (LINUX_VERSION_CODE >> 16) & 0xff,
 	       (LINUX_VERSION_CODE >>  8) & 0xff,
 	       (LINUX_VERSION_CODE >>  0) & 0xff);
