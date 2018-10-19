@@ -50,6 +50,7 @@ pspec		{ident}:[^ \n\r\t]*
 "if"			{ return IF;      }
 "else"			{ return ELSE;    }
 "return"		{ return RETURN;  }
+"delete"		{ return DELETE;  }
 "&&"			{ return AND;     }
 "^^"			{ return XOR;     }
 "||"			{ return OR;      }

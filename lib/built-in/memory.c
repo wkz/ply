@@ -780,3 +780,53 @@ __ply_built_in const struct func agg_func = {
 
 	.ir_post = agg_ir_post,
 };
+
+
+static int delete_ir_pre(const struct func *func, struct node *n,
+				struct ply_probe *pb)
+{
+	struct node *arg;
+
+	arg = n->expr.args;
+	arg->sym->irs.hint.lval = 1;
+	arg->sym->irs.hint.stack = 1;
+	return 0;
+}
+
+static int delete_ir_post(const struct func *func, struct node *n,
+				 struct ply_probe *pb)
+{
+	struct node *map, *key;
+
+	map = n->expr.args->expr.args;
+	key = map->next;
+
+	ir_emit_ldmap(pb->ir, BPF_REG_1, map->sym);
+	ir_emit_ldbp(pb->ir, BPF_REG_2, key->sym->irs.stack);
+	ir_emit_insn(pb->ir, CALL(BPF_FUNC_map_delete_elem), 0, 0);
+	/* TODO: if (r0) exit(r0); */
+	return 0;
+}
+
+static int delete_static_validate(const struct func *func, struct node *n)
+{
+	struct node *arg;
+
+	arg = n->expr.args;
+
+	if (node_is(arg, "[]"))
+		return 0;
+
+	_ne(n, "can't delete %N, a map was expected.\n", arg);
+	return -EINVAL;
+}
+
+__ply_built_in const struct func delete_func = {
+	.name = "delete",
+	.type = &t_unary_func,
+	.static_ret = 1,
+	.static_validate = delete_static_validate,
+
+	.ir_pre  = delete_ir_pre,
+	.ir_post = delete_ir_post,
+};

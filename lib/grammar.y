@@ -46,7 +46,7 @@ extern int __ply_probe_alloc(struct ply *ply, struct node *pspec, struct node *a
 
 %define api.value.type { struct node * }
 
-%token ENDPRED IF ELSE RETURN EQ NE LE GE LSH RSH AND XOR OR DEREF PSPEC IDENT AGG STRING NUMBER
+%token ENDPRED IF ELSE RETURN DELETE EQ NE LE GE LSH RSH AND XOR OR DEREF PSPEC IDENT AGG STRING NUMBER
 
 /* C if-else associativity */
 %right ')' ELSE
@@ -82,6 +82,7 @@ stmt
 : block
 | branch
 | jump
+| delete
 | expr_stmt
 | assign
 | aggregate
@@ -99,6 +100,10 @@ branch
 
 jump
 : RETURN ';' { $$ = node_expr(&@$, "return", NULL); }
+;
+
+delete
+: DELETE map ';' { $$ = node_expr(&@$, "delete", $2, NULL); }
 ;
 
 expr_stmt
