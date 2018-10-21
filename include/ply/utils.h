@@ -9,6 +9,7 @@
 
 #include <assert.h>
 
+int strtonum(const char *_str, int64_t *s64, uint64_t *u64);
 int isstring(const char *data, size_t len);
 
 FILE *fopenf(const char *mode, const char *fmt, ...)

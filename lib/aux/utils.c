@@ -6,11 +6,51 @@
 
 #define _GNU_SOURCE
 #include <ctype.h>
+#include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <ply/ply.h>
 #include <ply/internal.h>
+
+static void strkill(char *str, char kill)
+{
+	char *r, *w;
+
+	for (r = w = str; *r; r++) {
+		if (*r == kill)
+			continue;
+
+		*w++ = *r;
+	}
+
+	*w = '\0';
+}
+
+int strtonum(const char *_str, int64_t *s64, uint64_t *u64)
+{
+	char *str = strdup(_str);
+
+	strkill(str, '_');
+
+	errno = 0;
+	if (*str == '-') {
+		*s64 = strtoll(str, NULL, 0);
+		if (!errno)
+			return -1;
+	} else if (strstr(str, "0b") == str) {
+		*u64 = strtoull(&str[2], NULL, 2);
+		if (!errno)
+			return 1;
+	} else {
+		*u64 = strtoull(str, NULL, 0);
+		if (!errno)
+			return 1;
+	}
+
+	return 0;
+}
 
 int isstring(const char *data, size_t len)
 {

@@ -6,13 +6,11 @@
 
 #include <assert.h>
 #include <ctype.h>
-#include <errno.h>
 #include <inttypes.h>
 #include <search.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 #include <ply/internal.h>
 #include "grammar.h"
@@ -220,20 +218,15 @@ struct node *node_num(const struct nloc *loc, const char *numstr)
 {
 	uint64_t u64;
 	int64_t s64;
+	int ret;
 
-	errno = 0;
-	if (numstr[0] == '-') {
-		s64 = strtoll(numstr, NULL, 0);
-		if (!errno)
-			return __node_num(loc, 0, &s64, NULL);
-	} else {
-		u64 = strtoull(numstr, NULL, 0);
-		if (!errno)
-			return __node_num(loc, 0, NULL, &u64);
-	}
+	ret = strtonum(numstr, &s64, &u64);
+	assert(ret);
 
-	assert(0);
-	return NULL;
+	if (ret < 0)
+		return __node_num(loc, 0, &s64, NULL);
+
+	return __node_num(loc, 0, NULL, &u64);
 }
 
 void node_insert(struct node *prev, struct node *n)
