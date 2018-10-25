@@ -7,7 +7,11 @@ libply_la_LDFLAGS     = $(AM_LDFLAGS) -version-info 0:0:0
 AM_YFLAGS = -d -Wall
 AM_LFLAGS = --header-file=lexer.h
 
-EXTRA_DIST = grammar.c grammar.h lexer.c lexer.h
+EXTRA_DIST = grammar.c grammar.h lexer.c lexer.h \
+	arch/aarch64.c \
+	arch/arm.c     \
+	arch/powerpc.c \
+	arch/x86_64.c
 
 libply_la_SOURCES     = 	\
 	arch/@host_cpu@.c	\
