@@ -13,6 +13,8 @@ EXTRA_DIST = grammar.c grammar.h lexer.c lexer.h \
 	arch/powerpc.c \
 	arch/x86_64.c
 
+BUILT_SOURCES = grammar.h lexer.h
+
 libply_la_SOURCES     = 	\
 	arch/@host_cpu@.c	\
 	\
