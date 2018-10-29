@@ -239,7 +239,7 @@ static int printf_rewrite(const struct func *func, struct node *n,
 	node_replace(n, bwrite);
 
 	pevh->n = ev->expr.args->next;
-	return 0;
+	return 1;
 }
 
 static int printf_type_infer(const struct func *func, struct node *n)
@@ -329,7 +329,7 @@ static int print_rewrite(const struct func *func, struct node *n,
 
 	node_replace(n, bwrite);
 	evh->priv = ev->expr.args->next;
-	return 0;
+	return 1;
 }
 
 static int print_type_infer(const struct func *func, struct node *n)

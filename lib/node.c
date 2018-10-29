@@ -83,25 +83,37 @@ int node_walk(struct node *n,
 	      int (*post)(struct node *, void *),
 	      void *ctx)
 {
-	int err = 0;
+	int sum = 0, ret = 0;
 	
-	if (pre && (err = pre(n, ctx)))
-		return err;
+	if (pre) {
+		ret = pre(n, ctx);
+		if (ret < 0)
+			return ret;
+
+		sum += ret;
+	}
 
 	if (n->ntype == N_EXPR) {
 		struct node *arg;
 
 		node_expr_foreach(n, arg) {
-			err = node_walk(arg, pre, post, ctx);
-			if (err)
-				return err;
+			ret = node_walk(arg, pre, post, ctx);
+			if (ret < 0)
+				return ret;
+
+			sum += ret;
 		}
 	}
 
-	if (post && (err = post(n, ctx)))
-		return err;
+	if (post) {
+		ret = post(n, ctx);
+		if (ret < 0)
+			return ret;
 
-	return 0;
+		sum += ret;
+	}
+
+	return sum;
 }
 
 int node_replace(struct node *n, struct node *new)

@@ -162,7 +162,7 @@ static int exit_rewrite(const struct func *func, struct node *n,
 			   NULL);
 
 	node_replace(n, bwrite);
-	return 0;
+	return 1;
 }
 
 static int exit_type_infer(const struct func *func, struct node *n)

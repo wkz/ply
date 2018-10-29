@@ -80,7 +80,7 @@ static int kprobe_caller_rewrite(const struct func *func, struct node *n,
 			NULL);
 
 	node_replace(n, new);
-	return 0;
+	return 1;
 }
 
 static const struct func kprobe_caller_func = {
@@ -128,7 +128,7 @@ static int kprobe_arg_rewrite(const struct func *func, struct node *n,
 			NULL);
 
 	node_replace(n, new);
-	return 0;
+	return 1;
 }
 
 static const struct func kprobe_arg_func = {

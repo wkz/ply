@@ -14,12 +14,6 @@
 #include <ply/ply.h>
 #include <ply/internal.h>
 
-struct pass {
-	int (*run)(struct pass *, struct ply *);
-	nwalk_fn pre;
-	nwalk_fn post;
-};
-
 static int pass_sym_alloc(struct node *n, void *_pb)
 {
 	struct ply_probe *pb = _pb;
@@ -138,13 +132,13 @@ static int pass_ir_post(struct node *n, void *_pb)
 	return err;
 }
 
-static int run_walk(struct pass *pass, struct ply *ply)
+static int run_walk(struct ply *ply, nwalk_fn pre, nwalk_fn post)
 {
 	struct ply_probe *pb;
 	int err;
 
 	ply_probe_foreach(ply, pb) {
-		err = node_walk(pb->ast, pass->pre, pass->post, pb);
+		err = node_walk(pb->ast, pre, post, pb);
 		if (err)
 			return err;
 	}
@@ -152,7 +146,7 @@ static int run_walk(struct pass *pass, struct ply *ply)
 	return 0;
 }
 
-static int run_ir(struct pass *pass, struct ply *ply)
+static int run_ir(struct ply *ply)
 {
 	struct ply_probe *pb;
 	int err;
@@ -178,7 +172,7 @@ static int run_ir(struct pass *pass, struct ply *ply)
 	return 0;
 }
 
-static int run_bpf(struct pass *pass, struct ply *ply)
+static int run_bpf(struct ply *ply)
 {
 	struct ply_probe *pb;
 	int err;
@@ -192,37 +186,32 @@ static int run_bpf(struct pass *pass, struct ply *ply)
 	return 0;
 }
 
-static struct pass passes[] = {
-	{ .run = run_walk, .post = pass_sym_alloc },
-	{ .run = run_walk, .post = pass_type_infer },
-
-	{ .run = run_walk, .post = pass_rewrite },
-
-	{ .run = run_walk, .post = pass_sym_alloc },
-	{ .run = run_walk, .post = pass_type_infer },
-
-	{ .run = run_walk, .post = pass_type_report },
-	{ .run = run_walk, .post = pass_type_validate },
-
-	{ .run = run_ir },
-	/* program flattened to vBPF instructions, now rewrite it to
-	 * fit into the actual hw/vm. */
-	{ .run = run_bpf },
-
-	/* BPF program ready */
-	{ NULL }
-};
-
 int ply_compile(struct ply *ply)
 {
 	struct pass *pass;
-	int err = 0;
+	int err = 0, rewrites;
 
-	for (pass = passes; pass->run; pass++) {
-		err = pass->run(pass, ply);
-		if (err)
+	for (rewrites = 0; rewrites < 10; rewrites++) {
+		err =         run_walk(ply, NULL, pass_sym_alloc);
+		err = err ? : run_walk(ply, NULL, pass_type_infer);
+		err = err ? : run_walk(ply, NULL, pass_rewrite);
+		if (err < 0)
+			return err;
+
+		if (!err)
 			break;
 	}
+
+	assert(!err);
+
+	err = err ? : run_walk(ply, NULL, pass_sym_alloc);
+	err = err ? : run_walk(ply, NULL, pass_type_infer);
+
+	err = err ? : run_walk(ply, NULL, pass_type_report);
+	err = err ? : run_walk(ply, NULL, pass_type_validate);
+
+	err = err ? : run_ir(ply);
+	err = err ? : run_bpf(ply);
 
 	return err;
 }

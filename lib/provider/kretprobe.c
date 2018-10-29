@@ -39,7 +39,7 @@ static int kretprobe_retval_rewrite(const struct func *func, struct node *n,
 			NULL);
 
 	node_replace(n, new);
-	return 0;
+	return 1;
 }
 
 static const struct func kretprobe_retval_func = {

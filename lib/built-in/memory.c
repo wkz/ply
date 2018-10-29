@@ -240,7 +240,7 @@ static int struct_deref_rewrite(const struct func *func, struct node *n,
 
 	/* TODO: n leaked */
 	node_replace(n, new);
-	return 0;
+	return 1;
 }
 
 static int struct_deref_type_infer(const struct func *func, struct node *n)

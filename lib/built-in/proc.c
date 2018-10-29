@@ -85,6 +85,9 @@ static int stack_rewrite(const struct func *func, struct node *n,
 	struct stack_priv *sp;
 	size_t depth;
 
+	if (n->sym->type->priv)
+		return 0;
+
 	nmap = node_expr_ident(&n->loc, ":stackmap");
 	nmap->sym = sym_alloc(&pb->ply->globals, nmap, &stackmap_func);
 
@@ -100,7 +103,7 @@ static int stack_rewrite(const struct func *func, struct node *n,
 	node_expr_append(&n->loc, n, nmap);
 
 	n->sym->type->priv = sp;
-	return 0;
+	return 1;
 }
 
 __ply_built_in const struct func kprobe_stack_func = {
