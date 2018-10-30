@@ -37,6 +37,7 @@ libply_la_SOURCES     = 	\
 	provider/kprobe.c	\
 	provider/kprobe.h	\
 	provider/kretprobe.c	\
+	provider/tracepoint.c	\
 	provider/xprobe.c	\
 	provider/xprobe.h	\
 	\
