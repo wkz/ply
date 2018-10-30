@@ -20,6 +20,22 @@
 
 /* regs */
 
+static int kprobe_regs_ir_post(const struct func *func, struct node *n,
+			       struct ply_probe *pb)
+{
+	struct node *ctx = n->expr.args;
+
+	n->sym->irs = ctx->sym->irs;
+	return 0;
+}
+
+static int kprobe_regs_rewrite(const struct func *func, struct node *n,
+			       struct ply_probe *pb)
+{
+	node_expr_append(&n->loc, n, node_expr(&n->loc, "ctx", NULL));
+	return 0;
+}
+
 static struct type t_pt_regsp = {
 	.ttype = T_POINTER,
 
@@ -35,9 +51,11 @@ static struct type t_pt_regsp = {
 
 const struct func kprobe_regs_func = {
 	.name = "regs",
-
 	.type = &t_pt_regsp,
 	.static_ret = 1,
+
+	.rewrite = kprobe_regs_rewrite,
+	.ir_post = kprobe_regs_ir_post,
 };
 
 /* caller */
@@ -143,27 +161,6 @@ static const struct func kprobe_arg_func = {
 };
 
 
-/*  */
-
-int kprobe_ir_pre(struct ply_probe *pb)
-{
-	struct sym **sym;
-
-	symtab_foreach(&pb->locals, sym) {
-		if ((*sym)->name && (*sym)->func == &kprobe_regs_func) {
-			ir_init_sym(pb->ir, *sym);
-			
-			/* Kernel sets r1 to the address of the
-			 * pt_regs struct, which ply denotes as
-			 * 'regs'. If we're using it we need to get a
-			 * reference to it before it is clobbered. */
-			ir_emit_reg_to_sym(pb->ir, *sym, BPF_REG_1);
-		}
-	}
-
-	return 0;
-}
-
 static int kprobe_sym_alloc(struct ply_probe *pb, struct node *n)
 {
 	const struct func *func = NULL;
@@ -220,7 +217,6 @@ __ply_provider struct provider kprobe = {
 	.name = "kprobe",
 	.prog_type = BPF_PROG_TYPE_KPROBE,
 
-	.ir_pre    = kprobe_ir_pre,
 	.sym_alloc = kprobe_sym_alloc,
 	.probe     = kprobe_probe,
 

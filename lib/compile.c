@@ -148,6 +148,7 @@ static int run_walk(struct ply *ply, nwalk_fn pre, nwalk_fn post)
 
 static int run_ir(struct ply *ply)
 {
+	struct provider *built_in = provider_get("!built-in");
 	struct ply_probe *pb;
 	int err;
 
@@ -157,7 +158,17 @@ static int run_ir(struct ply *ply)
 		if (err)
 			return err;
 
+		err = built_in->ir_pre ?
+			built_in->ir_pre(pb) : 0;
+		if (err)
+			return err;
+
 		err = node_walk(pb->ast, pass_ir_pre, pass_ir_post, pb);
+		if (err)
+			return err;
+
+		err = built_in->ir_post ?
+			built_in->ir_post(pb) : 0;
 		if (err)
 			return err;
 

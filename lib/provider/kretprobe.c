@@ -108,7 +108,6 @@ __ply_provider struct provider kretprobe = {
 	.name = "kretprobe",
 	.prog_type = BPF_PROG_TYPE_KPROBE,
 
-	.ir_pre    = kprobe_ir_pre,
 	.sym_alloc = kretprobe_sym_alloc,
 	.probe     = kretprobe_probe,
 

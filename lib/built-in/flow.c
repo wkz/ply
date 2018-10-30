@@ -156,7 +156,7 @@ static int exit_rewrite(const struct func *func, struct node *n,
 		       NULL);
 
 	bwrite = node_expr(&n->loc, "bwrite",
-			   node_expr(&n->loc, "regs", NULL),
+			   node_expr(&n->loc, "ctx", NULL),
 			   node_expr(&n->loc, "stdbuf", NULL),
 			   ev,
 			   NULL);

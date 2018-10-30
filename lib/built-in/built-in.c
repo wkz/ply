@@ -17,6 +17,25 @@
 
 #include "built-in.h"
 
+static struct type t_ctx = {
+	.ttype = T_POINTER,
+
+	.ptr = {
+		.type = &t_void,
+
+		/* 'ctx' is a pointer, but the kernel verifier will
+		 * mark 32-bit accesses as invalid even on 32-bit
+		 * ISAs, so we always treat it as a 64-bit pointer */
+		 .bpf = 1,
+	},
+};
+
+__ply_built_in const struct func ctx_func = {
+	.name = "ctx",
+	.type = &t_ctx,
+	.static_ret = 1,
+};
+
 
 static struct type *num_type(struct node *n)
 {
@@ -175,7 +194,12 @@ static int built_in_sym_alloc(struct ply_probe *pb, struct node *n)
 	if (err)
 		return err;
 
-	n->sym = sym_alloc(&pb->ply->globals, n, func);
+	if (func == &ctx_func) {
+		n->expr.ident = 1;
+		n->sym = sym_alloc(&pb->locals, n, func);
+	} else {
+		n->sym = sym_alloc(&pb->ply->globals, n, func);
+	}
 
 	/* infer statically known types early */
 	if (n->ntype == N_NUM)
@@ -192,9 +216,32 @@ static int built_in_probe(struct ply_probe *pb)
 	return 0;
 }
 
+int built_in_ir_pre(struct ply_probe *pb)
+{
+	struct sym **sym;
+
+	symtab_foreach(&pb->locals, sym) {
+		if ((*sym)->name && (*sym)->func == &ctx_func) {
+			ir_init_sym(pb->ir, *sym);
+
+			/* Kernel sets r1 to the address of the probe
+			 * context (i.e. a struct pt_regs for
+			 * {k,u}probes etc.). If we're using it we
+			 * need to get a reference to it before it is
+			 * clobbered. */
+			ir_emit_reg_to_sym(pb->ir, *sym, BPF_REG_1);
+		}
+	}
+
+	return 0;
+}
+
 __ply_provider struct provider built_in = {
 	.name = "!built-in",
 
 	.sym_alloc = built_in_sym_alloc,
 	.probe = built_in_probe,
+
+	.ir_pre = built_in_ir_pre,
+
 };

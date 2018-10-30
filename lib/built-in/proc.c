@@ -62,14 +62,14 @@ __ply_built_in const struct func stackmap_func = {
 static int stack_ir_post(const struct func *func, struct node *n,
 			 struct ply_probe *pb)
 {
-	struct node *regs, *map;
+	struct node *ctx, *map;
 
-	regs = n->expr.args;
-	map  = regs->next;
+	ctx = n->expr.args;
+	map  = ctx->next;
 
 	ir_init_sym(pb->ir, n->sym);
 
-	ir_emit_sym_to_reg(pb->ir, BPF_REG_1, regs->sym);
+	ir_emit_sym_to_reg(pb->ir, BPF_REG_1, ctx->sym);
 	ir_emit_ldmap(pb->ir, BPF_REG_2, map->sym);
 	ir_emit_insn(pb->ir, MOV_IMM(0), BPF_REG_3, 0);
 	ir_emit_insn(pb->ir, CALL(BPF_FUNC_get_stackid), 0, 0);
@@ -99,7 +99,7 @@ static int stack_rewrite(const struct func *func, struct node *n,
 	sp->ks = pb->ply->ksyms;
 	sp->sym = nmap->sym;
 
-	node_expr_append(&n->loc, n, node_expr_ident(&n->loc, "regs"));
+	node_expr_append(&n->loc, n, node_expr_ident(&n->loc, "ctx"));
 	node_expr_append(&n->loc, n, nmap);
 
 	n->sym->type->priv = sp;
