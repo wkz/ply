@@ -203,7 +203,7 @@ struct node *node_string(const struct nloc *loc, char *data)
 		data = unquoted;
 	}
 
-	len = ((strlen(data) ? : 1) + 7) & ~7;
+	len = (strlen(data) + 8) & ~7;
 	n->string.data = xcalloc(1, len);
 	__string_escape(n->string.data, data);
 	free(data);
