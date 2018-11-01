@@ -14,6 +14,8 @@
 
 
 struct if_priv {
+	unsigned rewritten;
+
 	int16_t miss_label;
 	int16_t end_label;
 };
@@ -88,19 +90,28 @@ static int if_ir_post(const struct func *func, struct node *n,
 static int if_rewrite(const struct func *func, struct node *n,
 			     struct ply_probe *pb)
 {
+	struct if_priv *ifp = n->sym->priv;
 	struct node *expr, *stmt;
+
+	if (ifp->rewritten)
+		return 0;
 
 	expr = n->expr.args;
 	stmt = expr->next;
 
 	node_insert(expr, node_expr(&n->loc, ":iftest", NULL));	
 	node_insert(stmt, node_expr(&n->loc, ":ifjump", NULL));
+	ifp->rewritten = 1;
 	return 0;
 }
 
 static int if_type_infer(const struct func *func, struct node *n)
 {
 	struct node *expr = n->expr.args;
+
+	/* TODO: leaked */
+	if (!n->sym->priv)
+		n->sym->priv = xcalloc(1, sizeof(struct if_priv));
 
 	if (!expr->sym->type)
 		return 0;
@@ -110,9 +121,6 @@ static int if_type_infer(const struct func *func, struct node *n)
 		    "but '%N' is of type '%T'\n", n, expr, expr->sym->type);
 		return -EINVAL;
 	}
-
-	/* TODO: leaked */
-	n->sym->priv = xcalloc(1, sizeof(struct if_priv));
 
 	n->sym->type = &t_void;
 	return 0;
