@@ -197,7 +197,7 @@ struct node *node_string(const struct nloc *loc, char *data)
 
 		len = strlen(data) - 2;
 
-		unquoted = xcalloc(1, len);
+		unquoted = xcalloc(1, len + 1);
 		strncpy(unquoted, data + 1, len);
 		free(data);
 		data = unquoted;
