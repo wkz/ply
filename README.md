@@ -5,12 +5,12 @@ Documentation and language reference is available at
 [wkz.github.io/ply][3].
 
 A light-weight dynamic tracer for Linux that leverages the kernel's
-BPF VM in concert with kprobes to attach probes to arbitrary points in
-the kernel. Most tracers that generate BPF bytecode are based on the
-LLVM based BCC toolchain. ply on the other hand has no required
-external dependencies except for `libc`. In addition to `x86_64`, ply
-also runs on `aarch64`, `arm`, and `powerpc`. Adding support for more
-ISAs is easy.
+BPF VM in concert with kprobes and tracepoints to attach probes to
+arbitrary points in the kernel. Most tracers that generate BPF
+bytecode are based on the LLVM based BCC toolchain. ply on the other
+hand has no required external dependencies except for `libc`. In
+addition to `x86_64`, ply also runs on `aarch64`, `arm`, and
+`powerpc`. Adding support for more ISAs is easy.
 
 `ply` follows the [Little Language][1] approach of yore, compiling ply
 scripts into Linux [BPF][2] programs that are attached to kprobes and
@@ -70,6 +70,15 @@ ply 'kprobe:SyS_* { @[comm, pid] = count(); }'
 ply 'kprobe:schedule { @[stack] = count(); }'
 ```
 
+### Tracepoints
+
+**Monitor all incoming TCP resets:**
+```
+ply 'tracepoint:tcp/tcp_receive_reset {
+	printf("saddr:%v port:%v->%v\n",
+		data->saddr, data->sport, data->dport);
+}'
+```
 
 Build and Installation
 ----------------------
