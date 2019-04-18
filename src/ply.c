@@ -31,6 +31,7 @@ static void usage()
 	      "  -d             Enable debug output.\n"
 	      "  -e             Exit after compiling.\n"
 	      "  -h             Print usage message and exit.\n"
+	      "  -k             Keep going in face of trace buffer overruns.\n"
 	      "  -S             Show generated BPF.\n"
 	      "  -v             Print version information.\n",
 	      stderr);
@@ -114,14 +115,15 @@ static void version()
 	       (LINUX_VERSION_CODE >>  0) & 0xff);
 }
 
-static const char *sopts = "c:dehSv";
+static const char *sopts = "c:dehkSv";
 static struct option lopts[] = {
-	{ "command", required_argument, 0, 'c' },
-	{ "debug",   no_argument,       0, 'd' },
-	{ "dry-run", no_argument,       0, 'e' },
-	{ "help",    no_argument,       0, 'h' },
-	{ "dump",    no_argument,       0, 'S' },
-	{ "version", no_argument,       0, 'v' },
+	{ "command",    required_argument, 0, 'c' },
+	{ "debug",      no_argument,       0, 'd' },
+	{ "dry-run",    no_argument,       0, 'e' },
+	{ "help",       no_argument,       0, 'h' },
+	{ "keep-going", no_argument,       0, 'k' },
+	{ "dump",       no_argument,       0, 'S' },
+	{ "version",    no_argument,       0, 'v' },
 
 	{ NULL }
 };
@@ -130,7 +132,7 @@ FILE *get_src(int argc, char **argv)
 {
 	if (!argc)
 		return NULL;
-	
+
 	/* if the argument names an existing file that we have access
 	 * to, use it as the source. */
 	if (!access(argv[0], R_OK))
@@ -213,6 +215,9 @@ int main(int argc, char **argv)
 			break;
 		case 'h':
 			usage(); exit(0);
+			break;
+		case 'k':
+			ply_config.strict = 0;
 			break;
 		case 'S':
 			f_dump = 1;

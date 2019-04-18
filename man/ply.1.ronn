@@ -33,6 +33,10 @@ using kprobes and tracepoints.
   * `-h`, `--help`:
     Print usage message.
 
+  * `-k`, `--keep-going`:
+    Instead of printing a warning and exiting whenever any trace data
+    is lost, only print the warning and keep going.
+
   * `-S`, `--dump`:
     After compilation, dump the internal AST, generated BPF
     instructions and other internal information. This is very useful
