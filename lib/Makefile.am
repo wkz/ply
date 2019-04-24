@@ -18,11 +18,11 @@ BUILT_SOURCES = grammar.h lexer.h
 libply_la_SOURCES     = 	\
 	arch/@host_cpu@.c	\
 	\
-	aux/kallsyms.c		\
-	aux/perf_event.c	\
-	aux/printxf.c		\
-	aux/syscall.c		\
-	aux/utils.c		\
+	util/kallsyms.c		\
+	util/perf_event.c	\
+	util/printxf.c		\
+	util/syscall.c		\
+	util/utils.c		\
 	\
 	built-in/aggregation.c	\
 	built-in/built-in.c	\
