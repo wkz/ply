@@ -18,6 +18,9 @@ AC_PROG_LEX
 AC_PROG_YACC
 AM_PROG_LIBTOOL
 
+AC_CHECK_PROG(HAVE_RONN,ronn,yes)
+AM_CONDITIONAL(HAVE_RONN, test "$HAVE_RONN" = "yes")
+
 AC_HEADER_STDC
 AC_CHECK_HEADERS(linux/bpf.h linux/perf_event.h linux/version.h)
 
