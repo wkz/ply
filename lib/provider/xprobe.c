@@ -16,6 +16,13 @@
 
 #include "xprobe.h"
 
+#ifdef FNM_EXTMATCH
+/* Support extended matching if we're on glibc. */
+#  define PLY_FNM_FLAGS FNM_EXTMATCH
+#else
+#  define PLY_FNM_FLAGS 0
+#endif
+
 static int xprobe_stem(struct ply_probe *pb, char type, char *stem, size_t size)
 {
 	return snprintf(stem, size, "%c:%s/p%"PRIxPTR"_",
@@ -124,7 +131,7 @@ static int xprobe_create_pattern(struct ply_probe *pb)
 	int err, pending = 0;
 
 	ksyms_foreach(sym, pb->ply->ksyms) {
-		if (fnmatch(xp->pattern, sym->sym, FNM_EXTMATCH))
+		if (fnmatch(xp->pattern, sym->sym, PLY_FNM_FLAGS))
 			continue;
 
 		pending += __xprobe_create(xp->ctrl, xp->stem, sym->sym);
