@@ -16,7 +16,6 @@
 #include <sys/wait.h>
 
 #include <ply/ply.h>
-#include "../config.h"
 
 static void usage()
 {

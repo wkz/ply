@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: GPL-2.0
  */
 
-#define _GNU_SOURCE 		/* FNM_EXTMATCH */
 #include <assert.h>
 #include <errno.h>
 #include <glob.h>
