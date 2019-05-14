@@ -11,7 +11,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <bits/wordsize.h>
 #include <linux/bpf.h>
 
 /* TODO: This is not exported in userspace headers for some reason */
@@ -58,16 +57,18 @@
 #define LDX(_width, _off) INSN(BPF_LDX | BPF_SIZE(_width) | BPF_MEM, 0, 0, _off, 0)
 #define LDDW_IMM(_imm) INSN(BPF_LD | BPF_DW | BPF_IMM, 0, 0, 0, _imm)
 
-#if __WORDSIZE == 64
+#if UINTPTR_MAX == 0xffffffffffffffff
 #  define MOV MOV64
 #  define MOV_IMM MOV64_IMM
 #  define ALU ALU64
 #  define ALU_IMM ALU64_IMM
-#else
+#elif UINTPTR_MAX == 0xffffffff
 #  define MOV MOV32
 #  define MOV_IMM MOV32_IMM
 #  define ALU ALU32
 #  define ALU_IMM ALU32_IMM
+#else
+#  error "Only 32- and 64-bit machines are supported."
 #endif
 
 #define BPF_REG_BP BPF_REG_10
