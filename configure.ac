@@ -31,6 +31,9 @@ AM_CONDITIONAL(HAVE_RONN, test "$HAVE_RONN" = "yes")
 AC_HEADER_STDC
 AC_CHECK_HEADERS(linux/bpf.h linux/perf_event.h linux/version.h)
 
+AC_CONFIG_LIBOBJ_DIR(lib)
+AC_REPLACE_FUNCS(qsort_r)
+
 AC_CANONICAL_HOST
 AC_SUBST(host_cpu, $host_cpu)
 

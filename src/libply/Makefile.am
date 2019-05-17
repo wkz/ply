@@ -53,5 +53,7 @@ libply_la_SOURCES     = 	\
 	\
 	libply.c
 
+libply_la_LIBADD = $(LTLIBOBJS)
+
 lexer.h: lexer.c
 grammar.y: lexer.h
