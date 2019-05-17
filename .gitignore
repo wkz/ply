@@ -25,7 +25,3 @@ Makefile.in
 /stamp-h1
 /ylwrap
 
-/lib/grammar.[ch]
-/lib/lexer.[ch]
-
-/src/ply
