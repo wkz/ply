@@ -1,6 +1,6 @@
 lib_LTLIBRARIES       = libply.la
 
-libply_la_CPPFLAGS    = -include $(top_srcdir)/config.h -I $(top_srcdir)/include
+libply_la_CPPFLAGS    = -include $(top_builddir)/config.h -I $(top_srcdir)/include
 libply_la_CFLAGS      = -Wall -Wextra -Wno-unused -Wno-unused-result -Wno-strict-aliasing
 libply_la_LDFLAGS     = $(AM_LDFLAGS) -version-info 0:0:0
 
@@ -56,4 +56,3 @@ libply_la_SOURCES     = 	\
 libply_la_LIBADD = $(LTLIBOBJS)
 
 lexer.h: lexer.c
-grammar.y: lexer.h
