@@ -13,25 +13,19 @@ qemu = unshare -r qemu-system-$(call qarch,$(1)) $(2) -nographic -no-reboot \
 
 check: aarch64-check arm-check powerpc-check x86_64-check
 
-aarch64-check: aarch64-$(sysroot)/sbin/ply aarch64-$(sysroot)/bin/test.sh
-	rm -f aarch64-$(sysroot)/result && \
-	$(call qemu,aarch64,-M virt -cpu cortex-a53,console=ttyAMA0) && \
-	exit $$(cat aarch64-$(sysroot)/result || echo 1)
+define arch-check
+ $(1)-check: $(1)-$(sysroot)/sbin/ply $(1)-$(sysroot)/bin/test.sh
+	rm -f $(1)-$(sysroot)/result && \
+	$(call qemu,$(1),$(2),$(3)) && \
+	exit $$(cat $(1)-$(sysroot)/result || echo 1)
 
-arm-check: arm-$(sysroot)/sbin/ply arm-$(sysroot)/bin/test.sh
-	rm -f arm-$(sysroot)/result && \
-	$(call qemu,arm,-M virt -cpu cortex-a15,console=ttyAMA0) && \
-	exit $$(cat arm-$(sysroot)/result || echo 1)
+endef
 
-powerpc-check: powerpc-$(sysroot)/sbin/ply powerpc-$(sysroot)/bin/test.sh
-	rm -f powerpc-$(sysroot)/result && \
-	$(call qemu,powerpc,-M ppce500 -cpu e5500,console=ttyS0) && \
-	exit $$(cat powerpc-$(sysroot)/result || echo 1)
+$(eval $(call arch-check,aarch64,-M virt -cpu cortex-a53,console=ttyAMA0))
+$(eval $(call arch-check,arm,-M virt -cpu cortex-a15,console=ttyAMA0))
+$(eval $(call arch-check,powerpc,-M ppce500 -cpu e5500,console=ttyS0))
+$(eval $(call arch-check,x86_64,,console=ttyS0))
 
-x86_64-check: x86_64-$(sysroot)/sbin/ply x86_64-$(sysroot)/bin/test.sh
-	rm -f x86_64-$(sysroot)/result && \
-	$(call qemu,x86_64,,console=ttyS0) && \
-	exit $$(cat x86_64-$(sysroot)/result || echo 1)
 
 %-$(sysroot)/bin/test.sh: test.sh %-$(sysroot)/usr/include/linux/version.h
 	cp $< $@
