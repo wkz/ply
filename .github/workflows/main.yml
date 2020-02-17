@@ -13,6 +13,6 @@ jobs:
     steps:  
     - uses: actions/checkout@v2
     - name: Install dependencies
-      run: sudo apt install build-essential flex bison libelf-dev libssl-dev
+      run: sudo apt install build-essential flex bison libelf-dev libssl-dev qemu-system-common qemu-system-arm qemu-system-ppc
     - name: Build & Test
       run: make -C test ${{ matrix.arch }}-check-install-tc
