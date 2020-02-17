@@ -3,7 +3,12 @@ sysroot     := sysroot-$(sysroot-ver)
 sysroot-tar := $(sysroot).tar.xz
 sysroot-url := https://github.com/wkz/sysroot/releases/download/v$(sysroot-ver)
 
-tc = $(1)-unknown-linux-gnu$(if $(filter $(1),arm),eabi,)
+tc-ver := 9.2.0-1
+tc      = $(1)-unknown-linux-gnu$(if $(filter $(1),arm),eabi,)
+tc-dir  = $(call tc,$(1))-$(tc-ver)
+tc-tar  = $(call tc-dir,$(1)).tar.xz
+tc-url  = https://github.com/myrootfs/crosstool-ng/releases/download/troglobit/$(tc-ver)/$(call tc-tar,$(1))
+
 qarch = $(if $(filter $1,powerpc),ppc64,$1)
 qemu = unshare -r qemu-system-$(call qarch,$(1)) $(2) -nographic -no-reboot \
 	-kernel $(1)-$(sysroot)/boot/vmlinuz-$(sysroot-ver) \
@@ -19,6 +24,12 @@ define arch-check
 	$(call qemu,$(1),$(2),$(3)) && \
 	exit $$(cat $(1)-$(sysroot)/result || echo 1)
 
+ $(1)-check-install-tc: $$(call tc-dir,$(1))/bin/$$(call tc,$(1))-gcc
+	+PATH=$$(realpath $$(dir $$<)):$$(PATH) $$(MAKE) $(1)-check
+ $$(call tc-dir,$(1))/bin/$$(call tc,$(1))-gcc: $$(call tc-tar,$(1))
+	tar maxf $$<
+ $$(call tc-tar,$(1)):
+	wget -q $$(call tc-url,$(1))
 endef
 
 $(eval $(call arch-check,aarch64,-M virt -cpu cortex-a53,console=ttyAMA0))
