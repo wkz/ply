@@ -1,0 +1,18 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  check:
+    name: ${{ matrix.arch }}-check
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [aarch64, arm, powerpc, x86_64]
+
+    steps:  
+    - uses: actions/checkout@v2
+    - name: Install dependencies
+      run: sudo apt install build-essential flex bison libelf-dev libssl-dev
+    - name: Build & Test
+      run: make -C test ${{ matrix.arch }}-check-install-tc
