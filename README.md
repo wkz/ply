@@ -1,3 +1,5 @@
+![CI](https://github.com/wkz/ply/workflows/CI/badge.svg)
+
 ply
 ===
 
