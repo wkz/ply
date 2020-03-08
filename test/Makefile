@@ -14,14 +14,17 @@ qemu = unshare -r qemu-system-$(call qarch,$(1)) $(2) -nographic -no-reboot \
 	-kernel $(1)-$(sysroot)/boot/vmlinuz-$(sysroot-ver) \
 	-device virtio-9p-pci,fsdev=root,mount_tag=/dev/root \
 	-fsdev local,id=root,path=$(CURDIR)/$(1)-$(sysroot),security_model=none \
-	-append "rw root=/dev/root rootfstype=9p rootflags=trans=virtio panic=-1 quiet init=/init script=test.sh $(3)"
+	-append "rw root=/dev/root rootfstype=9p rootflags=trans=virtio panic=-1 quiet $(3)"
 
 check: aarch64-check arm-check powerpc-check x86_64-check
 
 define arch-check
+ $(1)-shell: $(1)-$(sysroot)/sbin/ply $(1)-$(sysroot)/bin/test.sh $(1)-$(sysroot)/etc/init.d/rcS
+	$(call qemu,$(1),$(2),$(3))
+
  $(1)-check: $(1)-$(sysroot)/sbin/ply $(1)-$(sysroot)/bin/test.sh
 	rm -f $(1)-$(sysroot)/result && \
-	$(call qemu,$(1),$(2),$(3)) && \
+	$(call qemu,$(1),$(2),$(3) init=/init script=test.sh) && \
 	exit $$$$(cat $(1)-$(sysroot)/result || echo 1)
 
  $(1)-check-install-tc: $$(call tc-dir,$(1))/bin/$$(call tc,$(1))-gcc
@@ -37,6 +40,9 @@ $(eval $(call arch-check,arm,-M virt -cpu cortex-a15,console=ttyAMA0))
 $(eval $(call arch-check,powerpc,-M ppce500 -cpu e5500,console=ttyS0))
 $(eval $(call arch-check,x86_64,,console=ttyS0))
 
+
+%-$(sysroot)/etc/init.d/rcS: rcS
+	mkdir -p $(dir $@) && cp $< $@
 
 %-$(sysroot)/bin/test.sh: test.sh %-$(sysroot)/usr/include/linux/version.h
 	cp $< $@
