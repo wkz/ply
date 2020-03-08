@@ -56,7 +56,7 @@ static int ksym_cmp(const void *_key, const void *_member)
 
 	if (key->addr < member->addr)
 		return -1;
-	else if (key->addr > (member + 1)->addr)
+	else if (key->addr >= (member + 1)->addr)
 		return 1;
 
 	return 0;
