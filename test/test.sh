@@ -24,5 +24,15 @@ case=if-stmt && ply_simple 'if (pid > 1) exit(0); else exit(1);' && \
 case=print && ply_simple 'print("test"); exit(0);' && \
     [ $stdout = test ] || fail test "$stdout"
 
+case=wildcard
+ply -c \
+    "dd if=/dev/zero of=/dev/null bs=1 count=100" \
+    "kprobe:vfs_* { @[comm, caller] = count(); }" >/tmp/wildcard \
+&& \
+cat /tmp/wildcard | awk '
+    /dd.*vfs_read/  { if ($NF > 100) read  = 1; }
+    /dd.*vfs_write/ { if ($NF > 100) write = 1; }
+    END             { exit(!(read && write)); }' \
+|| fail "at least 100 reads/writes" "$(cat /tmp/wildcard)"
 
 exit $total_fails
