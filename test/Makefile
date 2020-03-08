@@ -1,4 +1,4 @@
-sysroot-ver := 5.5.1
+sysroot-ver := 5.5.8
 sysroot     := sysroot-$(sysroot-ver)
 sysroot-tar := $(sysroot).tar.xz
 sysroot-url := https://github.com/wkz/sysroot/releases/download/v$(sysroot-ver)
