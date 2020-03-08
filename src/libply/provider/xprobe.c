@@ -128,9 +128,23 @@ static int xprobe_create_pattern(struct ply_probe *pb)
 {
 	struct xprobe *xp = pb->provider_data;
 	struct ksym *sym;
-	int err, pending = 0;
+	int err, init = 0, pending = 0;
 
 	ksyms_foreach(sym, pb->ply->ksyms) {
+		if (!strcmp(sym->sym, "_sinittext"))
+			init++;
+		if (!strcmp(sym->sym, "_einittext"))
+			init--;
+
+		/* Ignore all functions in the init segment. They are
+		 * not tracable. */
+		if (init)
+			continue;
+
+		/* Ignore GCC-internal symbols. */
+		if (strchr(sym->sym, '.'))
+			continue;
+
 		if (fnmatch(xp->pattern, sym->sym, PLY_FNM_FLAGS))
 			continue;
 
