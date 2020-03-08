@@ -22,7 +22,7 @@ define arch-check
  $(1)-check: $(1)-$(sysroot)/sbin/ply $(1)-$(sysroot)/bin/test.sh
 	rm -f $(1)-$(sysroot)/result && \
 	$(call qemu,$(1),$(2),$(3)) && \
-	exit $$(cat $(1)-$(sysroot)/result || echo 1)
+	exit $$$$(cat $(1)-$(sysroot)/result || echo 1)
 
  $(1)-check-install-tc: $$(call tc-dir,$(1))/bin/$$(call tc,$(1))-gcc
 	+PATH=$$(realpath $$(dir $$<)):$$(PATH) $$(MAKE) $(1)-check
