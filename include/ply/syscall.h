@@ -13,12 +13,9 @@
 #include <linux/perf_event.h>
 #include <linux/version.h>
 
-#define LOG_BUF_SIZE 0x20000
-
-extern char bpf_log_buf[LOG_BUF_SIZE];
-
 int bpf_prog_load(enum bpf_prog_type type,
-		  const struct bpf_insn *insns, int insn_cnt);
+		  const struct bpf_insn *insns, int insn_cnt,
+		  char *vlog, size_t vlog_sz);
 
 int bpf_map_create(enum bpf_map_type type, int key_sz, int val_sz, int entries);
 

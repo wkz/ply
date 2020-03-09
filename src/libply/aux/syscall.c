@@ -16,15 +16,14 @@
 
 #include <ply/syscall.h>
 
-char bpf_log_buf[LOG_BUF_SIZE];
-
 static __u64 ptr_to_u64(const void *ptr)
 {
         return (__u64) (unsigned long) ptr;
 }
 
 int bpf_prog_load(enum bpf_prog_type type,
-		  const struct bpf_insn *insns, int insn_cnt)
+		  const struct bpf_insn *insns, int insn_cnt,
+		  char *vlog, size_t vlog_sz)
 {
 	union bpf_attr attr;
 
@@ -37,9 +36,9 @@ int bpf_prog_load(enum bpf_prog_type type,
 	attr.insns        = ptr_to_u64(insns);
 	attr.insn_cnt     = insn_cnt;
 	attr.license      = ptr_to_u64("GPL");
-	attr.log_buf      = ptr_to_u64(bpf_log_buf);
-	attr.log_size     = LOG_BUF_SIZE;
-	attr.log_level    = 1;
+	attr.log_buf      = ptr_to_u64(vlog);
+	attr.log_size     = vlog_sz;
+	attr.log_level    = vlog ? 1 : 0;
 
 	return syscall(__NR_bpf, BPF_PROG_LOAD, &attr, sizeof(attr));
 }

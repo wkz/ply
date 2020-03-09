@@ -51,6 +51,7 @@ struct ply_config {
 	unsigned sort:1;    /* sort maps before output, requires more memory. */
 	unsigned ksyms:1;   /* create ksyms cache. */
 	unsigned strict:1;  /* abort on error. */
+	unsigned verify:1;  /* capture verifier output, uses 16M of memory. */
 };
 
 extern struct ply_config ply_config;

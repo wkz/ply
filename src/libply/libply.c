@@ -265,30 +265,62 @@ static int ply_load_map(struct ply *ply)
 static int ply_load_bpf(struct ply *ply)
 {
 	struct ply_probe *pb;
-	int err;
+	size_t vlog_sz = 0;
+	char *vlog = NULL;
+	int err = 0;
 
+	if (ply_config.verify) {
+		/* According to libbpf, the recommended buffer size is
+		 * 16MB (!) */
+		vlog = malloc(16 << 20);
+		if (vlog) {
+			vlog_sz = 16 << 20;
+			goto load;
+		}
+
+		_w("not enough memory for the recommended 16M verifier "
+		   "buffer, trying 1M\n");
+
+		vlog = malloc(1 << 20);
+		if (vlog) {
+			vlog_sz = 1 << 20;
+			goto load;
+		}
+
+		_w("not enough memory to enable the kernel verifier output\n");
+	}
+
+load:
 	ply_probe_foreach(ply, pb) {
 		struct bpf_insn *insns;
 		int n_insns;
 
 		err = ir_bpf_extract(pb->ir, &insns, &n_insns);
 		if (err)
-			return err;
+			break;
 
-		pb->bpf_fd = bpf_prog_load(pb->provider->prog_type, insns, n_insns);
+		pb->bpf_fd = bpf_prog_load(pb->provider->prog_type,
+					   insns, n_insns, vlog, vlog_sz);
 		free(insns);
 		if (pb->bpf_fd < 0) {
 			_e("unable to load %s, errno:%d\n", pb->probe, errno);
-			if ((errno == EINVAL) && !bpf_log_buf[0])
+			if ((errno == EINVAL) && vlog && !vlog[0])
 				_w("was ply built against the running kernel?\n");
+			else if (vlog && vlog[0])
+				_e("output from kernel bpf verifier:\n%s\n", vlog);
 			else
-				_e("output from kernel bpf verifier:\n%s\n", bpf_log_buf);
+				_e("no output from kernel bpf verifier, "
+				   "retry with debugging enabled\n");
 
-			return -errno;
+			err = -errno;
+			break;
 		}
 	}
 
-	return 0;
+	if (vlog)
+		free(vlog);
+
+	return err;
 }
 
 static int ply_load_attach(struct ply *ply)
