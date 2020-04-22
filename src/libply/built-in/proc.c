@@ -85,24 +85,29 @@ static int stack_rewrite(const struct func *func, struct node *n,
 	struct stack_priv *sp;
 	size_t depth;
 
-	if (n->sym->type->priv)
+	if (n->expr.args)
 		return 0;
 
 	nmap = node_expr_ident(&n->loc, ":stackmap");
 	nmap->sym = sym_alloc(&pb->ply->globals, nmap, &stackmap_func);
 
-	tarray = type_array_of(&t_u64, ply_config.stack_depth);
-	tmap = type_map_of(&t_u32, tarray, BPF_MAP_TYPE_STACK_TRACE, 0);
-	nmap->sym->type = tmap;
+	if (!nmap->sym->type) {
+		/* This is the first reference of `stack`, we need to
+		 * setup associated the map and allocate space to hold
+		 * a single backtrace to later in stack_fprint(). */
+		tarray = type_array_of(&t_u64, ply_config.stack_depth);
+		tmap = type_map_of(&t_u32, tarray, BPF_MAP_TYPE_STACK_TRACE, 0);
+		nmap->sym->type = tmap;
 
-	sp = xcalloc(1, sizeof(*sp) + type_sizeof(tarray));
-	sp->ks = pb->ply->ksyms;
-	sp->sym = nmap->sym;
+		sp = xcalloc(1, sizeof(*sp) + type_sizeof(tarray));
+		sp->ks = pb->ply->ksyms;
+		sp->sym = nmap->sym;
+		n->sym->type->priv = sp;
+	}
 
 	node_expr_append(&n->loc, n, node_expr_ident(&n->loc, "ctx"));
 	node_expr_append(&n->loc, n, nmap);
 
-	n->sym->type->priv = sp;
 	return 1;
 }
 
