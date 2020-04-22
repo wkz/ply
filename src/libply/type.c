@@ -307,29 +307,28 @@ int type_fprint_struct(struct type *t, FILE *fp, const void *data)
 {
 	struct tfield *f;
 	size_t offs;
-	int ret, total = 0;
+	int anon, ret;
 
-	fputs("{ ", fp);
-	total += 2;
+	anon = !strncmp(t->sou.name, ":anon_", strlen(":anon_"));
+
+	fputs(anon ? "{ " : "{\n\t", fp);
 
 	tfields_foreach(f, t->sou.fields) {
 		offs = type_offsetof(t, f->name);
-		if (offs) {
-			fputs(", ", fp);
-			total += 2;
-		}
+		if (offs)
+			fputs(anon ? ", " : ",\n\t", fp);
+
+		if (!anon)
+			fprintf(fp, "%s = ", f->name);
 
 		ret = type_fprint(f->type, fp, data + offs);
 		if (ret < 0)
 			return ret;
-
-		total += ret;
 	}
 
-	fputs(" }", fp);
-	total += 2;
+	fputs(anon ? " }" : "\n}", fp);
 
-	return total;
+	return 0;
 }
 
 int type_fprint(struct type *t, FILE *fp, const void *data)
