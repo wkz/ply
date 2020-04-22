@@ -1,5 +1,38 @@
 # Changelog
 
+## [2.1.1] - 2020-04-22
+
+### Changed
+
+- Disable the kernel verifier output by default. Newer kernels
+  generates __massive__ amounts of verifier output for certain BPF
+  programs. It expects to be able to store up to 16MB (!) of text. On
+  some systems using `ply`, that is half of the total system
+  RAM. Instead, the verifier output is now enabled by specifying the
+  `-d`/`--debug` option.
+
+### Added
+
+- Allow lossy tracing. By default ply will exit when it detects loss
+  of any trace events. The new `-k`/`--keep-going` option allows the
+  user to disable this safety check.
+- `ply` can now be built against alternative libcs. In particular
+  Glibc and musl are known to work.
+- VPATH builds are now supported.
+- Basic automatic test system. This ensures that basic ply can be
+  built against all supported architectures and that basic probes work
+  as expected.
+
+### Fixed
+
+- When expanding wildcards in probe specifiers, avoid symbols that we
+  know are untraceable.
+- Symbol lookups (typically in stack traces) now always return the
+  correct symbol.
+- Multiple references to `stack` no longer results in a `SIGSEGV`.
+- The type information from `caller`/`retval` is now retained in all
+  cases.
+
 ## [2.1.0] - 2018-11-01
 
 ### Added
