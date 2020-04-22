@@ -86,6 +86,9 @@ static int kprobe_caller_rewrite(const struct func *func, struct node *n,
 	struct node *new;
 	const char *reg;
 
+	if (n->expr.args)
+		return 0;
+
 	n->sym->type->priv = pb->ply->ksyms;
 
 	reg = arch_register_pc();
@@ -96,7 +99,7 @@ static int kprobe_caller_rewrite(const struct func *func, struct node *n,
 			node_string(&n->loc, strdup(reg)),
 			NULL);
 
-	node_replace(n, new);
+	node_expr_append(&n->loc, n, new);
 	return 1;
 }
 
@@ -109,6 +112,7 @@ static const struct func kprobe_caller_func = {
 	.static_ret = 1,
 
 	.rewrite = kprobe_caller_rewrite,
+	.ir_post = func_pass_ir_post,
 };
 
 
