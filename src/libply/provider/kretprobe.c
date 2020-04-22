@@ -27,7 +27,8 @@ static int kretprobe_retval_rewrite(const struct func *func, struct node *n,
 	struct node *new;
 	const char *reg;
 
-	n->sym->type->priv = pb->ply->ksyms;
+	if (n->expr.args)
+		return 0;
 
 	reg = arch_register_return();
 
@@ -37,7 +38,7 @@ static int kretprobe_retval_rewrite(const struct func *func, struct node *n,
 			node_string(&n->loc, strdup(reg)),
 			NULL);
 
-	node_replace(n, new);
+	node_expr_append(&n->loc, n, new);
 	return 1;
 }
 
@@ -50,6 +51,7 @@ static const struct func kretprobe_retval_func = {
 	.static_ret = 1,
 
 	.rewrite = kretprobe_retval_rewrite,
+	.ir_post = func_pass_ir_post,
 };
 
 
