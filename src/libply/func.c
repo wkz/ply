@@ -9,6 +9,20 @@
 #include <ply/ply.h>
 #include <ply/internal.h>
 
+int func_pass_ir_post(const struct func *func, struct node *n,
+		      struct ply_probe *pb)
+{
+	struct node *child;
+
+	child = n->expr.args;
+
+	ir_init_sym(pb->ir, n->sym);
+	ir_emit_sym_to_sym(pb->ir, n->sym, child->sym);
+	return 0;
+
+}
+
+
 static int func_validate_expr(const struct func *func, struct node *n, int strict)
 {
 	struct tfield *f;

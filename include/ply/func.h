@@ -25,6 +25,9 @@ struct func {
 	int (*ir_post)(const struct func *, struct node *, struct ply_probe *);
 };
 
+int func_pass_ir_post(const struct func *func, struct node *n,
+		      struct ply_probe *pb);
+
 int func_static_validate(const struct func *func, struct node *n);
 struct type *func_return_type(const struct func *func);
 
