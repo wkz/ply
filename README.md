@@ -38,49 +38,37 @@ userspace recipient to give you the full six degrees of freedom.
 Examples
 --------
 
-### Syscall Tracing
+Here are some one-liner examples to show the kinds of questions that
+`ply` can help answer.
 
-**`read()` return size, summarized as a power-of-2 histogram:**
+**What is the distribution of the returned sizes from `read(2)`s to the VFS?**
 ```
-ply 'kretprobe:SyS_read { @["size"] = quantize(retval); }'
-```
-
-**`read()` request size, as a power-of-2 histogram, for reads > 1 kB, grouped by pid:**
-```
-ply 'kprobe:SyS_read / arg2 > 1024 / { @[pid] = quantize(arg2); }'
+ply 'kretprobe:vfs_read { @["size"] = quantize(retval); }'
 ```
 
-**`open()` Print process name, pid and the file that was opened:**
+**Which processes are receiving errors when reading from the VFS?**
 ```
-ply 'kprobe:do_sys_open { printf("%v(%v): %s\n", comm, pid, str(arg1)); }'
-```
-
-**Count all system calls by syscall type:**
-```
-ply 'kprobe:SyS_* { @[caller] = count(); }'
+ply 'kretprobe:vfs_read if (retval < 0) { @[pid, comm, retval] = count(); }'
 ```
 
-**Count all system calls by process name and pid:**
+**Which files are being opened, by who?**
 ```
-ply 'kprobe:SyS_* { @[comm, pid] = count(); }'
-```
-
-### Stack Traces
-
-**Frequency count all different paths to `schedule`:**
-```
-ply 'kprobe:schedule { @[stack] = count(); }'
+ply 'kprobe:do_sys_open { printf("%v(%v): %s\n", comm, uid, str(arg1)); }'
 ```
 
-### Tracepoints
+**When sending packets, where are we coming from?**
+```
+ply 'kprobe:dev_queue_xmit { @[stack] = count(); }'
+```
 
-**Monitor all incoming TCP resets:**
+**From which hosts and ports are we receiving TCP resets?**
 ```
 ply 'tracepoint:tcp/tcp_receive_reset {
 	printf("saddr:%v port:%v->%v\n",
 		data->saddr, data->sport, data->dport);
 }'
 ```
+
 
 Build and Installation
 ----------------------
