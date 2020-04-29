@@ -19,7 +19,8 @@ qemu = unshare -r qemu-system-$(call qarch,$(1)) $(2) -nographic -no-reboot \
 check: aarch64-check arm-check powerpc-check x86_64-check
 
 define arch-check
- $(1)-shell: $(1)-$(sysroot)/sbin/ply $(1)-$(sysroot)/bin/test.sh $(1)-$(sysroot)/etc/init.d/rcS
+ $(1)-shell: $(1)-$(sysroot)/sbin/ply $(1)-$(sysroot)/bin/test.sh \
+		$(1)-$(sysroot)/etc/inittab $(1)-$(sysroot)/etc/init.d/rcS
 	$(call qemu,$(1),$(2),$(3))
 
  $(1)-check: $(1)-$(sysroot)/sbin/ply $(1)-$(sysroot)/bin/test.sh
@@ -40,6 +41,9 @@ $(eval $(call arch-check,arm,-M virt -cpu cortex-a15,console=ttyAMA0))
 $(eval $(call arch-check,powerpc,-M ppce500 -cpu e5500,console=ttyS0))
 $(eval $(call arch-check,x86_64,,console=ttyS0))
 
+
+%-$(sysroot)/etc/inittab: inittab
+	mkdir -p $(dir $@) && cp $< $@
 
 %-$(sysroot)/etc/init.d/rcS: rcS
 	mkdir -p $(dir $@) && cp $< $@
