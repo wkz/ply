@@ -137,6 +137,40 @@ static const struct func string_func = {
 };
 
 
+static int env_rewrite(const struct func *func, struct node *n,
+		       struct ply_probe *pb)
+{
+	struct node *new;
+	const char *val;
+	int64_t num;
+	char *end;
+
+	val = getenv(n->expr.func + 1);
+	if (!val || !val[0])
+		goto string;
+
+	errno = 0;
+	num = strtoll(val, &end, 0);
+	if (!errno && !*end) {
+		new = node_num(&n->loc, strdup(val));
+	} else {
+	string:
+		new = node_string(&n->loc, strdup(val ? : ""));
+	}
+
+	node_replace(n, new);
+	return 1;
+}
+
+static const struct func env_func = {
+	.name = ":env",
+	.type = &t_void,
+	.static_ret = 1,
+
+	.rewrite = env_rewrite,
+};
+
+
 static const struct func ident_func = {
 	.name = ":ident",
 };
@@ -174,8 +208,14 @@ static int built_in_sym_alloc(struct ply_probe *pb, struct node *n)
 			break;
 
 		if (!n->expr.args) {
-			n->expr.ident = 1;
-			func = &ident_func;
+			switch (n->expr.func[0]) {
+			case '$':
+				func = &env_func;
+				break;
+			default:
+				n->expr.ident = 1;
+				func = &ident_func;
+			}
 		}
 		break;
 	case N_NUM:

@@ -41,6 +41,7 @@ uazd		[_a-zA-Z0-9]
 
 ident		{uaz}{uazd}*
 agg		@{uazd}*
+env		${uazd}+
 pspec		{ident}:[^ \n\r\t]*
 
 %x COMMENT
@@ -68,6 +69,7 @@ pspec		{ident}:[^ \n\r\t]*
 0[xX][_0-9a-fA-F]+	{ *yylval = node_num   (yylloc, strdup(yytext));       return NUMBER; }
 {ident}			{ *yylval = node_expr  (yylloc, strdup(yytext), NULL); return IDENT;  }
 {agg}			{ *yylval = node_expr_ident(yylloc, strdup(yytext));   return AGG;    }
+{env}			{ *yylval = node_expr_ident(yylloc, strdup(yytext));   return IDENT;  }
 {pspec}			{ *yylval = node_string(yylloc, strdup(yytext));       return PSPEC;  }
 
 #.*\n			;
