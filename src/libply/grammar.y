@@ -85,7 +85,6 @@ stmt
 | delete
 | expr_stmt
 | assign
-| aggregate
 ;
 
 block
@@ -103,7 +102,7 @@ jump
 ;
 
 delete
-: DELETE map ';' { $$ = node_expr(&@$, "delete", $2, NULL); }
+: DELETE expr ';' { $$ = node_expr(&@$, "delete", $2, NULL); }
 ;
 
 expr_stmt
@@ -111,17 +110,17 @@ expr_stmt
 ;
 
 assign
-: map '=' expr ';' { $$ = node_expr(&@$, "=", $1, $3, NULL); }
+: expr '=' expr ';' { $$ = node_expr(&@$, "=", $1, $3, NULL); }
 ;
 
-aggregate
-: aggregation '=' expr ';' { $$ = node_expr(&@$, "@=", $1, $3, NULL); }
+exprs_opt
+: exprs
+| %empty { $$ = NULL; }
 ;
 
 exprs
 : expr
 | expr ',' exprs { $$ = node_append($1, $3); }
-| %empty         { $$ = NULL; }
 ;
 
 expr
@@ -192,11 +191,7 @@ fact
 ;
 
 unary
-: basic
-| func
-| map
-| basic '.'   IDENT { $$ = node_expr(&@$,  ".", $1, node_string(&@3, $3->expr.func), NULL); }
-| basic DEREF IDENT { $$ = node_expr(&@$, "->", $1, node_string(&@3, $3->expr.func), NULL); }
+: postfix
 /* | '&' unary { $$ = node_expr(&@$, "u&", $2, NULL); } */
 | '*' unary { $$ = node_expr(&@$, "u*", $2, NULL); }
 | '-' unary { $$ = node_expr(&@$, "u-", $2, NULL); }
@@ -204,28 +199,41 @@ unary
 | '!' unary { $$ = node_expr(&@$, "u!", $2, NULL); }
 ;
 
+postfix
+: basic
+| IDENT '(' exprs_opt ')'
+{
+	$$ = $3 ? node_expr_append(&@$, $1, $3) : $1;
+}
+| postfix '.'   IDENT
+{
+	$$ = node_expr(&@$,  ".", $1, $3, NULL);
+	node_replace($3, node_string(&@3, $3->expr.func));
+}
+| postfix DEREF IDENT
+{
+	$$ = node_expr(&@$, "->", $1, $3, NULL);
+	node_replace($3, node_string(&@3, $3->expr.func));
+}
+| postfix '[' exprs ']'
+{
+	struct node *key = $3;
+
+	if ($3->next)
+		key = node_expr(&@3, ":struct", $3, NULL);
+
+	$$ = node_expr(&@$, "[]", $1, key, NULL);
+}
+;
+
 basic
 : NUMBER
 | STRING
 | IDENT
+| AGG
 | '(' expr ')'	{ $$ = $2; }
 ;
 
-func
-: IDENT '(' exprs ')'	{ $$ = $3 ? node_expr_append(&@$, $1, $3) : $1; }
-;
-
-map
-: IDENT key { $$ = node_expr(&@$, "[]", $1, $2, NULL); }
-;
-
-aggregation
-: AGG key { $$ = node_expr(&@$, "[]", $1, $2, NULL); }
-;
-
-key
-: '[' exprs ']' { $$ = node_expr(&@$, ":struct", $2, NULL); }
-;
 
 %%
 
