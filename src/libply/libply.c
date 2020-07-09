@@ -107,8 +107,7 @@ int __ply_probe_alloc(struct ply *ply, struct node *pspec, struct node *ast)
 	
 	pb->provider = provider_get(pb->probe);
 	if (!pb->provider) {
-		_e("%#N: no provider found for %N.\n",
-		   ast->expr.args, ast->expr.args);
+		_e("%#N: no provider found for %N.\n", pspec, pspec);
 		err = -EINVAL;
 		goto err_free_probe;
 	}
