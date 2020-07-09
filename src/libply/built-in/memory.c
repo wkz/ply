@@ -261,6 +261,7 @@ static int struct_deref_type_infer(const struct func *func, struct node *n)
 	if (t->ttype != T_POINTER) {
 		_ne(n, "%N is not a pointer (type '%T').\n",
 		    sou, sou->sym->type);
+		return -EINVAL;
 	}
 
 	t = type_base(t->ptr.type);
