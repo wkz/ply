@@ -62,7 +62,7 @@ pspec		{ident}:[^ \n\r\t]*
 "!="			{ return NE;      }
 "->"			{ return DEREF;   }
 
-\"(\\.|[^\\"])*\"	{ *yylval = node_string(yylloc, strdup(yytext));       return STRING; }
+\"[^\0\"]*\"		{ *yylval = node_string(yylloc, strdup(yytext));       return STRING; }
 [_0-9]+			{ *yylval = node_num   (yylloc, strdup(yytext));       return NUMBER; }
 0b[_01]+		{ *yylval = node_num   (yylloc, strdup(yytext));       return NUMBER; }
 0[xX][_0-9a-fA-F]+	{ *yylval = node_num   (yylloc, strdup(yytext));       return NUMBER; }
