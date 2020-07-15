@@ -4,7 +4,7 @@ libply_la_CPPFLAGS    = -include $(top_builddir)/config.h -I $(top_srcdir)/inclu
 libply_la_CFLAGS      = -Wall -Wextra -Wno-unused -Wno-unused-result -Wno-strict-aliasing
 libply_la_LDFLAGS     = $(AM_LDFLAGS) -version-info 0:0:0
 
-AM_YFLAGS = -d -Wall -Wno-yacc
+AM_YFLAGS = -d -Wall
 AM_LFLAGS = --header-file=lexer.h
 
 EXTRA_DIST = grammar.c grammar.h lexer.c lexer.h \

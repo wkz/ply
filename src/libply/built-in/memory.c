@@ -459,162 +459,6 @@ __ply_built_in const struct func deref_func = {
 };
 
 
-static int subscript_ir_post_map(const struct func *func, struct node *n,
-				 struct ply_probe *pb)
-{
-	struct node *map, *key;
-	ssize_t stack;
-	size_t offset;
-	struct tfield *f;
-	int16_t lmiss, lhit;
-
-	map = n->expr.args;
-	key = map->next;
-	stack = key->sym->irs.stack;
-
-	n->sym->irs.hint.stack = 1;
-	ir_init_sym(pb->ir, n->sym);
-
-	if (node_is(n->up, "="))
-		/* map[key] = val, whatever is in our storage now it
-                    will be overwritten, so skip the load. */
-		return 0;
-
-	ir_emit_ldmap(pb->ir, BPF_REG_1, map->sym);
-	ir_emit_ldbp(pb->ir, BPF_REG_2, stack);
-	ir_emit_insn(pb->ir, CALL(BPF_FUNC_map_lookup_elem), 0, 0);
-
-	lmiss = ir_alloc_label(pb->ir);
-	lhit  = ir_alloc_label(pb->ir);
-
-	ir_emit_insn(pb->ir, JMP_IMM(BPF_JEQ, 0, lmiss), BPF_REG_0, 0);
-	ir_emit_read_to_sym(pb->ir, n->sym, BPF_REG_0);
-	ir_emit_insn(pb->ir, JMP_IMM(BPF_JA, 0, lhit), 0, 0);
-
-	ir_emit_label(pb->ir, lmiss);
-	ir_emit_bzero(pb->ir, n->sym->irs.stack, n->sym->irs.size);
-
-	ir_emit_label(pb->ir, lhit);
-	return 0;
-}
-
-static int subscript_ir_post(const struct func *func, struct node *n,
-				struct ply_probe *pb)
-{
-	struct node *src;
-
-	src = n->expr.args;
-
-	switch (type_base(src->sym->type)->ttype) {
-	case T_ARRAY:
-		/* TODO */
-		assert(0);
-		break;
-	case T_POINTER:
-		/* TODO */
-		assert(0);
-		break;
-	case T_MAP:
-		return subscript_ir_post_map(func, n, pb);
-	default:
-		assert(0);
-	}
-
-	return 0;
-}
-
-static int subscript_type_infer_up(const struct func *func, struct node *n)
-{
-	struct node *src, *key;
-	struct type *t;
-	int scalar;
-
-	src = n->expr.args;
-	key = src->next;
-
-	t = type_base(src->sym->type);
-
-	scalar = type_base(key->sym->type)->ttype == T_SCALAR;
-	if (!scalar && (t->ttype == T_ARRAY || t->ttype == T_POINTER)) {
-		_ne(n, "Array subscript must be a scalar value, "
-		    "but %N is of type '%T'.\n", key, key->sym->type);
-		return -EINVAL;
-	}
-
-	switch (t->ttype) {
-	case T_ARRAY:
-		/* given `array[key]`, infer that the expression's
-		 * type is equal to the array's object type. */
-		n->sym->type = t->array.type;
-		break;
-	case T_POINTER:
-		/* given `ptr[key]`, infer that the expression's type
-		 * is equal to the pointers's object type. */
-		n->sym->type = t->ptr.type;
-		break;
-	case T_MAP:
-		/* given `map[key]` where map's type is known, infer that
-		 * the expression's type is equal to map's value
-		 * type. */
-		n->sym->type = t->map.vtype;
-		break;
-	default:
-		_ne(n, "%N is not an subscriptable (type '%T').\n",
-		    src, src->sym->type);
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
-static int subscript_type_infer_down(const struct func *func, struct node *n)
-{
-	struct node *src, *key;
-	struct type *t;
-	int scalar;
-
-	src = n->expr.args;
-	key = src->next;
-
-	/* TODO: use per-cpu for aggregations, arrays for u8 etc. */
-	src->sym->type = type_map_of(key->sym->type, n->sym->type,
-				     BPF_MAP_TYPE_HASH, 0);
-	return 0;
-}
-
-static int subscript_type_infer(const struct func *func, struct node *n)
-{
-	struct node *src, *key;
-
-	src = n->expr.args;
-	key = src->next;
-
-	if (!key->sym->type)
-		return 0;
-
-	/* This node has no type, but the type of the node being
-	 * subscripted is known, pass it up. */
-	if (!n->sym->type && src->sym->type)
-		return subscript_type_infer_up(func, n);
-
-	/* Inverse of above. This is the lval in an assignment, so it
-	 * has received the rval's type, use it together with the key
-	 * to determine the map type. */
-	if (n->sym->type && !src->sym->type)
-		return subscript_type_infer_down(func, n);
-
-	return 0;
-}
-
-__ply_built_in const struct func subscript_func = {
-	.name = "[]",
-	.type = &t_binop_func,
-	.type_infer = subscript_type_infer,
-
-	.ir_post = subscript_ir_post,
-};
-
-
 static int struct_ir_pre(const struct func *func, struct node *n,
 			 struct ply_probe *pb)
 {
@@ -730,6 +574,98 @@ static int map_ir_update(struct node *n, struct ply_probe *pb)
 }
 
 
+static int map_ir_post(const struct func *func, struct node *n,
+		       struct ply_probe *pb)
+{
+	struct node *map, *key;
+	ssize_t stack;
+	size_t offset;
+	struct tfield *f;
+	int16_t lmiss, lhit;
+
+	map = n->expr.args;
+	key = map->next;
+	stack = key->sym->irs.stack;
+
+	n->sym->irs.hint.stack = 1;
+	ir_init_sym(pb->ir, n->sym);
+
+	if (n->sym->irs.hint.lval)
+		/* map[key] = val, whatever is in our storage now it
+                    will be overwritten, so skip the load. */
+		return 0;
+
+	ir_emit_ldmap(pb->ir, BPF_REG_1, map->sym);
+	ir_emit_ldbp(pb->ir, BPF_REG_2, stack);
+	ir_emit_insn(pb->ir, CALL(BPF_FUNC_map_lookup_elem), 0, 0);
+
+	lmiss = ir_alloc_label(pb->ir);
+	lhit  = ir_alloc_label(pb->ir);
+
+	ir_emit_insn(pb->ir, JMP_IMM(BPF_JEQ, 0, lmiss), BPF_REG_0, 0);
+	ir_emit_read_to_sym(pb->ir, n->sym, BPF_REG_0);
+	ir_emit_insn(pb->ir, JMP_IMM(BPF_JA, 0, lhit), 0, 0);
+
+	ir_emit_label(pb->ir, lmiss);
+	ir_emit_bzero(pb->ir, n->sym->irs.stack, n->sym->irs.size);
+	
+	ir_emit_label(pb->ir, lhit);
+	return 0;
+}
+
+static int map_type_validate(struct node *n)
+{
+	/* TODO */
+	return 0;
+}
+
+static int map_type_infer(const struct func *func, struct node *n)
+{
+	struct node *map, *key;
+	struct type *ktype;
+
+	map = n->expr.args;
+	key = map->next;
+	if (!map->sym)
+		return 0;
+
+	if (map->sym->type) {
+		if (!n->sym->type)
+			/* given `m[key]` where m's type is known,
+			 * infer that the expression's type is equal
+			 * to m's value type. */
+			n->sym->type = map->sym->type->map.vtype;
+
+		return map_type_validate(n);
+	}
+
+	if (!(n->sym->type && key->sym->type))
+		return 0;
+
+	map->sym->type = type_map_of(key->sym->type, n->sym->type,
+				     BPF_MAP_TYPE_HASH, 0);
+	return 0;
+}
+
+static int map_static_validate(const struct func *func, struct node *n)
+{
+	if (n->expr.args->ntype != N_EXPR || !n->expr.args->expr.ident) {
+		_ne(n, "can't lookup a key in %N, which is not a map.\n", n);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+__ply_built_in const struct func map_func = {
+	.name = "[]",
+	.type_infer = map_type_infer,
+	.static_validate = map_static_validate,
+
+	.ir_post = map_ir_post,
+};
+
+
 static int assign_ir_pre(const struct func *func, struct node *n,
 				struct ply_probe *pb)
 {
@@ -747,9 +683,6 @@ static int assign_ir_pre(const struct func *func, struct node *n,
 
 	rval->sym->irs.hint.stack = 1;
 	rval->sym->irs.stack = n->sym->irs.stack;
-
-	if (node_is(lval, "[]"))
-		lval->expr.args->next->sym->irs.hint.stack = 1;
 	return 0;
 }
 
@@ -789,7 +722,13 @@ static int assign_type_infer(const struct func *func, struct node *n)
 
 		/* TODO do we need assignment expressions? */
 		n->sym->type = &t_void;
-		return 0;
+		
+		if (!node_is(lval, "[]"))
+			return 0;
+
+		err = map_type_infer(lval->sym->func, lval);
+		if (err)
+			return err;
 	}
 
 	if (type_compatible(lval->sym->type, rval->sym->type)) {
@@ -826,6 +765,21 @@ __ply_built_in const struct func assign_func = {
 	.ir_post = assign_ir_post,
 };
 
+
+static int agg_ir_post(const struct func *func, struct node *n,
+			      struct ply_probe *pb)
+{
+	return map_ir_update(n->expr.args, pb);
+}
+
+__ply_built_in const struct func agg_func = {
+	.name = "@=",
+	.type = &t_binop_func,
+	.type_infer = assign_type_infer,
+	.static_validate = assign_static_validate,
+
+	.ir_post = agg_ir_post,
+};
 
 
 static int delete_ir_pre(const struct func *func, struct node *n,
