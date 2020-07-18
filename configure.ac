@@ -35,6 +35,10 @@ AC_CONFIG_LIBOBJ_DIR(lib)
 AC_REPLACE_FUNCS(qsort_r)
 
 AC_CANONICAL_HOST
-AC_SUBST(host_cpu, $host_cpu)
+AC_SUBST(arch)
+
+AS_CASE($host_cpu,
+	arm*, arch=arm,
+	arch=$host_cpu)
 
 AC_OUTPUT

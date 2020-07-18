@@ -16,7 +16,7 @@ EXTRA_DIST = grammar.c grammar.h lexer.c lexer.h \
 BUILT_SOURCES = grammar.h lexer.h
 
 libply_la_SOURCES     = 	\
-	arch/@host_cpu@.c	\
+	arch/@arch@.c		\
 	\
 	aux/kallsyms.c		\
 	aux/perf_event.c	\
