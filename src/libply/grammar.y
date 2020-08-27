@@ -118,10 +118,15 @@ aggregate
 : aggregation '=' expr ';' { $$ = node_expr(&@$, "@=", $1, $3, NULL); }
 ;
 
+opt_exprs
+: exprs
+| %empty { $$ = NULL; }
+;
+
+
 exprs
 : expr
 | expr ',' exprs { $$ = node_append($1, $3); }
-| %empty         { $$ = NULL; }
 ;
 
 expr
@@ -212,7 +217,7 @@ basic
 ;
 
 func
-: IDENT '(' exprs ')'	{ $$ = $3 ? node_expr_append(&@$, $1, $3) : $1; }
+: IDENT '(' opt_exprs ')' { $$ = $3 ? node_expr_append(&@$, $1, $3) : $1; }
 ;
 
 map
