@@ -14,6 +14,8 @@ ply_simple()
     code=$?
 }
 
+case=self-test
+ply -T || fail "zero exitcode" "non-zero exitcode"
 
 case=exit && ply_simple 'exit(42);' && \
     [ $code -eq 42 ] || fail 42 $code

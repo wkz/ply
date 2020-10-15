@@ -17,6 +17,10 @@
 
 #include <ply/ply.h>
 
+/* Embedded self-test.sh */
+extern char _binary_self_test_sh_start;
+extern char _binary_self_test_sh_end;
+
 static void usage()
 {
 	fputs("ply - Dynamic tracing utility\n"
@@ -32,8 +36,33 @@ static void usage()
 	      "  -h             Print usage message and exit.\n"
 	      "  -k             Keep going in face of trace buffer overruns.\n"
 	      "  -S             Show generated BPF.\n"
+	      "  -T             Run self-test.\n"
 	      "  -v             Print version information.\n",
 	      stderr);
+}
+
+static void self_test(char *plybin)
+{
+	size_t self_test_sz;
+	char *cmd;
+	FILE *sh;
+
+	self_test_sz = &_binary_self_test_sh_end - &_binary_self_test_sh_start;
+
+	asprintf(&cmd, "PLYBIN=%s /bin/sh", plybin);
+	sh = popen(cmd, "w");
+	free(cmd);
+	if (!sh)
+		goto err;
+
+	if (fwrite(&_binary_self_test_sh_start, self_test_sz, 1, sh) != 1)
+		goto err;
+
+	exit(pclose(sh) ? 1 : 0);
+
+err:
+	_e("unable to run self-test\n");
+	exit(1);
 }
 
 static void memlock_uncap(void)
@@ -114,7 +143,7 @@ static void version()
 	       (LINUX_VERSION_CODE >>  0) & 0xff);
 }
 
-static const char *sopts = "c:dehkSv";
+static const char *sopts = "c:dehkSTv";
 static struct option lopts[] = {
 	{ "command",    required_argument, 0, 'c' },
 	{ "debug",      no_argument,       0, 'd' },
@@ -122,6 +151,7 @@ static struct option lopts[] = {
 	{ "help",       no_argument,       0, 'h' },
 	{ "keep-going", no_argument,       0, 'k' },
 	{ "dump",       no_argument,       0, 'S' },
+	{ "self-test",  no_argument,       0, 'T' },
 	{ "version",    no_argument,       0, 'v' },
 
 	{ NULL }
@@ -221,6 +251,9 @@ int main(int argc, char **argv)
 			break;
 		case 'S':
 			f_dump = 1;
+			break;
+		case 'T':
+			self_test(argv[0]); exit(1);
 			break;
 		case 'v':
 			version(); exit(0);
