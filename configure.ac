@@ -1,5 +1,5 @@
 AC_PREREQ(2.61)
-AC_INIT(ply, m4_esyscmd_s(git describe --always --dirty),
+AC_INIT(ply, [m4_esyscmd_s(git describe --always --dirty)],
 	     https://github.com/wkz/ply/issues)
 
 AC_GNU_SOURCE
