@@ -8,6 +8,7 @@
 #define _PRINTXF_H
 
 #include <stdio.h>
+#include <stdarg.h>
 
 struct printxf;
 
