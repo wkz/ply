@@ -46,7 +46,7 @@ static int iftest_ir_post(const struct func *func, struct node *n,
 	return 0;
 }
 
-__ply_built_in const struct func iftest_func = {
+static struct func iftest_func = {
 	.name = ":iftest",
 	.type = &t_void,
 	.static_ret = 1,
@@ -68,7 +68,7 @@ static int ifjump_ir_post(const struct func *func, struct node *n,
 	return 0;
 }
 
-__ply_built_in const struct func ifjump_func = {
+static struct func ifjump_func = {
 	.name = ":ifjump",
 	.type = &t_void,
 	.static_ret = 1,
@@ -126,7 +126,7 @@ static int if_type_infer(const struct func *func, struct node *n)
 	return 0;
 }
 
-__ply_built_in const struct func if_func = {
+static struct func if_func = {
 	.name = "if",
 	.type = &t_vargs_func,
 	.static_ret = 1,
@@ -201,10 +201,18 @@ static int exit_type_infer(const struct func *func, struct node *n)
 	return 0;
 }
 
-__ply_built_in const struct func exit_func = {
+static struct func exit_func = {
 	.name = "exit",
 	.type = &t_unary_func,
 	.type_infer = exit_type_infer,
 
 	.rewrite = exit_rewrite,
 };
+
+void flow_init(void)
+{
+	built_in_register(&iftest_func);
+	built_in_register(&ifjump_func);
+	built_in_register(&if_func);
+	built_in_register(&exit_func);
+}

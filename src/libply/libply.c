@@ -437,6 +437,7 @@ void ply_init(void)
 		return;
 
 	provider_init();
+	built_in_init();
 
 	init_done = 1;
 }

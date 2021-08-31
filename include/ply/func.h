@@ -7,6 +7,8 @@
 #ifndef _FUNC_H
 #define _FUNC_H
 
+#include <sys/queue.h>
+
 struct node;
 struct ply_probe;
 struct type;
@@ -16,6 +18,8 @@ struct func {
 	struct type *type;
 
 	int static_ret:1; 	/* return type is statically known */
+
+	SLIST_ENTRY(func) entry;
 
 	int (*static_validate)(const struct func *, struct node *);
 	int (*type_infer)     (const struct func *, struct node *);

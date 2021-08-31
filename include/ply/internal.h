@@ -23,4 +23,6 @@
 #include "syscall.h"
 #include "utils.h"
 
+void built_in_init(void);
+
 #endif	/* _PLY_INTERNAL_H */

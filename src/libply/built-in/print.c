@@ -276,7 +276,7 @@ static int printf_type_infer(const struct func *func, struct node *n)
 	return 0;
 }
 
-__ply_built_in const struct func printf_func = {
+static struct func printf_func = {
 	.name = "printf",
 	.type = &t_vargs_func,
 	.type_infer = printf_type_infer,
@@ -351,10 +351,16 @@ static int print_type_infer(const struct func *func, struct node *n)
 	return 0;
 }
 
-__ply_built_in const struct func print_func = {
+static struct func print_func = {
 	.name = "print",
 	.type = &t_vargs_func,
 	.type_infer = print_type_infer,
 
 	.rewrite = print_rewrite,
 };
+
+void print_init(void)
+{
+	built_in_register(&printf_func);
+	built_in_register(&print_func);
+}

@@ -79,7 +79,7 @@ static int unary_type_infer(const struct func *func, struct node *n)
 }
 
 #define UNARY(_fn, _name)				\
-	__ply_built_in const struct func math_ ## _fn =	\
+	static struct func math_ ## _fn =		\
 	{						\
 		.name = _name,				\
 		.type = &t_unary_func,			\
@@ -184,7 +184,7 @@ static int logop_type_infer(const struct func *func, struct node *n)
 }
 
 #define LOGOP(_fn, _name)				\
-	__ply_built_in const struct func math_ ## _fn =	\
+	static struct func math_ ## _fn =		\
 	{						\
 		.name = _name,				\
 		.type = &t_binop_func,			\
@@ -301,7 +301,7 @@ static int relop_type_infer(const struct func *func, struct node *n)
 }
 
 #define RELOP(_fn, _name)				\
-	__ply_built_in const struct func math_ ## _fn =	\
+	static struct func math_ ## _fn =		\
 	{						\
 		.name = _name,				\
 		.type = &t_binop_func,			\
@@ -419,7 +419,7 @@ static int binop_type_infer(const struct func *func, struct node *n)
 }
 
 #define BINOP(_fn, _name)				\
-	__ply_built_in const struct func math_ ## _fn =	\
+	static struct func math_ ## _fn =		\
 	{						\
 		.name = _name,				\
 		.type = &t_binop_func,			\
@@ -437,3 +437,31 @@ BINOP(sub,     "-");
 BINOP(mul,     "*");
 BINOP(div,     "/");
 BINOP(mod,     "%");
+
+void math_init(void)
+{
+	built_in_register(&math_uminus);
+	built_in_register(&math_bwnot);
+	built_in_register(&math_lognot);
+
+	built_in_register(&math_logand);
+	built_in_register(&math_logor);
+
+	built_in_register(&math_eq);
+	built_in_register(&math_ne);
+	built_in_register(&math_lt);
+	built_in_register(&math_gt);
+	built_in_register(&math_le);
+	built_in_register(&math_ge);
+
+	built_in_register(&math_bitor);
+	built_in_register(&math_bitxor);
+	built_in_register(&math_bitand);
+	built_in_register(&math_shl);
+	built_in_register(&math_shr);
+	built_in_register(&math_add);
+	built_in_register(&math_sub);
+	built_in_register(&math_mul);
+	built_in_register(&math_div);
+	built_in_register(&math_mod);
+}
