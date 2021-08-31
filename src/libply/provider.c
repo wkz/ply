@@ -11,6 +11,15 @@
 #include <ply/ply.h>
 #include <ply/provider.h>
 
+SLIST_HEAD(provider_list, provider);
+static struct provider_list heads = SLIST_HEAD_INITIALIZER(heads);
+
+/* supported providers */
+extern struct provider kprobe;
+extern struct provider kretprobe;
+extern struct provider tracepoint;
+extern struct provider built_in;
+
 struct provider *provider_get(const char *name)
 {
 	struct provider *p;
@@ -18,14 +27,20 @@ struct provider *provider_get(const char *name)
 
 	search = strtok(strdup(name), ":");
 
-	for (p = &__start_providers; p < &__stop_providers; p++) {
+	SLIST_FOREACH(p, &heads, entry) {
  		if (strstr(p->name, search) == p->name)
 			break;
 	}
 
-	if (p == &__stop_providers)
-		p = NULL;
-
 	free(search);
 	return p;
+}
+
+void provider_init(void)
+{
+	SLIST_INSERT_HEAD(&heads, &built_in, entry);
+	SLIST_INSERT_HEAD(&heads, &tracepoint, entry);
+	SLIST_INSERT_HEAD(&heads, &kretprobe, entry);
+	/* place kprobe at head so that 'k' can match first. */
+	SLIST_INSERT_HEAD(&heads, &kprobe, entry);
 }

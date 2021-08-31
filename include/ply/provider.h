@@ -9,6 +9,8 @@
 
 #include <linux/bpf.h>
 
+#include <sys/queue.h>
+
 struct ply;
 struct ply_probe;
 struct node;
@@ -16,6 +18,8 @@ struct node;
 struct provider {
 	const char *name;
 	enum bpf_prog_type prog_type;
+
+	SLIST_ENTRY(provider) entry;
 
 	int (*probe)    (struct ply_probe *);
 	int (*sym_alloc)(struct ply_probe *, struct node *);
@@ -26,13 +30,6 @@ struct provider {
 };
 
 struct provider *provider_get(const char *name);
-
-#define __ply_provider __attribute__((		\
-     section("providers"),			\
-     aligned(__alignof__(struct provider))	\
-))
-
-extern struct provider __start_providers;
-extern struct provider __stop_providers;
+void provider_init(void);
 
 #endif	/* _PROVIDER_H */

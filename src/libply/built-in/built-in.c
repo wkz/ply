@@ -275,7 +275,7 @@ int built_in_ir_pre(struct ply_probe *pb)
 	return 0;
 }
 
-__ply_provider struct provider built_in = {
+struct provider built_in = {
 	.name = "!built-in",
 
 	.sym_alloc = built_in_sym_alloc,
