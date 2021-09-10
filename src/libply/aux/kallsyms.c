@@ -36,9 +36,16 @@
 
 #include <ply/ply.h>
 #include <ply/kallsyms.h>
+#include <ply/perf_event.h>
 
 #define KALLSYMS    "/proc/kallsyms"
 #define KSYMS_CACHE "/var/tmp/ply-ksyms"
+#define KFUNC_LIST  TRACEPATH "available_filter_functions"
+
+struct kfunc_list {
+	int size;
+	char **kfunc;
+};
 
 static struct ksym nullsym = {
 	.addr = 0,
@@ -87,6 +94,80 @@ const struct ksym *ksym_get(struct ksyms *ks, uintptr_t addr)
 
 	return bsearch(&key, ks->cache->sym,
 		       ks->cache->hdr.n_syms - 1, sizeof(key), ksym_cmp);
+}
+
+static int kfunc_list_cmp(const void *_key, const void *_member)
+{
+	const char * const *key = _key, * const *member = _member;
+
+	return strcmp(*key, *member);
+}
+
+static void kfunc_list_sort(struct kfunc_list *kfuncs)
+{
+	if (!kfuncs->kfunc)
+		return;
+
+	qsort(kfuncs->kfunc, kfuncs->size, sizeof(char *), kfunc_list_cmp);
+}
+
+static int kfunc_list_find(struct kfunc_list *kfuncs, const char *name)
+{
+	if (!kfuncs->kfunc)
+		return 1;
+
+	return !!bsearch(&name, kfuncs->kfunc, kfuncs->size, sizeof(char *), kfunc_list_cmp);
+}
+
+static int kfunc_list_build(struct kfunc_list *kfuncs)
+{
+	FILE *fp;
+	char line[0x80];
+	char **list = NULL;
+	int size = 0;
+	int count = 0;
+
+	fp = fopen(KFUNC_LIST, "r");
+	if (!fp) {
+		_w("cannot open %s: %s\n", KFUNC_LIST, strerror(errno));
+		return -1;
+	}
+
+	while (fgets(line, sizeof(line), fp)) {
+		char *p;
+		struct ksym *ksym;
+
+		if (count >= size) {
+			size = size ? (size * 2) : 1024;
+			list = realloc(list, size * sizeof(*list));
+			assert(list);
+		}
+
+		p = strtok(line, " \t\n");
+		list[count] = strndup(p, sizeof(ksym->sym) - 1);
+		assert(list[count]);
+
+		count++;
+	}
+	kfuncs->size = count;
+	kfuncs->kfunc = list;
+
+	kfunc_list_sort(kfuncs);
+
+	fclose(fp);
+	return 0;
+}
+
+static void kfunc_list_free(struct kfunc_list *kfuncs)
+{
+	int i;
+
+	for (i = 0; i < kfuncs->size; i++)
+		free(kfuncs->kfunc[i]);
+	free(kfuncs->kfunc);
+
+	kfuncs->size = 0;
+	kfuncs->kfunc = NULL;
 }
 
 static int ksym_write(FILE *fp, struct ksym *ksym)
@@ -200,6 +281,7 @@ static int ksyms_cache_cap(void)
 static int ksyms_cache_build(struct ksyms *ks)
 {
 	struct ksym_cache_hdr hdr = { 0 };
+	struct kfunc_list kfuncs;
 	struct ksym ksym;
 	FILE *cfp, *kfp;
 	int err, i;
@@ -215,6 +297,9 @@ static int ksyms_cache_build(struct ksyms *ks)
 		err = -errno;
 		goto out;
 	}
+
+	/* Ignore failures due to missing filter functions. */
+	kfunc_list_build(&kfuncs);
 
 	cfp = fopen(KSYMS_CACHE, "w");
 	if (!cfp) {
@@ -233,6 +318,9 @@ static int ksyms_cache_build(struct ksyms *ks)
 	hdr.n_syms++;
 
 	while (!(err = ksym_parse(kfp, &ksym))) {
+		if (!kfunc_list_find(&kfuncs, ksym.sym))
+			continue;
+
 		err = ksym_write(cfp, &ksym);
 		if (err)
 			goto close_cfp;
@@ -257,6 +345,7 @@ close_cfp:
 		unlink(KSYMS_CACHE);
 
 close_kfp:
+	kfunc_list_free(&kfuncs);
 	fclose(kfp);
 out:
 	if (!err)
