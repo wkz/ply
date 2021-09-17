@@ -149,6 +149,9 @@ aggregation functions:
   * `@agg[exprs] = count()`:
     Bump a counter.
 
+  * `@agg[exprs] = sum(scalr-expr)`:
+    Evaluates the argument and aggregates the result.
+
   * `@agg[exprs] = quantize(scalar-expr)`:
     Evaluates the argument and aggregates on the most significant bit
     of the result. In other words, it stores the distribution of the
