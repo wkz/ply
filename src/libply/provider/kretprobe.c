@@ -105,7 +105,7 @@ static int kretprobe_probe(struct ply_probe *pb)
 	return 0;
 }
 
-__ply_provider struct provider kretprobe = {
+struct provider kretprobe = {
 	.name = "kretprobe",
 	.prog_type = BPF_PROG_TYPE_KPROBE,
 

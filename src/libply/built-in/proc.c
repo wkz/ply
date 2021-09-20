@@ -55,7 +55,7 @@ struct type t_stackid_t = {
 	.fprint = stack_fprint,
 };
 
-__ply_built_in const struct func stackmap_func = {
+static struct func stackmap_func = {
 	.name = ":stackmap",
 };
 
@@ -111,7 +111,7 @@ static int stack_rewrite(const struct func *func, struct node *n,
 	return 1;
 }
 
-__ply_built_in const struct func kprobe_stack_func = {
+static struct func kprobe_stack_func = {
 	.name = "stack",
 	.type = &t_stackid_t,
 	.static_ret = 1,
@@ -156,7 +156,7 @@ static int pid_ir_post(const struct func *func, struct node *n,
 	return 0;
 }
 
-__ply_built_in const struct func pid_func = {
+static struct func pid_func = {
 	.name = "pid",
 	.type = &t_pid_func,
 	.static_ret = 1,
@@ -178,7 +178,7 @@ static int kpid_ir_post(const struct func *func, struct node *n,
 	return 0;
 }
 
-__ply_built_in const struct func kpid_func = {
+static struct func kpid_func = {
 	.name = "kpid",
 	.type = &t_pid_func,
 	.static_ret = 1,
@@ -225,7 +225,7 @@ static int uid_ir_post(const struct func *func, struct node *n,
 }
 
 
-__ply_built_in const struct func uid_func = {
+static struct func uid_func = {
 	.name = "uid",
 	.type = &t_uid_func,
 	.static_ret = 1,
@@ -248,7 +248,7 @@ static int gid_ir_post(const struct func *func, struct node *n,
 	return 0;
 }
 
-__ply_built_in const struct func gid_func = {
+static struct func gid_func = {
 	.name = "gid",
 	.type = &t_uid_func,
 	.static_ret = 1,
@@ -291,7 +291,7 @@ static int cpu_ir_post(const struct func *func, struct node *n,
 	return 0;
 }
 
-__ply_built_in const struct func cpu_func = {
+static struct func cpu_func = {
 	.name = "cpu",
 	.type = &t_cpu_func,
 	.static_ret = 1,
@@ -330,7 +330,7 @@ static int comm_ir_post(const struct func *func, struct node *n,
 	return 0;
 }
 
-__ply_built_in const struct func comm_func = {
+static struct func comm_func = {
 	.name = "comm",
 	.type = &t_comm_func,
 	.static_ret = 1,
@@ -338,7 +338,7 @@ __ply_built_in const struct func comm_func = {
 	.ir_post = comm_ir_post,
 };
 
-__ply_built_in const struct func execname_func = {
+static struct func execname_func = {
 	/* alias to comm */
 	.name = "execname",
 	.type = &t_comm_func,
@@ -499,7 +499,7 @@ static int time_ir_post(const struct func *func, struct node *n,
 	return 0;
 }
 
-__ply_built_in const struct func time_func = {
+static struct func time_func = {
 	.name = "time",
 	.type = &t_time_func,
 	.static_ret = 1,
@@ -507,10 +507,28 @@ __ply_built_in const struct func time_func = {
 	.ir_post = time_ir_post,
 };
 
-__ply_built_in const struct func walltime_func = {
+static struct func walltime_func = {
 	.name = "walltime",
 	.type = &t_walltime_func,
 	.static_ret = 1,
 
 	.ir_post = time_ir_post,
 };
+
+void proc_init(void)
+{
+	built_in_register(&stackmap_func);
+	built_in_register(&kprobe_stack_func);
+
+	built_in_register(&pid_func);
+	built_in_register(&kpid_func);
+	built_in_register(&uid_func);
+	built_in_register(&gid_func);
+
+	built_in_register(&cpu_func);
+	built_in_register(&comm_func);
+	built_in_register(&execname_func);
+
+	built_in_register(&time_func);
+	built_in_register(&walltime_func);
+}

@@ -10,11 +10,15 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/queue.h>
 
 #include <ply/ply.h>
 #include <ply/internal.h>
 
 #include "built-in.h"
+
+SLIST_HEAD(built_in_list, func);
+static struct built_in_list heads = SLIST_HEAD_INITIALIZER(heads);
 
 static struct type t_ctx = {
 	.ttype = T_POINTER,
@@ -29,7 +33,7 @@ static struct type t_ctx = {
 	},
 };
 
-__ply_built_in const struct func ctx_func = {
+static struct func ctx_func = {
 	.name = "ctx",
 	.type = &t_ctx,
 	.static_ret = 1,
@@ -176,7 +180,7 @@ static const struct func ident_func = {
 };
 
 
-__ply_built_in const struct func block_func = {
+static struct func block_func = {
 	.name = "{}",
 	.type = &t_vargs_func,
 	.static_ret = 1,
@@ -188,7 +192,7 @@ static const struct func *built_in_func_get(struct node *n)
 	const struct func *func;
 	int err;
 
-	for (func = &__start_built_ins; func < &__stop_built_ins; func++) {
+	SLIST_FOREACH(func, &heads, entry) {
 		if (!strcmp(func->name, n->expr.func))
 			return func;
 	}
@@ -275,7 +279,7 @@ int built_in_ir_pre(struct ply_probe *pb)
 	return 0;
 }
 
-__ply_provider struct provider built_in = {
+struct provider built_in = {
 	.name = "!built-in",
 
 	.sym_alloc = built_in_sym_alloc,
@@ -284,3 +288,22 @@ __ply_provider struct provider built_in = {
 	.ir_pre = built_in_ir_pre,
 
 };
+
+void built_in_register(struct func *func)
+{
+	SLIST_INSERT_HEAD(&heads, func, entry);
+}
+
+void built_in_init(void)
+{
+	built_in_register(&ctx_func);
+	built_in_register(&block_func);
+
+	aggregation_init();
+	buffer_init();
+	flow_init();
+	math_init();
+	memory_init();
+	print_init();
+	proc_init();
+}

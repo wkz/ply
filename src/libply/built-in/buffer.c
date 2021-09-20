@@ -249,7 +249,7 @@ static int stdbuf_static_validate(const struct func *func, struct node *n)
 	return 0;
 }
 
-__ply_built_in const struct func stdbuf_func = {
+static struct func stdbuf_func = {
 	.name = "stdbuf",
 	.type = &t_buffer,
 	.static_ret = 1,
@@ -282,10 +282,16 @@ struct type t_bwrite = {
 	.func = { .type = &t_void, .args = f_bwrite },
 };
 
-__ply_built_in const struct func bwrite_func = {
+static struct func bwrite_func = {
 	.name = "bwrite",
 	.type = &t_bwrite,
 	.static_ret = 1,
 
 	.ir_post = bwrite_ir_post,
 };
+
+void buffer_init(void)
+{
+	built_in_register(&stdbuf_func);
+	built_in_register(&bwrite_func);
+}

@@ -31,7 +31,7 @@ struct type t_count_func = {
 	.func = { .type = &t_ulong },
 };
 
-__ply_built_in const struct func count_func = {
+static struct func count_func = {
 	.name = "count",
 	.type = &t_count_func,
 	.static_ret = 1,
@@ -296,10 +296,16 @@ static int quantize_type_infer(const struct func *func, struct node *n)
 	return 0;
 }
 
-__ply_built_in const struct func quantize_func = {
+static struct func quantize_func = {
 	.name = "quantize",
 	.type = &t_unary_func,
 	.type_infer = quantize_type_infer,
 
 	.ir_post = quantize_ir_post,
 };
+
+void aggregation_init(void)
+{
+	built_in_register(&count_func);
+	built_in_register(&quantize_func);
+}

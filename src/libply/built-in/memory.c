@@ -119,7 +119,7 @@ static int strcmp_type_infer(const struct func *func, struct node *n)
 	return 0;
 }
 
-__ply_built_in const struct func strcmp_func = {
+static struct func strcmp_func = {
 	.name = "strcmp",
 	.type = &t_vargs_func,
 	.type_infer = strcmp_type_infer,
@@ -208,14 +208,14 @@ struct type t_mem_func = {
 	.func = { .type = &t_void, .args = f_1arg, .vargs = 1 },
 };
 
-__ply_built_in const struct func mem_func = {
+static struct func mem_func = {
 	.name = "mem",
 	.type = &t_mem_func,
 	.type_infer = mem_type_infer,
 	.ir_post = mem_ir_post,
 };
 
-__ply_built_in const struct func str_func = {
+static struct func str_func = {
 	.name = "str",
 	.type = &t_mem_func,
 	.type_infer = mem_type_infer,
@@ -286,7 +286,7 @@ static int struct_deref_type_infer(const struct func *func, struct node *n)
 	return 0;
 }
 
-__ply_built_in const struct func struct_deref_func = {
+static struct func struct_deref_func = {
 	.name = "->",
 	.type = &t_binop_func,
 	.type_infer = struct_deref_type_infer,
@@ -391,7 +391,7 @@ static int struct_dot_type_infer(const struct func *func, struct node *n)
 	return 0;
 }
 
-__ply_built_in const struct func struct_dot_func = {
+static struct func struct_dot_func = {
 	.name = ".",
 	.type = &t_binop_func,
 	.type_infer = struct_dot_type_infer,
@@ -450,7 +450,7 @@ static int deref_type_infer(const struct func *func, struct node *n)
 	return 0;
 }
 
-__ply_built_in const struct func deref_func = {
+static struct func deref_func = {
 	.name = "u*",
 	.type = &t_unary_func,
 	.type_infer = deref_type_infer,
@@ -546,7 +546,7 @@ static int struct_type_infer(const struct func *func, struct node *n)
 	return 0;
 }
 
-__ply_built_in const struct func struct_func = {
+static struct func struct_func = {
 	.name = ":struct",
 	.type = &t_vargs_func,
 	.type_infer = struct_type_infer,
@@ -657,7 +657,7 @@ static int map_static_validate(const struct func *func, struct node *n)
 	return 0;
 }
 
-__ply_built_in const struct func map_func = {
+static struct func map_func = {
 	.name = "[]",
 	.type_infer = map_type_infer,
 	.static_validate = map_static_validate,
@@ -755,7 +755,7 @@ static int assign_static_validate(const struct func *func, struct node *n)
 	return -EINVAL;
 }
 
-__ply_built_in const struct func assign_func = {
+static struct func assign_func = {
 	.name = "=",
 	.type = &t_binop_func,
 	.type_infer = assign_type_infer,
@@ -772,7 +772,7 @@ static int agg_ir_post(const struct func *func, struct node *n,
 	return map_ir_update(n->expr.args, pb);
 }
 
-__ply_built_in const struct func agg_func = {
+static struct func agg_func = {
 	.name = "@=",
 	.type = &t_binop_func,
 	.type_infer = assign_type_infer,
@@ -821,7 +821,7 @@ static int delete_static_validate(const struct func *func, struct node *n)
 	return -EINVAL;
 }
 
-__ply_built_in const struct func delete_func = {
+static struct func delete_func = {
 	.name = "delete",
 	.type = &t_unary_func,
 	.static_ret = 1,
@@ -830,3 +830,18 @@ __ply_built_in const struct func delete_func = {
 	.ir_pre  = delete_ir_pre,
 	.ir_post = delete_ir_post,
 };
+
+void memory_init(void)
+{
+	built_in_register(&strcmp_func);
+	built_in_register(&str_func);
+	built_in_register(&mem_func);
+	built_in_register(&struct_deref_func);
+	built_in_register(&struct_dot_func);
+	built_in_register(&deref_func);
+	built_in_register(&struct_func);
+	built_in_register(&map_func);
+	built_in_register(&assign_func);
+	built_in_register(&agg_func);
+	built_in_register(&delete_func);
+}

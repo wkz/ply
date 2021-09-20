@@ -272,7 +272,7 @@ err_free:
 	return err;
 }
 
-__ply_provider struct provider tracepoint = {
+struct provider tracepoint = {
 	.name = "tracepoint",
 	.prog_type = BPF_PROG_TYPE_TRACEPOINT,
 

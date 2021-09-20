@@ -428,3 +428,16 @@ err_free:
 err:
 	return err;
 }
+
+void ply_init(void)
+{
+	static int init_done = 0;
+
+	if (init_done)
+		return;
+
+	provider_init();
+	built_in_init();
+
+	init_done = 1;
+}
