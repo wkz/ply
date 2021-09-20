@@ -281,7 +281,7 @@ static int ksyms_cache_cap(void)
 static int ksyms_cache_build(struct ksyms *ks)
 {
 	struct ksym_cache_hdr hdr = { 0 };
-	struct kfunc_list kfuncs;
+	struct kfunc_list kfuncs = { 0 };
 	struct ksym ksym;
 	FILE *cfp, *kfp;
 	int err, i;
