@@ -59,7 +59,11 @@ static int xprobe_glob(struct ply_probe *pb, glob_t *gl)
 
 	err = glob(evglob, 0, NULL, gl);
 	free(evglob);
-	return err ? -EINVAL : 0;
+
+	if (!err)
+		return 0;
+
+	return err == GLOB_NOMATCH ? -ENOENT : EINVAL;
 }
 
 static char *xprobe_func(struct ply_probe *pb, char *path)
