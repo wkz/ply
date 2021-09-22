@@ -83,6 +83,20 @@ make
 make install   # you probably need to be root for this
 ```
 
+Contributing
+------------
+
+Contributions are welcome! To help you on your way, the [test/](test/)
+directory contains ready-made infrastructure to:
+
+- Test cross-compilation on all supported architectures.
+- Run a simple test suite on a range of machines using QEMU system
+  emulation.
+- Run interactive sessions on QEMU machines.
+
+A GitHub Action is setup to run these jobs. Please make sure to test
+your changes locally before opening a PR to avoid unnecessary review
+cycles.
 
 Maintainers
 -----------
