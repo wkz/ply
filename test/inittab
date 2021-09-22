@@ -1,2 +1,0 @@
-::sysinit:/etc/init.d/rcS
-::askfirst:-/bin/sh

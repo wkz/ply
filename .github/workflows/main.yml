@@ -4,17 +4,29 @@ on: [push, pull_request]
 
 jobs:
   check:
-    name: ${{ matrix.arch }}-check
+    name: ${{ matrix.mach }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        arch: [aarch64, arm, powerpc, x86_64]
+        mach: [aarch64, armv5, armv7, powerpc, x86_64]
 
-    steps:  
+    steps:
     - uses: actions/checkout@v2
+    - name: Restore cache
+      uses: actions/cache@v2
+      with:
+        path: test/cache/
+        key: cache-${{ matrix.mach }}-${{ hashFiles('test/Makefile') }}
+        restore-keys: |
+          cache-${{ matrix.mach }}-
     - name: Update APT
       run: sudo apt update
-    - name: Install dependencies
-      run: sudo apt install build-essential flex bison libelf-dev libssl-dev qemu-system-arm qemu-system-ppc qemu-system-x86
-    - name: Build & Test
-      run: make -C test ${{ matrix.arch }}-check-install-tc
+    - name: Install build dependencies
+      run: |
+        sudo apt -y install \
+        	build-essential flex bison libelf-dev libssl-dev squashfs-tools \
+                qemu-system-arm qemu-system-ppc qemu-system-x86
+    - name: Build
+      run: make -C test ${{ matrix.mach }}-build
+    - name: Check
+      run: make -C test ${{ matrix.mach }}-check
