@@ -40,6 +40,50 @@ static struct func count_func = {
 };
 
 
+static int sum_ir_post(const struct func *func, struct node *n,
+		       struct ply_probe *pb)
+{
+	struct node *mapop = n->up->expr.args;
+	struct node *arg = n->expr.args;
+
+	ir_emit_sym_to_reg(pb->ir, BPF_REG_0, mapop->sym);
+	ir_emit_sym_to_reg(pb->ir, BPF_REG_1, arg->sym);
+	ir_emit_insn(pb->ir, ALU64(BPF_ADD), BPF_REG_0, BPF_REG_1);
+	ir_emit_reg_to_sym(pb->ir, mapop->sym, BPF_REG_0);
+	return 0;
+	/* return map_ir_update(mapop, pb); */
+}
+
+static int sum_type_infer(const struct func *func, struct node *n)
+{
+	struct node *arg;
+	struct type *t;
+
+	arg = n->expr.args;
+
+	if (n->sym->type || !arg->sym->type)
+		return 0;
+
+	t = type_base(arg->sym->type);
+	if (t->ttype != T_SCALAR) {
+		_ne(n, "can't sum non-scalar value %N (type '%T').\n",
+		    arg, arg->sym->type);
+		return -EINVAL;
+	}
+
+	n->sym->type = &t_ulong;
+	return 0;
+}
+
+static struct func sum_func = {
+	.name = "sum",
+	.type = &t_unary_func,
+	.type_infer = sum_type_infer,
+
+	.ir_post = sum_ir_post,
+};
+
+
 static uint64_t __quantize_total(struct type *t, const unsigned int *bucket)
 {
 	uint64_t total;
@@ -307,5 +351,6 @@ static struct func quantize_func = {
 void aggregation_init(void)
 {
 	built_in_register(&count_func);
+	built_in_register(&sum_func);
 	built_in_register(&quantize_func);
 }
