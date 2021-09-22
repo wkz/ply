@@ -61,7 +61,7 @@ struct lost_event {
 	struct perf_event_header hdr;
 	uint64_t id;
 	uint64_t lost;
-};
+} __attribute__((packed));
 
 struct buffer_q {
 	int fd;

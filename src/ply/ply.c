@@ -222,21 +222,19 @@ static void term(int sig)
 int main(int argc, char **argv)
 {
 	struct ply *ply;
-	struct ply_ev *ev;
 	struct ply_return ret = { .err = 1 };
 	int opt, infpid, inftrig;
-	int f_debug, f_dryrun, f_dump;
+	int f_dryrun, f_dump;
 	FILE *src;
 	char *cmd = NULL;
 
-	f_debug = f_dryrun = f_dump = 0;
+	f_dryrun = f_dump = 0;
 	while ((opt = getopt_long(argc, argv, sopts, lopts, NULL)) > 0) {
 		switch (opt) {
 		case 'c':
 			cmd = optarg;
 			break;
 		case 'd':
-			f_debug = 1;
 			ply_config.verify = 1;
 			break;
 		case 'e':
@@ -274,7 +272,7 @@ int main(int argc, char **argv)
 
 	if (cmd && inferior_prep(cmd, &infpid, &inftrig))
 		exit(1);
-	
+
 	/* TODO figure this out dynamically. terminfo? */
 	ply_config.unicode = 1;
 
