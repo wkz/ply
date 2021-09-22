@@ -113,11 +113,10 @@ work/$(1)-ply/src/ply/ply: work/$(1)-ply/Makefile
 	PATH=$(PATH):$(CURDIR)/cache/$(call tc,$(1))/bin \
 		$(MAKE) -C $$(<D)
 
-# TODO add -Werror
 work/$(1)-ply/Makefile: ../configure |work/$(1)-ply cache/$(call tc,$(1))
 	cd $$| && PATH=$(PATH):$(CURDIR)/cache/$(call tc,$(1))/bin \
 		../../../configure \
-			CFLAGS="-Wall -Wextra" \
+			CFLAGS="-Wall -Wextra -Werror" \
 			--host=$(arch-$(1))-linux --prefix=
 
 work/$(1)-ply:
