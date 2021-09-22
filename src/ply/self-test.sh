@@ -24,6 +24,7 @@ if [ "$kconf" ]; then
 	/^CONFIG_TRACEPOINTS=y$/    { tracepoints=1 }
 	/^CONFIG_FTRACE=y$/         { ftrace=1 }
 	/^CONFIG_DYNAMIC_FTRACE=y$/ { dftrace=1 }
+	/^CONFIG_PERF_EVENTS=y$/    { perf_events=1 }
 	END {
 	    if (bpf && (kprobes || tracepoints) && ftrace) {
 	       print("OK");
@@ -43,6 +44,8 @@ if [ "$kconf" ]; then
 	       print("  CONFIG_FTRACE is not set");
 	    if (!dftrace)
 	       print("  CONFIG_DYNAMIC_FTRACE is not set");
+	    if (!perf_events)
+	       print("  CONFIG_PERF_EVENTS is not set");
 
 	    exit(err);
 	}' || err=1
