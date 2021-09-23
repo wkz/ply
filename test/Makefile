@@ -106,15 +106,15 @@ work/$(1)-rootfs/etc/finit.d/test.conf: test.conf |work/$(1)-rootfs
 $(1)-build: work/$(1)-rootfs/sbin/ply
 
 work/$(1)-rootfs/sbin/ply: work/$(1)-ply/src/ply/ply |work/$(1)-rootfs
-	PATH=$(PATH):$(CURDIR)/cache/$(call tc,$(1))/bin \
+	PATH=$(CURDIR)/cache/$(call tc,$(1))/bin:$(PATH) \
 		$(MAKE) -C work/$(1)-ply DESTDIR=$(CURDIR)/work/$(1)-rootfs install
 
 work/$(1)-ply/src/ply/ply: work/$(1)-ply/Makefile
-	PATH=$(PATH):$(CURDIR)/cache/$(call tc,$(1))/bin \
+	PATH=$(CURDIR)/cache/$(call tc,$(1))/bin:$(PATH) \
 		$(MAKE) -C $$(<D)
 
 work/$(1)-ply/Makefile: ../configure |work/$(1)-ply cache/$(call tc,$(1))
-	cd $$(@D) && PATH=$(PATH):$(CURDIR)/cache/$(call tc,$(1))/bin \
+	cd $$(@D) && PATH=$(CURDIR)/cache/$(call tc,$(1))/bin:$(PATH) \
 		../../../configure \
 			CFLAGS="-Wall -Wextra -Werror" \
 			--host=$(arch-$(1))-linux --prefix=
