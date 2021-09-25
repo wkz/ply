@@ -16,14 +16,14 @@ tc = $(tc-mach-$(1))--glibc--bleeding-edge-2020.08-1
 tc-tar = $(call tc,$(1)).tar.bz2
 tc-url = https://toolchains.bootlin.com/downloads/releases/toolchains/$(tc-mach-$(1))/tarballs/$(call tc-tar,$(1))
 
-# CI build of netbox@797d65778bf0
-nb-run = 3829036585
+# CI build of netbox@5401a42ea064
+nb-run = 3861903284
 nb-url = https://nightly.link/westermo/netbox/suites/$(nb-run)/artifacts/$(1)
-nb-url-basis   := $(call nb-url,94830494)
-nb-url-coronet := $(call nb-url,94830495)
-nb-url-dagger  := $(call nb-url,94830496)
-nb-url-envoy   := $(call nb-url,94830497)
-nb-url-zero    := $(call nb-url,94830498)
+nb-url-basis   := $(call nb-url,95999414)
+nb-url-coronet := $(call nb-url,95999415)
+nb-url-dagger  := $(call nb-url,95999416)
+nb-url-envoy   := $(call nb-url,95999417)
+nb-url-zero    := $(call nb-url,95999418)
 
 qemu-opts = \
 	-display none -no-reboot \
