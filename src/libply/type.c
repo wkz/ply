@@ -589,7 +589,7 @@ static size_t __padding(size_t offset, size_t align)
 	return (pad == align) ? 0 : pad;
 }
 
-ssize_t type_offset_size_of(struct type *t, const char *field)
+void type_struct_layout(struct type *t)
 {
 	struct tfield *f;
 	size_t offset = 0;
@@ -597,43 +597,50 @@ ssize_t type_offset_size_of(struct type *t, const char *field)
 
 	assert(t->ttype == T_STRUCT);
 
-	if (!t->sou.fields)
-		return -ENOENT;
-
 	tfields_foreach(f, t->sou.fields) {
 		fsize = type_sizeof(f->type);
-		if (fsize < 0)
-			return fsize;
-
 		falign = type_alignof(f->type);
-		if (falign < 0)
-			return falign;
+
+		assert(fsize >= 0);
+		assert(falign >= 0);
 
 		if (!t->sou.packed)
 			offset += __padding(offset, falign);
 
-		if (field && !strcmp(f->name, field))
-			return offset;
-
+		f->offset = offset;
 		offset += fsize;
 	}
-
-	if (field)
-		return -ENOENT;
 
 	if (!t->sou.packed)
 		offset += __padding(offset, type_alignof(t));
 
-	return offset;
-	
+	t->sou.size = offset;
+}
+
+struct tfield *tfields_get(struct tfield *fields, const char *name)
+{
+	struct tfield *f;
+
+	tfields_foreach(f, fields) {
+		if (!strcmp(f->name, name))
+			return f;
+	}
+
+	return NULL;
 }
 
 ssize_t type_offsetof(struct type *t, const char *field)
 {
-	if (!t)
+	struct tfield *f;
+
+	if (!t || t->ttype != T_STRUCT)
 		return -EINVAL;
 
-	return type_offset_size_of(t, field);
+	f = tfields_get(t->sou.fields, field);
+	if (f)
+		return f->offset;
+
+	return -ENOENT;
 }
 
 ssize_t type_sizeof(struct type *t)
@@ -657,24 +664,12 @@ ssize_t type_sizeof(struct type *t)
 	case T_ARRAY:
 		return t->array.len * type_sizeof(t->array.type);
 	case T_STRUCT:
-		return type_offset_size_of(t, NULL);
+		return t->sou.size;
 	case T_MAP:
 		return sizeof(int);
 	}
 
 	return -EINVAL;
-}
-
-struct tfield *tfields_get(struct tfield *fields, const char *name)
-{
-	struct tfield *f;
-
-	tfields_foreach(f, fields) {
-		if (!strcmp(f->name, name))
-			return f;
-	}
-
-	return NULL;
 }
 
 int all_types_cmp(const void *_a, const void *_b)
