@@ -57,4 +57,15 @@ ply -c 'for i in `seq 3`; do dd if=/dev/zero of=/dev/null count=10; sleep 1; don
 cat /tmp/interval | awk '/^@:/ { count++; } END { exit(count < 3); }' \
 || fail "at least 3 print" "$(cat /tmp/interval)"
 
+case=tracepoint-dyn
+ply -c 'for i in $(seq 10); do uname >/dev/null; done' \
+    'tracepoint:sched/sched_process_exec {
+        @[dyn(data->filename)] = count();
+    }' >/tmp/tracepoint-dyn \
+&& \
+cat /tmp/tracepoint-dyn | awk '
+    /uname/  { unames = $NF; }
+    END      { exit(!(unames >= 10)); }' \
+|| fail "at least 10 unames" "$(cat /tmp/tracepoint-dyn)"
+
 exit $total_fails

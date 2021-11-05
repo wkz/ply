@@ -329,6 +329,14 @@ Variables:
         };
     ```
 
+Functions:
+
+  * `char[N] dyn(void *address [, int size])`:
+    Copy _size_ bytes from a dynamic data pointer in `data`, i.e. a
+    member marked with `__data_loc`. If _size_ is omitted, the default
+    string size determines the number of bytes to be copied.
+
+
 ### BEGIN and END
 
 These special providers are called at the beginning and the end of the

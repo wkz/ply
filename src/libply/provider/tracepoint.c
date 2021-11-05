@@ -13,10 +13,134 @@
 #include <ply/internal.h>
 
 struct tracepoint {
-	struct func data_func;	
+	struct func data_func;
 
 	char *path;
 	int evfd;
+};
+
+static int tracepoint_data_loc_fprint(struct type *t, FILE *fp, const void *_data)
+{
+	const uint32_t *data = _data;
+
+	return fprintf(fp, "dynamic(%u bytes, offset %#x)",
+		       *data >> 16, *data & 0xffff);
+}
+
+struct type t_tracepoint_data_loc = {
+	.ttype = T_TYPEDEF,
+	.tdef = {
+		.name = ":__data_loc",
+		.type = &t_u32,
+	},
+
+	.fprint = tracepoint_data_loc_fprint,
+};
+
+static int tracepoint_dyn_ir_post(const struct func *func, struct node *n,
+				  struct ply_probe *pb)
+{
+	struct node *ctx, *arg;
+	struct ir *ir = pb->ir;
+	ctx = n->expr.args;
+	arg = ctx->next;
+
+	n->sym->irs.hint.stack = 1;
+	ir_init_sym(ir, n->sym);
+
+	ir_emit_bzero(ir, n->sym->irs.stack, (size_t)type_sizeof(n->sym->type));
+
+	/* Load __data_loc to R2 and R4 */
+	ir_emit_sym_to_reg(ir, BPF_REG_2, arg->sym);
+	ir_emit_insn(ir, MOV, BPF_REG_4, BPF_REG_2);
+
+	ir_emit_ldbp(ir, BPF_REG_1, n->sym->irs.stack);
+
+	/* Actual length is in upper half of __data_loc, cap it to the
+	 * maximum allocated space. */
+	ir_emit_insn(ir, ALU_IMM(BPF_RSH, 16), BPF_REG_2, 0);
+	ir_emit_insn(ir, JMP_IMM(BPF_JLE, n->sym->irs.size, 1), BPF_REG_2, 0);
+	ir_emit_insn(ir, MOV_IMM(n->sym->irs.size), BPF_REG_2, 0);
+
+	/* Source address is ctx + the offset in the lower half of
+	 * __data_loc. */
+	ir_emit_sym_to_reg(ir, BPF_REG_3, ctx->sym);
+	ir_emit_insn(ir, ALU_IMM(BPF_AND, 0xffff), BPF_REG_4, 0);
+	ir_emit_insn(ir, ALU64(BPF_ADD), BPF_REG_3, BPF_REG_4);
+
+	ir_emit_insn(ir, CALL(BPF_FUNC_probe_read), 0, 0);
+	return 0;
+}
+
+static int tracepoint_dyn_rewrite(const struct func *func, struct node *n,
+				  struct ply_probe *pb)
+{
+	struct node *ctx, *arg;
+
+	arg = n->expr.args;
+	if (node_is(arg, "ctx"))
+		return 0;
+
+	ctx = node_expr(&n->loc, "ctx", NULL);
+	ctx->up = arg->up;
+
+	ctx->next = arg;
+	arg->prev = ctx;
+	n->expr.args = ctx;
+	return 0;
+}
+
+static int tracepoint_dyn_type_infer(const struct func *func, struct node *n)
+{
+	struct node *ctx, *arg, *len;
+	struct type *t;
+	size_t sz = ply_config.string_size;
+	int i;
+
+	if (n->sym->type)
+		return 0;
+
+	ctx = n->expr.args;
+	if (!node_is(ctx, "ctx"))
+		return 0;
+
+	arg = ctx->next;
+	len = arg->next;
+
+	if (!(arg->sym->type && (!len || len->sym->type)))
+		return 0;
+
+	if (arg->sym->type != &t_tracepoint_data_loc) {
+		_ne(n, "expected a dynamic data pointer (__data_loc), "
+		    "but '%N' is of type '%T'", arg, arg->sym->type);
+		return -EINVAL;
+	}
+
+	if (len) {
+		if (len->ntype != N_NUM) {
+			_ne(n, "length must be a constant, "
+			    "but '%N' is of type '%T'.", len, len->sym->type);
+			return -EINVAL;
+		}
+
+		sz = (size_t)len->num.u64;
+		if (sz > MAX_BPF_STACK) {
+			_ne(n, "length is larger than the maximum "
+			    "allowed stack size (%d).", MAX_BPF_STACK);
+			return -EINVAL;
+		}
+	}
+
+	n->sym->type = type_array_of(&t_char, sz);
+	return 0;
+}
+
+static struct func tracepoint_dyn_func = {
+	.name = "dyn",
+	.type = &t_vargs_func,
+	.type_infer = tracepoint_dyn_type_infer,
+	.rewrite = tracepoint_dyn_rewrite,
+	.ir_post = tracepoint_dyn_ir_post,
 };
 
 static int tracepoint_data_ir_post(const struct func *func, struct node *n,
@@ -56,7 +180,10 @@ static int tracepoint_sym_alloc(struct ply_probe *pb, struct node *n)
 		if (!strcmp(n->expr.func, "data")) {
 			func = &tp->data_func;
 			n->expr.ident = 1;
+		} else if (!strcmp(n->expr.func, "dyn")) {
+			func = &tracepoint_dyn_func;
 		}
+
 		break;
 	default:
 		break;
@@ -80,6 +207,9 @@ static struct type *tracepoint_parse_type(const char *str, unsigned long size,
 					  unsigned long sign)
 {
 	int explicit_sign = 1;
+
+	if (!strncmp(str, "__data_loc ", sizeof("__data_loc")))
+		return &t_tracepoint_data_loc;
 
 	if (!strncmp(str, "signed ", sizeof("signed")))
 		str += sizeof("signed");
