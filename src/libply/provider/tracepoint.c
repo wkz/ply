@@ -76,10 +76,28 @@ static int tracepoint_sym_alloc(struct ply_probe *pb, struct node *n)
 	return 0;
 }
 
+static int tracepoint_data_loc_fprint(struct type *t, FILE *fp, const void *_data)
+{
+	const uint32_t *data = _data;
+
+	return fprintf(fp, "dynamic(%u bytes, offset %#x)",
+		       *data >> 16, *data & 0xffff);
+}
+
 static struct type *tracepoint_parse_type(const char *str, unsigned long size,
 					  unsigned long sign)
 {
 	int explicit_sign = 1;
+
+	if (!strncmp(str, "__data_loc ", sizeof("__data_loc"))) {
+		struct type *data_loc;
+
+		assert(size == 4);
+
+		data_loc = type_typedef(&t_u32, ":__data_loc");
+		data_loc->fprint = tracepoint_data_loc_fprint;
+		return data_loc;
+	}
 
 	if (!strncmp(str, "signed ", sizeof("signed")))
 		str += sizeof("signed");
