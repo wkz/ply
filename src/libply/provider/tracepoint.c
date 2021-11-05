@@ -193,13 +193,12 @@ static int tracepoint_parse(struct ply_probe *pb)
 			free(t->sou.fields);
 			return offs;
 		}
-
-		assert(offs == type_offsetof(t, t->sou.fields[n - 1].name));
 	}
 
 	t->sou.fields = realloc(t->sou.fields, sizeof(*t->sou.fields)*(++n));
 	t->sou.fields[n -1] = (struct tfield) { .name = NULL, .type = NULL };
 
+	type_struct_layout(t);
 	return 0;
 }
 

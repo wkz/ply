@@ -46,6 +46,12 @@ struct tmap {
 struct tfield {
 	char *name;
 	struct type *type;
+
+	size_t offset;
+
+	/* TODO: bitfields */
+	/* uint8_t bit_offset; */
+	/* uint8_t bit_size; */
 };
 
 #define tfields_foreach(_f, _fields) \
@@ -57,6 +63,7 @@ struct tstruct {
 	char *name;
 	struct tfield *fields;
 
+	size_t size;
 	unsigned packed:1;
 };
 
@@ -113,6 +120,7 @@ ssize_t type_alignof(struct type *t);
 ssize_t type_offsetof(struct type *t, const char *field);
 ssize_t type_sizeof(struct type *t);
 
+void type_struct_layout(struct type *t);
 
 int type_add(struct type *t);
 int type_add_list(struct type **ts);

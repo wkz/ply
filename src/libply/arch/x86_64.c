@@ -109,5 +109,6 @@ const char *arch_register_return(void)
 __attribute__((constructor))
 static void arch_init(void)
 {
+	type_struct_layout(&t_pt_regs);
 	type_add_list(arch_types);
 }

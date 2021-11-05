@@ -541,6 +541,7 @@ static int struct_type_infer(const struct func *func, struct node *n)
 	t->ttype = T_STRUCT;
 	t->sou.fields = fields;
 
+	type_struct_layout(t);
 	type_add(t);
 	n->sym->type = t;
 	return 0;
