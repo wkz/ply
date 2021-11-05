@@ -173,7 +173,7 @@ static int mem_type_infer(const struct func *func, struct node *n)
 	if (!(arg->sym->type && (!len || len->sym->type)))
 		return 0;
 
-	if (type_sizeof(arg->sym->type) > (ssize_t)sizeof(void *)) {
+	if (type_sizeof(arg->sym->type) > (ssize_t)sizeof(uint64_t)) {
 		_ne(n, "can not cast '%N', of type '%T', to a pointer.",
 		    arg, arg->sym->type);
 		return -EINVAL;
