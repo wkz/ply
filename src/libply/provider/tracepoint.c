@@ -117,7 +117,7 @@ static struct type *tracepoint_parse_type(const char *str, unsigned long size,
 	return NULL;
 }
 
-static ssize_t tracepoint_parse_field(char *line, struct tfield *f)
+static int tracepoint_parse_field(char *line, struct tfield *f, size_t *struct_size)
 {
 	char *type, *name, *array, *offs_s, *size_s, *sign_s, *save;
 	unsigned long offs, size, sign, len = 0;
@@ -163,8 +163,9 @@ static ssize_t tracepoint_parse_field(char *line, struct tfield *f)
 
 	f->name = strdup(name);
 	f->type = len ? type_array_of(t, len) : t;
-	return offs;
-	
+	f->offset = offs;
+	*struct_size = offs + type_sizeof(f->type);
+	return 0;
 }
 
 static int tracepoint_parse(struct ply_probe *pb)
@@ -173,8 +174,7 @@ static int tracepoint_parse(struct ply_probe *pb)
 	struct type *t = tp->data_func.type->ptr.type;
 	FILE *fmt;
 	char line[0x80];
-	ssize_t offs;
-	int n = 0;
+	int err, n = 0;
 
 	fmt = fopenf("r", "%s/format", tp->path);
 	if (!fmt)
@@ -188,17 +188,16 @@ static int tracepoint_parse(struct ply_probe *pb)
 					sizeof(*t->sou.fields)*(++n));
 		assert(t->sou.fields);
 
-		offs = tracepoint_parse_field(line, &t->sou.fields[n - 1]);
-		if (offs < 0) {
+		err = tracepoint_parse_field(line, &t->sou.fields[n - 1],
+					     &t->sou.size);
+		if (err < 0) {
 			free(t->sou.fields);
-			return offs;
+			return err;
 		}
 	}
 
-	t->sou.fields = realloc(t->sou.fields, sizeof(*t->sou.fields)*(++n));
-	t->sou.fields[n -1] = (struct tfield) { .name = NULL, .type = NULL };
-
-	type_struct_layout(t);
+	t->sou.fields = realloc(t->sou.fields, sizeof(*t->sou.fields)*(n + 1));
+	t->sou.fields[n] = (struct tfield) { .name = NULL, .type = NULL };
 	return 0;
 }
 
