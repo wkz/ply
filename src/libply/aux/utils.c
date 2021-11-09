@@ -57,12 +57,13 @@ int isstring(const char *data, size_t len)
 {
 	size_t i;
 
-	/* all characters up to a '\0' must be printable. */
-	for (i = 0; (i < len) && data[i]; i++)
+	/* All characters up to a '\0' must be printable. */
+	for (i = 0; (i < (len - 1)) && data[i]; i++)
 		if (!isprint(data[i]))
 			return 0;
 
-	/* after a '\0', only '\0' may follow. */
+	/* There must be at least one '\0', after which only more
+	 * '\0's may follow. */
 	for (; i < len; i++)
 		if (data[i])
 			return 0;
