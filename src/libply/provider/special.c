@@ -26,7 +26,7 @@ int register_special_probes(special_probe_t begin, special_probe_t end)
 {
 	FILE *fp;
 	char buf[PATH_MAX];
-	unsigned long base_addr;
+	unsigned long base_addr = 0;
 
 	if (begin == NULL && end == NULL)
 		return 0;
