@@ -286,49 +286,47 @@ Examples:
 Variables:
 
   * `struct <X> *data`:
-
     A struct is dynamically generated for each tracepoint by parsing
     its `format` file. I.e. if the contents of the format file looks
     like the following:
 
     ```
-name: tcp_send_reset
-ID: 1304
-format:
-	field:unsigned short common_type;	offset:0;	size:2;	signed:0;
-	field:unsigned char common_flags;	offset:2;	size:1;	signed:0;
-	field:unsigned char common_preempt_count;	offset:3;	size:1;	signed:0;
-	field:int common_pid;	offset:4;	size:4;	signed:1;
+        name: tcp_send_reset
+        ID: 1304
+        format:
+        	field:unsigned short common_type;	offset:0;	size:2;	signed:0;
+        	field:unsigned char common_flags;	offset:2;	size:1;	signed:0;
+        	field:unsigned char common_preempt_count;	offset:3;	size:1;	signed:0;
+        	field:int common_pid;	offset:4;	size:4;	signed:1;
 
-	field:const void * skbaddr;	offset:8;	size:8;	signed:0;
-	field:const void * skaddr;	offset:16;	size:8;	signed:0;
-	field:__u16 sport;	offset:24;	size:2;	signed:0;
-	field:__u16 dport;	offset:26;	size:2;	signed:0;
-	field:__u8 saddr[4];	offset:28;	size:4;	signed:0;
-	field:__u8 daddr[4];	offset:32;	size:4;	signed:0;
-	field:__u8 saddr_v6[16];	offset:36;	size:16;	signed:0;
-	field:__u8 daddr_v6[16];	offset:52;	size:16;	signed:0;
-
+        	field:const void * skbaddr;	offset:8;	size:8;	signed:0;
+        	field:const void * skaddr;	offset:16;	size:8;	signed:0;
+        	field:__u16 sport;	offset:24;	size:2;	signed:0;
+        	field:__u16 dport;	offset:26;	size:2;	signed:0;
+        	field:__u8 saddr[4];	offset:28;	size:4;	signed:0;
+        	field:__u8 daddr[4];	offset:32;	size:4;	signed:0;
+        	field:__u8 saddr_v6[16];	offset:36;	size:16;	signed:0;
+        	field:__u8 daddr_v6[16];	offset:52;	size:16;	signed:0;
     ```
 
     Then `data` would point to a struct of the following type:
 
     ```
-struct data {
-    unsigned short common_type;
-    unsigned char common_flags;
-    unsigned char common_preempt_count;
-    int common_pid;
+        struct data {
+            unsigned short common_type;
+            unsigned char common_flags;
+            unsigned char common_preempt_count;
+            int common_pid;
 
-    const void * skbaddr;
-    const void * skaddr;
-    __u16 sport;
-    __u16 dport;
-    __u8 saddr[4];
-    __u8 daddr[4];
-    __u8 saddr_v6[16];
-    __u8 daddr_v6[16];
-};
+            const void * skbaddr;
+            const void * skaddr;
+            __u16 sport;
+            __u16 dport;
+            __u8 saddr[4];
+            __u8 daddr[4];
+            __u8 saddr_v6[16];
+            __u8 daddr_v6[16];
+        };
     ```
 
 ### BEGIN and END
