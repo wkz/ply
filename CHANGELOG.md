@@ -1,5 +1,32 @@
 # Changelog
 
+## [2.2.0] - 2021-11-26
+
+### Changed
+
+- kprobe wildcards are now filtered through
+  available_filter_functions, if available, making them much more
+  reliable.
+
+### Added
+
+- Self-test (ply -T) to automatically diagnose the most common
+  configuration issues.
+- `sum()` aggregation (Namhyung Kim).
+- `BEGIN` and `END` probes that run at the beginning/end of a script
+  (Namhyung Kim).
+- `interval` provider to run a probe at a specified interval (Namhyung
+  Kim).
+- Access to dynamic tracepoint data, i.e. members marked with the
+  `__data_loc` attribute.
+
+### Fixed
+
+- A bunch of parsing errors from weird scripts. Found via fuzzing done
+  by Juraj Vijtiuk.
+- Static linking is now supported (Namhyung Kim)
+- Data layout issues with some tracepoints.
+
 ## [2.1.1] - 2020-04-22
 
 ### Changed
