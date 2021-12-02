@@ -5,6 +5,8 @@ arch-coronet := powerpc
 arch-dagger  := arm
 arch-envoy   := aarch64
 arch-zero    := x86_64
+arch-list    := armv5 powerpc armv7 aarch64 x86_64
+plat-list    := basis coronet dagger envoy zero
 
 tc-mach-basis   := armv5-eabi
 tc-mach-coronet := powerpc-e500mc
@@ -50,9 +52,10 @@ qemu-envoy = qemu-system-aarch64 -M virt -cpu max \
 qemu-zero = qemu-system-x86_64 -M pc -cpu max \
 	$(call qemu-opts,zero)
 
+
 all: check
-check: $(addsuffix -check,basis coronet dagger envoy zero)
-build: $(addsuffix -build,basis coronet dagger envoy zero)
+check: $(addsuffix -check,$(plat-list))
+build: $(addsuffix -build,$(plat-list))
 
 armv5-check: basis-check
 armv5-build: basis-build
@@ -71,11 +74,9 @@ x86_64-build: zero-build
 
 define platform
 
-.PHONY:
 $(1)-shell: work/$(1)-rootfs.img
 	$(qemu-$(1))
 
-.PHONY:
 $(1)-check: work/$(1)-rootfs.img
 	rm -f work/$(1)-check
 	$(qemu-$(1)) \
@@ -86,11 +87,11 @@ $(1)-check: work/$(1)-rootfs.img
 
 # Install ply & test scripts
 
-work/$(1)-rootfs.img: work/$(1)-rootfs/sbin/ply \
+work/$(1)-rootfs.img: $(1)-install \
 		work/$(1)-rootfs/lib/ply/test.sh \
 		work/$(1)-rootfs/lib/ply/test-wrapper.sh \
 		work/$(1)-rootfs/etc/finit.d/test.conf
-	mksquashfs work/$(1)-rootfs $$@ -all-root
+	mksquashfs work/$(1)-rootfs $$@ -all-root -noappend
 
 work/$(1)-rootfs/lib/ply/test.sh: test.sh |work/$(1)-rootfs
 	mkdir -p $$(@D) && cp $$< $$@
@@ -102,14 +103,11 @@ work/$(1)-rootfs/etc/finit.d/test.conf: test.conf |work/$(1)-rootfs
 
 # Ply
 
-.PHONY:
-$(1)-build: work/$(1)-rootfs/sbin/ply
-
-work/$(1)-rootfs/sbin/ply: work/$(1)-ply/src/ply/ply |work/$(1)-rootfs
+$(1)-install: $(1)-build |work/$(1)-rootfs
 	PATH=$(CURDIR)/cache/$(call tc,$(1))/bin:$(PATH) \
 		$(MAKE) -C work/$(1)-ply DESTDIR=$(CURDIR)/work/$(1)-rootfs install
 
-work/$(1)-ply/src/ply/ply: work/$(1)-ply/Makefile
+$(1)-build: work/$(1)-ply/Makefile
 	PATH=$(CURDIR)/cache/$(call tc,$(1))/bin:$(PATH) \
 		$(MAKE) -C $$(<D)
 
@@ -160,4 +158,9 @@ cache:
 ../configure:
 	cd .. && ./autogen.sh
 
-.PHONY: all check build
+
+.PHONY: all check build \
+	$(addsuffix -build,$(plat-list)) $(addsuffix -install,$(plat-list)) \
+	$(addsuffix -check,$(plat-list)) $(addsuffix -shell,$(plat-list)) \
+	\
+	$(addsuffix -build,$(arch-list)) $(addsuffix -check,$(arch-list))
