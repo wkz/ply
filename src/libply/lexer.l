@@ -77,8 +77,12 @@ pspec		{ident}:[^ \n\r\t]*
 
 #.*\n			;
 "/*"			BEGIN(COMMENT);
-<COMMENT>"*/"		BEGIN(INITIAL);
-<COMMENT>.		;
+<COMMENT>{
+"*/"            BEGIN(INITIAL);
+[^*\n]+         ; /* eat comment except '*' and newline characters */
+"*"             ; /* eat single '*' character */
+\n              yylineno++; /* increment line number counter */
+}
 
 [=@$.,;+\-*/%<>&~\^|!()\[\]{}]	{ return *yytext; }
 
