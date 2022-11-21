@@ -38,10 +38,10 @@ static const char *bpf_func_name(enum bpf_func_id id)
 		return "map_update_elem";
 	case BPF_FUNC_perf_event_output:
 		return "perf_event_output";
-	case BPF_FUNC_probe_read:
-		return "probe_read";
-	case BPF_FUNC_probe_read_str:
-		return "probe_read_str";
+	case BPF_FUNC_probe_read_kernel:
+		return "probe_read_kernel";
+	case BPF_FUNC_probe_read_kernel_str:
+		return "probe_read_kernel_str";
 	case BPF_FUNC_trace_printk:
 		return "trace_printk";
 	default:
@@ -416,7 +416,7 @@ void ir_emit_read_to_sym(struct ir *ir, struct sym *dst, uint16_t src)
 	if (src != BPF_REG_3)
 		ir_emit_insn(ir, MOV, BPF_REG_3, src);
 
-	ir_emit_insn(ir, CALL(BPF_FUNC_probe_read), 0, 0);
+	ir_emit_insn(ir, CALL(BPF_FUNC_probe_read_kernel), 0, 0);
 	/* TODO if (r0) exit(r0); */
 }
 

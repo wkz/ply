@@ -140,7 +140,7 @@ static int str_ir_post(const struct func *func, struct node *n,
 	ir_emit_ldbp(pb->ir, BPF_REG_1, n->sym->irs.stack);
 	ir_emit_insn(ir, MOV_IMM((int32_t)type_sizeof(n->sym->type)), BPF_REG_2, 0);
 	ir_emit_sym_to_reg(ir, BPF_REG_3, ptr->sym);
-	ir_emit_insn(ir, CALL(BPF_FUNC_probe_read_str), 0, 0);
+	ir_emit_insn(ir, CALL(BPF_FUNC_probe_read_kernel_str), 0, 0);
 	return 0;
 }
 
@@ -305,7 +305,7 @@ static int struct_dot_ir_pre(const struct func *func, struct node *n,
 		sou->sym->irs.hint.dot = 1;
 
 		/* this also means we need to put ourselves on the
-		 * stack since data will be loaded via probe_read */
+		 * stack since data will be loaded via probe_read_kernel */
 		n->sym->irs.hint.stack = 1;
 	}
 	return 0;
@@ -334,7 +334,7 @@ static int struct_dot_ir_post(const struct func *func, struct node *n,
 
 		ir_emit_sym_to_reg(pb->ir, BPF_REG_3, ptr->sym);
 		ir_emit_insn(pb->ir, ALU64_IMM(BPF_ADD, offset), BPF_REG_3, 0);
-		goto probe_read;
+		goto probe_read_kernel;
 	}
 
 	offset += sou->sym->irs.stack;
@@ -346,10 +346,10 @@ static int struct_dot_ir_post(const struct func *func, struct node *n,
 	}
 
 	ir_emit_insn(pb->ir, ALU_IMM(BPF_ADD, offset), BPF_REG_3, 0);
-probe_read:
+probe_read_kernel:
 	ir_emit_insn(pb->ir, MOV_IMM((int32_t)dst->size), BPF_REG_2, 0);
 	ir_emit_ldbp(pb->ir, BPF_REG_1, dst->stack);
-	ir_emit_insn(pb->ir, CALL(BPF_FUNC_probe_read), 0, 0);
+	ir_emit_insn(pb->ir, CALL(BPF_FUNC_probe_read_kernel), 0, 0);
 	/* TODO if (r0) exit(r0); */
 	return 0;
 }

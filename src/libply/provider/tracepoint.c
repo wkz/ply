@@ -68,7 +68,7 @@ static int tracepoint_dyn_ir_post(const struct func *func, struct node *n,
 	ir_emit_insn(ir, ALU_IMM(BPF_AND, 0xffff), BPF_REG_4, 0);
 	ir_emit_insn(ir, ALU64(BPF_ADD), BPF_REG_3, BPF_REG_4);
 
-	ir_emit_insn(ir, CALL(BPF_FUNC_probe_read), 0, 0);
+	ir_emit_insn(ir, CALL(BPF_FUNC_probe_read_kernel), 0, 0);
 	return 0;
 }
 
