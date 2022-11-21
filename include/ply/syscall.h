@@ -34,4 +34,6 @@ int bpf_map_next  (int fd, void *key, void *next_key);
 int perf_event_open(struct perf_event_attr *hw_event, pid_t pid,
 		    int cpu, int group_fd, unsigned long flags);
 
+int bpf_prog_test_run(int prog_fd);
+
 #endif	/* _PLY_BPF_SYSCALL_H */

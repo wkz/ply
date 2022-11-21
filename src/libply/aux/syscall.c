@@ -7,8 +7,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <sys/syscall.h>
-
 #include <linux/bpf.h>
 #include <linux/perf_event.h>
 #include <linux/version.h>
@@ -59,6 +57,15 @@ int bpf_map_create(enum bpf_map_type type, int key_sz, int val_sz, int entries)
 	return syscall(__NR_bpf, BPF_MAP_CREATE, &attr, sizeof(attr));
 }
 
+int bpf_prog_test_run(int prog_fd)
+{
+	union bpf_attr attr;
+
+	memset(&attr, 0, sizeof(attr));
+	attr.test.prog_fd = prog_fd;
+
+	return syscall(__NR_bpf, BPF_PROG_TEST_RUN, &attr, sizeof(attr));
+}
 
 static int bpf_map_op(enum bpf_cmd cmd, int fd,
 		      void *key, void *val_or_next, int flags)

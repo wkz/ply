@@ -224,9 +224,6 @@ static const struct sigaction term_action = {
 	.sa_flags = 0,
 };
 
-void __attribute__((noinline)) ply_begin_trigger(void) { asm volatile (""); }
-void __attribute__((noinline)) ply_end_trigger(void) { asm volatile (""); }
-
 int main(int argc, char **argv)
 {
 	struct ply *ply;
@@ -285,7 +282,7 @@ int main(int argc, char **argv)
 	/* TODO figure this out dynamically. terminfo? */
 	ply_config.unicode = 1;
 
-	ply_init(ply_begin_trigger, ply_end_trigger);
+	ply_init();
 
 	ply_alloc(&ply);
 	ret.val = ply_fparse(ply, src);
