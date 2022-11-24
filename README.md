@@ -11,7 +11,7 @@ BPF VM in concert with kprobes and tracepoints to attach probes to
 arbitrary points in the kernel. Most tracers that generate BPF
 bytecode are based on the LLVM based BCC toolchain. ply on the other
 hand has no required external dependencies except for `libc`. In
-addition to `x86_64`, ply also runs on `aarch64`, `arm`, and
+addition to `x86_64`, ply also runs on `aarch64`, `arm`, `riscv64` and
 `powerpc`. Adding support for more ISAs is easy.
 
 `ply` follows the [Little Language][1] approach of yore, compiling ply
