@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.3.0] - 2022-11-29
+
+Add support for riscv64. Minimum supported kernel version is now 5.5.
+
+### Changed
+
+- New implementation of `BEGIN`/`END` which is more reliable across
+  architectures. (Mingzheng Xing)
+
+### Added
+
+- New architecture: riscv64 (Mingzheng Xing)
+
+
 ## [2.2.0] - 2021-11-26
 
 ### Changed
