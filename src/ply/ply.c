@@ -18,10 +18,6 @@
 
 #include <ply/ply.h>
 
-/* Embedded self-test.sh */
-extern char _binary_self_test_sh_start;
-extern char _binary_self_test_sh_end;
-
 static void usage()
 {
 	fputs("ply - Dynamic tracing utility\n"
@@ -44,11 +40,11 @@ static void usage()
 
 static void self_test(char *plybin)
 {
-	size_t self_test_sz;
+	static unsigned char script[] = {
+#		include "self-test.bytes"
+	};
 	char *cmd;
 	FILE *sh;
-
-	self_test_sz = &_binary_self_test_sh_end - &_binary_self_test_sh_start;
 
 	asprintf(&cmd, "PLYBIN=%s /bin/sh", plybin);
 	sh = popen(cmd, "w");
@@ -56,7 +52,7 @@ static void self_test(char *plybin)
 	if (!sh)
 		goto err;
 
-	if (fwrite(&_binary_self_test_sh_start, self_test_sz, 1, sh) != 1)
+	if (fwrite(script, sizeof(script), 1, sh) != 1)
 		goto err;
 
 	exit(pclose(sh) ? 1 : 0);
