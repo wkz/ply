@@ -20,8 +20,13 @@ struct type t_s16 = arch_typedef(s16, &t_sshort);
 struct type t_u16 = arch_typedef(u16, &t_ushort);
 struct type t_s32 = arch_typedef(s32, &t_sint);
 struct type t_u32 = arch_typedef(u32, &t_uint);
+#ifdef __mips64
+struct type t_s64 = arch_typedef(s64, &t_slong);
+struct type t_u64 = arch_typedef(u64, &t_ulong);
+#else
 struct type t_s64 = arch_typedef(s64, &t_sllong);
 struct type t_u64 = arch_typedef(u64, &t_ullong);
+#endif
 
 static int reg_fprint(struct type *t, FILE *fp, const void *data)
 {
@@ -39,11 +44,7 @@ struct type t_reg_t = {
 };
 
 struct tfield f_pt_regs_fields[] = {
-	/*
-	 * Only 32-bit MIPS architecture is supported.
-	 * 8 userspace registers padding, which is mandatory for MIPS32.
-	 * Refer to linux/arch/mips/include/asm/ptrace.h
-	 */
+#ifndef __mips64
 	{ .name = "uarg0",        .type = &t_reg_t },
 	{ .name = "uarg1",        .type = &t_reg_t },
 	{ .name = "uarg2",        .type = &t_reg_t },
@@ -52,7 +53,7 @@ struct tfield f_pt_regs_fields[] = {
 	{ .name = "uarg5",        .type = &t_reg_t },
 	{ .name = "uarg6",        .type = &t_reg_t },
 	{ .name = "uarg7",        .type = &t_reg_t },
-
+#endif
 	{ .name = "zero",         .type = &t_reg_t },    /* $0  */
 	{ .name = "at",           .type = &t_reg_t },    /* $1  */
 	{ .name = "v0",           .type = &t_reg_t },    /* $2  */
@@ -61,7 +62,7 @@ struct tfield f_pt_regs_fields[] = {
 	{ .name = "a1",           .type = &t_reg_t },    /* $5  */
 	{ .name = "a2",           .type = &t_reg_t },    /* $6  */
 	{ .name = "a3",           .type = &t_reg_t },    /* $7  */
-#ifndef USE_MIPS_N32 /* o32 ABI */
+#ifdef _ABIO32
 	{ .name = "t0",           .type = &t_reg_t },    /* $8  */
 	{ .name = "t1",           .type = &t_reg_t },    /* $9  */
 	{ .name = "t2",           .type = &t_reg_t },    /* $10 */
@@ -97,15 +98,27 @@ struct tfield f_pt_regs_fields[] = {
 	{ .name = "hi",           .type = &t_reg_t },
 	{ .name = "lo",           .type = &t_reg_t },
 
-	/*
-	 * Uncomment next line for register `acx, which is rarely
-	 * enabled via CONFIG_CPU_HAS_SMARTMIPS kernel option:
-	 */
-	/* { .name = "acx",          .type = &t_reg_t }, */
+#ifdef __mips_smartmips
+	{ .name = "acx",          .type = &t_reg_t },
+#endif
 	{ .name = "cp0_badvaddr", .type = &t_reg_t },
 	{ .name = "cp0_cause",    .type = &t_reg_t },
 	{ .name = "cp0_epc",      .type = &t_reg_t },
 
+#ifdef __OCTEON__
+	{ .name = "mpl0",      .type = &t_reg_t },
+	{ .name = "mpl1",      .type = &t_reg_t },
+	{ .name = "mpl2",      .type = &t_reg_t },
+	{ .name = "mpl3",      .type = &t_reg_t },
+	{ .name = "mpl4",      .type = &t_reg_t },
+	{ .name = "mpl5",      .type = &t_reg_t },
+	{ .name = "mtp0",      .type = &t_reg_t },
+	{ .name = "mtp1",      .type = &t_reg_t },
+	{ .name = "mtp2",      .type = &t_reg_t },
+	{ .name = "mtp3",      .type = &t_reg_t },
+	{ .name = "mtp4",      .type = &t_reg_t },
+	{ .name = "mtp5",      .type = &t_reg_t },
+#endif
 	{ .name = NULL,           .type = NULL }
 };
 
