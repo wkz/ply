@@ -12,6 +12,7 @@ EXTRA_DIST = grammar.c grammar.h lexer.c lexer.h \
 	arch/arm.c     \
 	arch/mips.c    \
 	arch/powerpc.c \
+	arch/riscv32.c \
 	arch/riscv64.c \
 	arch/x86_64.c
 
