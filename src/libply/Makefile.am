@@ -10,7 +10,9 @@ AM_LFLAGS = --header-file=lexer.h
 EXTRA_DIST = grammar.c grammar.h lexer.c lexer.h \
 	arch/aarch64.c \
 	arch/arm.c     \
+	arch/mips.c    \
 	arch/powerpc.c \
+	arch/riscv64.c \
 	arch/x86_64.c
 
 BUILT_SOURCES = grammar.h lexer.h
