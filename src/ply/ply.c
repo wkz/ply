@@ -46,7 +46,9 @@ static void self_test(char *plybin)
 	char *cmd;
 	FILE *sh;
 
-	asprintf(&cmd, "PLYBIN=%s /bin/sh", plybin);
+	if (asprintf(&cmd, "PLYBIN=%s /bin/sh", plybin) < 0)
+		goto err;
+
 	sh = popen(cmd, "w");
 	free(cmd);
 	if (!sh)
