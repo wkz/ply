@@ -65,7 +65,7 @@ struct lost_event {
 
 struct buffer_q {
 	int fd;
-	struct perf_event_mmap_page *mem;
+	volatile struct perf_event_mmap_page *mem;
 
 	void *buf;
 };
@@ -78,15 +78,15 @@ struct buffer {
 	struct buffer_q q[0];
 };
 
-static inline uint64_t __get_head(struct perf_event_mmap_page *mem)
+static inline uint64_t __get_head(volatile struct perf_event_mmap_page *mem)
 {
-	volatile uint64_t head = *((volatile uint64_t *)&mem->data_head);
+	volatile uint64_t head = mem->data_head;
 
 	asm volatile("" ::: "memory");
 	return head;
 }
 
-static inline void __set_tail(struct perf_event_mmap_page *mem, uint64_t tail)
+static inline void __set_tail(volatile struct perf_event_mmap_page *mem, uint64_t tail)
 {
 	asm volatile("" ::: "memory");
 
