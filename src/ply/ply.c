@@ -34,6 +34,7 @@ static void usage()
 	      "  -k             Keep going in face of trace buffer overruns.\n"
 	      "  -S             Show generated BPF.\n"
 	      "  -T             Run self-test.\n"
+	      "  -u             Always turn off buffering of stdout/stderr.\n"
 	      "  -v             Print version information.\n",
 	      stderr);
 }
@@ -142,7 +143,7 @@ static void version()
 	       (LINUX_VERSION_CODE >>  0) & 0xff);
 }
 
-static const char *sopts = "c:dehkSTv";
+static const char *sopts = "c:dehkSTuv";
 static struct option lopts[] = {
 	{ "command",    required_argument, 0, 'c' },
 	{ "debug",      no_argument,       0, 'd' },
@@ -151,6 +152,7 @@ static struct option lopts[] = {
 	{ "keep-going", no_argument,       0, 'k' },
 	{ "dump",       no_argument,       0, 'S' },
 	{ "self-test",  no_argument,       0, 'T' },
+	{ "unbuffer",   no_argument,       0, 'u' },
 	{ "version",    no_argument,       0, 'v' },
 
 	{ NULL }
@@ -256,6 +258,10 @@ int main(int argc, char **argv)
 			break;
 		case 'T':
 			self_test(argv[0]); exit(1);
+			break;
+		case 'u':
+			setvbuf(stdout, NULL, _IONBF, 0);
+			setvbuf(stderr, NULL, _IONBF, 0);
 			break;
 		case 'v':
 			version(); exit(0);
