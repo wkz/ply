@@ -2,6 +2,20 @@
 
 total_fails=0
 
+atomics_supported()
+{
+    case $(uname -m) in
+	arm*)
+	    # No JIT support for atomic operations as of Linux 6.6.
+	    # Alpine kernels set CONFIG_BPF_JIT_ALWAYS_ON, which means
+	    # we can't run ply scripts that generate those.
+	    return 1
+	    ;;
+    esac
+
+    return 0
+}
+
 fail()
 {
     echo "  FAIL $case expected \"$1\", got \"$2\""
@@ -39,15 +53,17 @@ case=print && ply_simple 'print("test"); exit(0);' && \
 # || fail "at least 100 reads/writes" "$(cat /tmp/wildcard)"
 
 
-case=quantize
-ply -c \
-    "dd if=/dev/zero of=/dev/null bs=10240 count=10" \
-    'kr:vfs_read if (!strcmp(comm, "dd")) {
+if atomics_supported; then
+    case=quantize
+    ply -c \
+	"dd if=/dev/zero of=/dev/null bs=10240 count=10" \
+	'kr:vfs_read if (!strcmp(comm, "dd")) {
     		 @["rdsz"] = quantize(retval);
      }' >/tmp/quantize \
-&& \
-grep -qe '8k\s*,\s*16k\s*)\s*10' /tmp/quantize \
-|| fail "10 reads in (8k, 16k]" "$(cat /tmp/quantize)"
+	&& \
+	grep -qe '8k\s*,\s*16k\s*)\s*10' /tmp/quantize \
+	    || fail "10 reads in (8k, 16k]" "$(cat /tmp/quantize)"
+fi
 
 case=interval
 ply -c 'for i in `seq 3`; do dd if=/dev/zero of=/dev/null count=10; sleep 1; done' \
