@@ -3,15 +3,15 @@
 for vport in /dev/vport*; do
     name=$(cat /sys/class/virtio-ports/$(basename $vport)/name)
     if [ "$name" = "check" ]; then
-	echo ": running" >/dev/console
+	echo "Running test suite" >/dev/console
 	/lib/ply/test.sh >/dev/console 2>&1
 
 	echo $? >$vport
 	sync
 
-	reboot
+	poweroff -ff
 	exit
     fi
 done;
 
-echo ": skipping" >/dev/console
+echo "Launching interactive shell" >/dev/console

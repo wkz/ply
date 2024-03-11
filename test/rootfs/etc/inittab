@@ -1,0 +1,4 @@
+::sysinit:/bin/mount -a
+::sysinit:/bin/hostname -F /etc/hostname
+::sysinit:/lib/ply/test-wrapper.sh
+console::respawn:/sbin/getty -L console 115200 vt100
