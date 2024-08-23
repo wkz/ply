@@ -18,7 +18,7 @@ Makefile.in
 /configure
 /depcomp
 /install-sh
-/libtool
+/*libtool
 /ltmain.sh
 /m4
 /missing
