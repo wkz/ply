@@ -10,18 +10,18 @@ host-armv7   := arm
 host-aarch64 := aarch64
 host-x86_64  := x86_64
 
-al = alpine-minirootfs-3.19.1-$(1)
-lx = linux-virt-6.6.21-r0
-tc = $(tc-arch-$(1))--musl--bleeding-edge-2024.02-1
+al = alpine-minirootfs-3.20.2-$(1)
+lx = linux-virt-6.6.47-r0
+tc = $(tc-arch-$(1))--musl--bleeding-edge-2024.05-1
 
-al-repo := https://dl-cdn.alpinelinux.org/alpine/v3.19
+al-repo := https://dl-cdn.alpinelinux.org/alpine/v3.20
 tc-repo := https://toolchains.bootlin.com/downloads/releases/toolchains
 
 al-tar = $(call al,$(1)).tar.gz
 al-url = $(al-repo)/releases/$(1)/$(call al-tar,$(1))
 lx-tar = $(lx).apk
 lx-url = $(al-repo)/main/$(1)/$(lx-tar)
-tc-tar = $(call tc,$(1)).tar.bz2
+tc-tar = $(call tc,$(1)).tar.xz
 tc-url = $(tc-repo)/$(tc-arch-$(1))/tarballs/$(call tc-tar,$(1))
 
 qemu-opts = -cpu max -m 256M \
