@@ -1,0 +1,46 @@
+name: Build and test
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+
+jobs:
+  build:
+    name: ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [armv7, aarch64, x86_64]
+      fail-fast: false
+    env:
+      MAKEFLAGS: -j
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get -y update
+          sudo apt-get -y install autoconf automake bison flex qemu-system-arm qemu-system-x86
+
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - name: Restore cache of test/cache
+        uses: actions/cache@v4
+        with:
+          path: test/cache
+          key: cache-${{ matrix.arch }}-${{ hashFiles('test/Makefile') }}
+          restore-keys: |
+            cache-${{ matrix.arch }}-
+            cache-
+
+      - name: Build
+        run: |
+          make -C test ${{ matrix.arch }}-build
+
+      - name: Check
+        run: |
+          make -C test ${{ matrix.arch }}-check
