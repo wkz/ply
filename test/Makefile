@@ -108,10 +108,10 @@ cache/$(call al-tar,$(1)): |cache
 
 # Kernel
 
-work/$(1)-rootfs/boot/vmlinuz-virt: cache/linux-$(1).tar.gz |work/$(1)-rootfs
+work/$(1)-rootfs/boot/vmlinuz-virt: cache/$(lx)-$(1).tar.gz |work/$(1)-rootfs
 	tar -C work/$(1)-rootfs -maxf $$< 2>/dev/null
 
-cache/linux-$(1).tar.gz: |cache
+cache/$(lx)-$(1).tar.gz: |cache
 	wget -O $$@ $(call lx-url,$(1))
 
 
