@@ -41,16 +41,16 @@ case=print && ply_simple 'print("test"); exit(0);' && \
     [ $stdout = test ] || fail test "$stdout"
 
 
-# case=wildcard
-# ply -c \
-#     "dd if=/dev/zero of=/dev/null bs=1 count=100" \
-#     "kprobe:vfs_* { @[comm, caller] = count(); }" >/tmp/wildcard \
-# && \
-# cat /tmp/wildcard | awk '
-#     /dd.*vfs_read/  { if ($NF > 100) read  = 1; }
-#     /dd.*vfs_write/ { if ($NF > 100) write = 1; }
-#     END             { exit(!(read && write)); }' \
-# || fail "at least 100 reads/writes" "$(cat /tmp/wildcard)"
+case=wildcard
+ply -c \
+    "dd if=/dev/zero of=/dev/null bs=1 count=100" \
+    "kprobe:vfs_*r[ei][at][de] { @[comm, caller] = count(); }" >/tmp/wildcard \
+&& \
+cat /tmp/wildcard | awk '
+    /dd.*vfs_read/  { if ($NF >= 100) read  = 1; }
+    /dd.*vfs_write/ { if ($NF >= 100) write = 1; }
+    END             { exit(!(read && write)); }' \
+|| fail "at least 100 reads/writes" "$(cat /tmp/wildcard)"
 
 
 if atomics_supported; then
