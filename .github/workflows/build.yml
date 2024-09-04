@@ -35,7 +35,6 @@ jobs:
           key: cache-${{ matrix.arch }}-${{ hashFiles('test/Makefile') }}
           restore-keys: |
             cache-${{ matrix.arch }}-
-            cache-
 
       - name: Build
         run: |
