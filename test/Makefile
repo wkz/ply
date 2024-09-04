@@ -11,7 +11,6 @@ host-aarch64 := aarch64
 host-x86_64  := x86_64
 
 al = alpine-minirootfs-3.20.2-$(1)
-lx = linux-virt-6.6.47-r0
 tc = $(tc-arch-$(1))--musl--bleeding-edge-2024.05-1
 
 al-repo := https://dl-cdn.alpinelinux.org/alpine/v3.20
@@ -19,8 +18,6 @@ tc-repo := https://toolchains.bootlin.com/downloads/releases/toolchains
 
 al-tar = $(call al,$(1)).tar.gz
 al-url = $(al-repo)/releases/$(1)/$(call al-tar,$(1))
-lx-tar = $(lx).apk
-lx-url = $(al-repo)/main/$(1)/$(lx-tar)
 tc-tar = $(call tc,$(1)).tar.xz
 tc-url = $(tc-repo)/$(tc-arch-$(1))/tarballs/$(call tc-tar,$(1))
 
@@ -108,11 +105,21 @@ cache/$(call al-tar,$(1)): |cache
 
 # Kernel
 
-work/$(1)-rootfs/boot/vmlinuz-virt: cache/$(lx)-$(1).tar.gz |work/$(1)-rootfs
-	tar -C work/$(1)-rootfs -maxf $$< 2>/dev/null
+work/$(1)-rootfs/boot/vmlinuz-virt: |work/$(1)-rootfs
+	wget -O- $(al-repo)/main/$(1)/APKINDEX.tar.gz \
+		| gunzip \
+		| tar -Ox APKINDEX \
+		| grep -A1 -E "^P:linux-virt$$$$" \
+		| awk -F: '$$$$1 == "V" { printf("linux-virt-%s", $$$$2); }' \
+		>cache/lx-$(1)
 
-cache/$(lx)-$(1).tar.gz: |cache
-	wget -O $$@ $(call lx-url,$(1))
+	[ -f cache/$$$$(cat cache/lx-$(1))-$(1).tar.gz ] \
+		|| wget \
+			-O cache/$$$$(cat cache/lx-$(1))-$(1).tar.gz \
+			$(al-repo)/main/$(1)/$$$$(cat cache/lx-$(1)).apk
+
+	tar -C work/$(1)-rootfs -maxf \
+		cache/$$$$(cat cache/lx-$(1))-$(1).tar.gz 2>/dev/null
 
 
 # Toolchain
