@@ -25,7 +25,7 @@ qemu-opts = -cpu max -m 256M \
 	-nographic -no-reboot \
 	-kernel work/$(1)-rootfs/boot/vmlinuz-virt \
 	-initrd work/$(1)-rootfs.cpio.gz \
-	-watchdog i6300esb \
+	-device i6300esb \
 	-append "$(2) panic=-1 root=initramfs ramdisk_size=64000 rdinit=/sbin/init quiet"
 
 qemu-armv7 = qemu-system-arm -M virt,highmem=off \
