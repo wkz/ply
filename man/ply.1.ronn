@@ -39,6 +39,16 @@ using kprobes and tracepoints.
     instructions and other internal information. This is very useful
     to include when reporting a bug.
 
+  * `-T`, `--self-test`:
+    Run the built-in self-test which verifies that the required
+    features in the kernel are available and that all providers are
+    operational.
+
+  * `-u`, `--unbuffer`:
+    Unconditionally disable buffering of stdout/stderr - even when
+    they are not connected to a TTY. This is useful in interactive
+    sessions where the output is futher processed by another program.
+
   * `-v`, `--version`:
     Print version information.
 

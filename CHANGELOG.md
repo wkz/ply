@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.4.0] - 2025-02-16
+
+### Added
+
+- New architecture: mips (yejq)
+- New architecture: loongarch (wuruilong)
+- Output buffering can now be unconditionally disabled
+- New provider: profile (Ism Hong)
+
+### Fixed
+
+- Incorrect stack management when accessing tracepoint data (Bjorn
+  Andersson)
+
+
 ## [2.3.0] - 2022-11-29
 
 Add support for riscv64. Minimum supported kernel version is now 5.5.
