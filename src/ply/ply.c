@@ -120,8 +120,10 @@ void dump(struct ply *ply)
 	symtab_dump(&ply->globals, stdout);
 
 	ply_probe_foreach(ply, pb) {
+		printf("\n\n-- probe\n");
 		printf("%s\n", pb->probe ? : "<null>");
 
+		printf("\n\n-- ast\n");
 		if (pb->ast)
 			ast_fprint(stdout, pb->ast);
 		else
