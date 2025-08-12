@@ -148,6 +148,7 @@ struct irstate {
 		int dot:1;
 		int lval:1;
 		int stack:1;
+		int user:1;
 	} hint;
 };
 
@@ -177,7 +178,7 @@ void ir_emit_sym_to_reg  (struct ir *ir, uint16_t dst, struct sym *src);
 void ir_emit_reg_to_sym  (struct ir *ir, struct sym *dst, uint16_t src);
 void ir_emit_sym_to_stack(struct ir *ir, ssize_t offset, struct sym *src);
 void ir_emit_sym_to_sym  (struct ir *ir, struct sym *dst, struct sym *src);
-void ir_emit_read_to_sym (struct ir *ir, struct sym *dst, uint16_t src);
+void ir_emit_read_to_sym (struct ir *ir, struct sym *dst, uint16_t src, int user);
 
 void ir_emit_data  (struct ir *ir, ssize_t dst, const char *src, size_t size);
 void ir_emit_memcpy(struct ir *ir, ssize_t dst, ssize_t src, size_t size);

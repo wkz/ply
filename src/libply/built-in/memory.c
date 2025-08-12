@@ -140,7 +140,10 @@ static int str_ir_post(const struct func *func, struct node *n,
 	ir_emit_ldbp(pb->ir, BPF_REG_1, n->sym->irs.stack);
 	ir_emit_insn(ir, MOV_IMM((int32_t)type_sizeof(n->sym->type)), BPF_REG_2, 0);
 	ir_emit_sym_to_reg(ir, BPF_REG_3, ptr->sym);
-	ir_emit_insn(ir, CALL(BPF_FUNC_probe_read_kernel_str), 0, 0);
+	if (ptr->sym->irs.hint.user)
+		ir_emit_insn(ir, CALL(BPF_FUNC_probe_read_user_str), 0, 0);
+	else
+		ir_emit_insn(ir, CALL(BPF_FUNC_probe_read_kernel_str), 0, 0);
 	return 0;
 }
 
@@ -153,7 +156,7 @@ static int mem_ir_post(const struct func *func, struct node *n,
 	ir_init_sym(pb->ir, n->sym);
 
 	ir_emit_sym_to_reg(pb->ir, BPF_REG_3, ptr->sym);
-	ir_emit_read_to_sym(pb->ir, n->sym, BPF_REG_3);
+	ir_emit_read_to_sym(pb->ir, n->sym, BPF_REG_3, ptr->sym->irs.hint.user);
 	return 0;
 }
 
@@ -222,6 +225,36 @@ static struct func str_func = {
 	.ir_post = str_ir_post,
 };
 
+struct type t_uptr_func = {
+	.ttype = T_FUNC,
+	.func = { .type = &t_void, .args = f_1arg },
+};
+
+static int uptr_ir_post(const struct func *func, struct node *n,
+			struct ply_probe *pb)
+{
+	struct node *child = n->expr.args;
+
+	ir_init_sym(pb->ir, n->sym);
+	ir_emit_sym_to_sym(pb->ir, n->sym, child->sym);
+	n->sym->irs.hint.user = 1;
+	return 0;
+}
+
+static int uptr_type_infer(const struct func *func, struct node *n)
+{
+	struct node *arg = n->expr.args;
+
+	n->sym->type = arg->sym->type;
+	return 0;
+}
+
+static struct func uptr_func = {
+	.name = "uptr",
+	.type = &t_uptr_func,
+	.type_infer = uptr_type_infer,
+	.ir_post = uptr_ir_post,
+};
 
 static int struct_deref_rewrite(const struct func *func, struct node *n,
 				 struct ply_probe *pb)
@@ -424,7 +457,7 @@ static int deref_ir_post(const struct func *func, struct node *n,
 		return 0;
 
 	ir_emit_sym_to_reg(pb->ir, BPF_REG_0, ptr->sym);
-	ir_emit_read_to_sym(pb->ir, n->sym, BPF_REG_0);
+	ir_emit_read_to_sym(pb->ir, n->sym, BPF_REG_0, ptr->sym->irs.hint.user);
 	return 0;
 }
 
@@ -603,7 +636,7 @@ static int map_ir_post(const struct func *func, struct node *n,
 	lhit  = ir_alloc_label(pb->ir);
 
 	ir_emit_insn(pb->ir, JMP_IMM(BPF_JEQ, 0, lmiss), BPF_REG_0, 0);
-	ir_emit_read_to_sym(pb->ir, n->sym, BPF_REG_0);
+	ir_emit_read_to_sym(pb->ir, n->sym, BPF_REG_0, 0);
 	ir_emit_insn(pb->ir, JMP_IMM(BPF_JA, 0, lhit), 0, 0);
 
 	ir_emit_label(pb->ir, lmiss);
@@ -948,6 +981,7 @@ void memory_init(void)
 	built_in_register(&strcmp_func);
 	built_in_register(&str_func);
 	built_in_register(&mem_func);
+	built_in_register(&uptr_func);
 	built_in_register(&struct_deref_func);
 	built_in_register(&struct_dot_func);
 	built_in_register(&deref_func);
