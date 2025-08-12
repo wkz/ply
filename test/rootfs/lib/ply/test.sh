@@ -2,6 +2,11 @@
 
 total_fails=0
 
+has_syscall()
+{
+    [ -e /sys/kernel/debug/tracing/events/syscalls/sys_enter_$1 ]
+}
+
 atomics_supported()
 {
     case $(uname -m) in
@@ -98,5 +103,24 @@ cat /tmp/profile | awk -F': ' '
     /profile_test/  { count = $2; }
     END             { exit(count != 100); }' \
 || fail "count should be 100 for profile provider test" "$(cat /tmp/profile)"
+
+case=uptr
+
+# Check for all variants of open(2). NOTE: The original open() is
+# _not_ always available (aarch64).
+probes=
+for open in open openat openat2; do
+    has_syscall $open || continue
+
+    probes="${probes}
+    tracepoint:syscalls/sys_enter_${open} {
+        print(\"${open}\", str(uptr(data->filename)));
+    }"
+done
+
+ply -c 'cat /etc/hostname >/dev/null' "${probes}" >/tmp/uptr \
+&& \
+grep -qe "/etc/hostname" /tmp/uptr \
+|| fail "open{,at,at2} , /etc/hostname" "$(cat /tmp/uptr)"
 
 exit $total_fails
