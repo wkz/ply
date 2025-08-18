@@ -9,6 +9,11 @@
 #include <ply/ply.h>
 #include <ply/internal.h>
 
+static int special_exec(struct ply_probe *pb)
+{
+	return bpf_prog_test_run(pb->bpf_fd);
+}
+
 static int special_sym_alloc(struct ply_probe *pb, struct node *n)
 {
 	return -ENOENT;
@@ -26,6 +31,8 @@ struct provider begin_provider = {
 
 	.probe     = special_probe,
 	.sym_alloc = special_sym_alloc,
+
+	.start     = special_exec,
 };
 
 struct provider end_provider = {
@@ -34,4 +41,6 @@ struct provider end_provider = {
 
 	.probe     = special_probe,
 	.sym_alloc = special_sym_alloc,
+
+	.stop      = special_exec,
 };

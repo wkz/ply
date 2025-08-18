@@ -243,7 +243,7 @@ static int ply_unload_detach(struct ply *ply)
 	int err;
 
 	ply_probe_foreach(ply, pb) {
-		if (pb->special)
+		if (!pb->provider->detach)
 			continue;
 
 		err = pb->provider->detach(pb);
@@ -259,21 +259,8 @@ int ply_unload(struct ply *ply)
 	struct ply_probe *pb;
 	int err;
 
-	/* run END probe at last */
-	ply_probe_foreach(ply, pb) {
-		if (!pb->special || strcmp(pb->provider->name, "END"))
-			continue;
-
-		err = bpf_prog_test_run(pb->bpf_fd);
-		if (err)
-			return err;
-
-		/* read buffer again for END trigger */
-		if (ply->stdbuf)
-			buffer_loop((struct buffer *)ply->stdbuf->priv, 0);
-	}
-
-	err  = ply_unload_bpf(ply);
+	err  = ply_unload_detach(ply);
+	err |= ply_unload_bpf(ply);
 	err |= ply_unload_map(ply);
 	return err;
 }
@@ -382,23 +369,7 @@ static struct ply_return ply_load_attach(struct ply *ply)
 	int err;
 
 	ply_probe_foreach(ply, pb) {
-		if (!pb->special || strcmp(pb->provider->name, "BEGIN"))
-			continue;
-
-		err = bpf_prog_test_run(pb->bpf_fd);
-		if (err)
-			goto err;
-
-		/* read buffer for BEGIN trigger */
-		if (ply->stdbuf) {
-			ret = buffer_loop((struct buffer *)ply->stdbuf->priv, 0);
-			if (ret.exit || ret.err)
-				return ret;
-		}
-	}
-
-	ply_probe_foreach(ply, pb) {
-		if (pb->special)
+		if (!pb->provider->attach)
 			continue;
 
 		err = pb->provider->attach(pb);
@@ -469,19 +440,32 @@ int ply_stop(struct ply *ply)
 			return err;
 	}
 
-	err = ply_unload_detach(ply);
-	if (err)
-		return err;
+	ply_probe_foreach(ply, pb) {
+		if (!pb->provider->stop)
+			continue;
 
-	/* flush existing buffer entries */
-	if (ply->stdbuf)
-		buffer_loop((struct buffer *)ply->stdbuf->priv, 0);
+		err = pb->provider->stop(pb);
+		if (err)
+			return err;
+	}
 
 	return 0;
 }
 
 int ply_start(struct ply *ply)
 {
+	struct ply_probe *pb;
+	int err;
+
+	ply_probe_foreach(ply, pb) {
+		if (!pb->provider->start)
+			continue;
+
+		err = pb->provider->start(pb);
+		if (err)
+			return err;
+	}
+
 	if (ply->group_fd < 0)
 		return 0;
 

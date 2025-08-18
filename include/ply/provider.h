@@ -26,6 +26,8 @@ struct provider {
 	int (*ir_pre)   (struct ply_probe *);
 	int (*ir_post)  (struct ply_probe *);
 	int (*attach)   (struct ply_probe *);
+	int (*start)    (struct ply_probe *);
+	int (*stop)     (struct ply_probe *);
 	int (*detach)   (struct ply_probe *);
 };
 
