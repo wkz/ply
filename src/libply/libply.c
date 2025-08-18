@@ -419,14 +419,26 @@ err:
 
 }
 
-struct ply_return ply_loop(struct ply *ply)
+struct ply_return ply_service(struct ply *ply, int ready, struct pollfd *fds)
 {
-	if (!ply->stdbuf) {
-		pause();
-		return (struct ply_return){ .err = 1, .val = EINTR };
-	}
+	if (ply->stdbuf)
+		return buffer_service(ply->stdbuf->priv, ready, fds);
 
-	return buffer_loop((struct buffer *)ply->stdbuf->priv, -1);
+	return (struct ply_return){ .err = 0, .val = 0 };
+}
+
+nfds_t ply_get_nfds(struct ply *ply)
+{
+	if (ply->stdbuf)
+		return buffer_get_nfds(ply->stdbuf->priv);
+
+	return 0;
+}
+
+void ply_fill_pollset(struct ply *ply, struct pollfd *fds)
+{
+	if (ply->stdbuf)
+		buffer_fill_pollset(ply->stdbuf->priv, fds);
 }
 
 int ply_stop(struct ply *ply)
