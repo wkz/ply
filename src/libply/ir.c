@@ -42,6 +42,10 @@ static const char *bpf_func_name(enum bpf_func_id id)
 		return "probe_read_kernel";
 	case BPF_FUNC_probe_read_kernel_str:
 		return "probe_read_kernel_str";
+	case BPF_FUNC_probe_read_user:
+		return "probe_read_user";
+	case BPF_FUNC_probe_read_user_str:
+		return "probe_read_user_str";
 	case BPF_FUNC_trace_printk:
 		return "trace_printk";
 	default:
@@ -405,7 +409,7 @@ void ir_emit_sym_to_sym(struct ir *ir, struct sym *dst, struct sym *src)
 	}
 }
 
-void ir_emit_read_to_sym(struct ir *ir, struct sym *dst, uint16_t src)
+void ir_emit_read_to_sym(struct ir *ir, struct sym *dst, uint16_t src, int user)
 {
 	struct irstate *irs = &dst->irs;
 
@@ -416,7 +420,10 @@ void ir_emit_read_to_sym(struct ir *ir, struct sym *dst, uint16_t src)
 	if (src != BPF_REG_3)
 		ir_emit_insn(ir, MOV, BPF_REG_3, src);
 
-	ir_emit_insn(ir, CALL(BPF_FUNC_probe_read_kernel), 0, 0);
+	if (user)
+		ir_emit_insn(ir, CALL(BPF_FUNC_probe_read_user), 0, 0);
+	else
+		ir_emit_insn(ir, CALL(BPF_FUNC_probe_read_kernel), 0, 0);
 	/* TODO if (r0) exit(r0); */
 }
 

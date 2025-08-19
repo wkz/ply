@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <getopt.h>
 #include <errno.h>
+#include <poll.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,6 +15,7 @@
 
 #include <linux/version.h>
 #include <sys/resource.h>
+#include <sys/signalfd.h>
 #include <sys/wait.h>
 
 #include <ply/ply.h>
@@ -120,8 +122,10 @@ void dump(struct ply *ply)
 	symtab_dump(&ply->globals, stdout);
 
 	ply_probe_foreach(ply, pb) {
+		printf("\n\n-- probe\n");
 		printf("%s\n", pb->probe ? : "<null>");
 
+		printf("\n\n-- ast\n");
 		if (pb->ast)
 			ast_fprint(stdout, pb->ast);
 		else
@@ -213,25 +217,78 @@ int inferior_prep(const char *cmd, int *infpid, int *inftrig)
 	return execl("/bin/sh", "sh", "-c", cmd, NULL);
 }
 
-static int term_sig = 0;
-static void term(int sig)
+static sigset_t orig_sigmask;
+
+struct ply_return sig_handle(int fd)
 {
-	term_sig = sig;
-	return;
+	struct signalfd_siginfo  si;
+	int status;
+
+	if (read(fd, &si, sizeof(si)) != sizeof(si)) {
+		return (struct ply_return) {
+			.err = 1,
+			.val = -EIO,
+		};
+	}
+
+	switch (si.ssi_signo) {
+	case SIGCHLD:
+		_d("SIGCHLD\n");
+		waitpid(0, &status, WNOHANG);
+		return (struct ply_return) {
+			.exit = 0,
+			.val = 0,
+		};
+	case SIGINT:
+		_d("SIGINT\n");
+		return (struct ply_return) {
+			.exit = 1,
+			.val = 1,
+		};
+	}
+
+	_e("Unexpected signal: %u\n", si.ssi_signo);
+	return (struct ply_return) {
+		.err = 1,
+		.val = -EINVAL,
+	};
 }
-static const struct sigaction term_action = {
-	.sa_handler = term,
-	.sa_flags = 0,
-};
+
+void sig_exit(int fd)
+{
+	close(fd);
+	sigprocmask(SIG_SETMASK, &orig_sigmask, NULL);
+}
+
+int sig_init(void)
+{
+	sigset_t mask;
+	int fd;
+
+	sigemptyset(&mask);
+	sigaddset(&mask, SIGINT);
+	sigaddset(&mask, SIGCHLD);
+
+	if (sigprocmask(SIG_BLOCK, &mask, &orig_sigmask) == -1)
+		return -errno;
+
+	fd = signalfd(-1, &mask, SFD_CLOEXEC);
+	if (fd == -1)
+		return -errno;
+
+	return fd;
+}
 
 int main(int argc, char **argv)
 {
-	struct ply *ply;
 	struct ply_return ret = { .err = 1 };
-	int opt, infpid, inftrig;
+	int opt, infpid, inftrig, sfd, ready;
+	struct pollfd *fds = NULL;
 	int f_dryrun, f_dump;
-	FILE *src;
 	char *cmd = NULL;
+	struct ply *ply;
+	nfds_t nfds;
+	FILE *src;
 
 	f_dryrun = f_dump = 0;
 	while ((opt = getopt_long(argc, argv, sopts, lopts, NULL)) > 0) {
@@ -304,17 +361,45 @@ int main(int argc, char **argv)
 	if (f_dryrun)
 		goto unload;
 
+	sfd = sig_init();
+	if (sfd < 0) {
+		ret.val = sfd;
+		goto err;
+	}
+
+	fds = malloc(sizeof(*fds));
+	if (!fds) {
+		ret.val = -ENOMEM;
+		goto err;
+	}
+
+	*fds = (struct pollfd) {
+		.fd = sfd,
+		.events = POLLIN,
+	};
+
 	memlock_uncap();
 
 	ret = ply_load(ply);
 	if (ret.exit || ret.err)
 		goto err;
 
+	nfds = ply_get_nfds(ply);
+	if (nfds) {
+		fds = realloc(fds, (1 + nfds) * sizeof(*fds));
+		if (!fds) {
+			ret = (struct ply_return) {
+				.err = 1,
+				.val = -ENOMEM,
+			};
+			goto err;
+		}
+
+		ply_fill_pollset(ply, &fds[1]);
+	}
+
 	ply_start(ply);
 	_d("ply: active\n");
-
-	sigaction(SIGINT, &term_action, NULL);
-	sigaction(SIGCHLD, &term_action, NULL);
 
 	if (cmd) {
 		int err = 0;
@@ -327,12 +412,41 @@ int main(int argc, char **argv)
 		}
 	}
 
-	ret = ply_loop(ply);
-	if (ret.err && (ret.val == EINTR) && term_sig)
-		ret.err = 0;
+	for (;;) {
+		ready = poll(fds, 1 + nfds, -1);
+		if (ready < 0) {
+			ret = (struct ply_return) {
+				.err = 1,
+				.val = errno,
+			};
+			break;
+		}
+
+		if (fds[0].revents & POLLIN) {
+			ret = sig_handle(sfd);
+			if (--ready == 0)
+				break;
+		}
+
+		ply_return_fold(&ret, ply_service(ply, ready, &fds[1]));
+		if (ret.err || ret.exit)
+			break;
+	}
+
+	sig_exit(sfd);
+
 stop:
 	_d("ply: deactivating\n");
 	ply_stop(ply);
+
+	/* END probes may generate events, so do a final poll for them
+	 * before shutting down.
+	 */
+	ready = poll(&fds[1], nfds, 0);
+	if (ready > 0)
+		ply_return_fold(&ret, ply_service(ply, ready, &fds[1]));
+
+	free(fds);
 
 	ply_maps_print(ply);
 

@@ -8,6 +8,7 @@
 #define _PLY_BUFFER_H
 
 #include <stdint.h>
+#include <poll.h>
 
 #include <linux/perf_event.h>
 
@@ -34,8 +35,10 @@ void buffer_evh_register(struct buffer_evh *evh);
 
 struct buffer;
 
-struct buffer *buffer_new(int mapfd);
+struct ply_return buffer_service(struct buffer *buf, int ready, struct pollfd *fds);
+void buffer_fill_pollset(struct buffer *buf, struct pollfd *fds);
+nfds_t buffer_get_nfds(struct buffer *buf);
 
-struct ply_return buffer_loop(struct buffer *buf, int timeout);
+struct buffer *buffer_new(int mapfd);
 
 #endif	/* _PLY_BUFFER_H */

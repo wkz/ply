@@ -153,43 +153,7 @@ struct ply_return buffer_q_drain(struct buffer_q *q)
 	return ret;
 }
 
-struct ply_return buffer_loop(struct buffer *buf, int timeout)
-{
-	struct ply_return ret;
-	uint32_t cpu;
-	int ready;
-
-	for (;;) {
-		ready = poll(buf->poll, buf->ncpus, timeout);
-		if (ready < 0) {
-			ret.err = 1;
-			ret.val = errno;
-			return ret;
-		}
-
-		if (timeout == -1) {
-			assert(ready);
-		} else if (ready == 0) {
-			ret.err = 0;
-			return ret;
-		}
-
-		for (cpu = 0; ready && (cpu < buf->ncpus); cpu++) {
-			if (!(buf->poll[cpu].revents & POLLIN))
-				continue;
-
-			ret = buffer_q_drain(&buf->q[cpu]);
-			if (ret.err | ret.exit)
-				return ret;
-
-			ready--;
-		}
-	}
-
-	return ret;
-}
-
-int buffer_q_init(struct buffer *buf, uint32_t cpu)
+static int buffer_q_init(struct buffer *buf, uint32_t cpu)
 {
 	struct perf_event_attr attr = { 0 };
 	struct buffer_q *q = &buf->q[cpu];
@@ -223,6 +187,34 @@ int buffer_q_init(struct buffer *buf, uint32_t cpu)
 	buf->poll[cpu].fd     = q->fd;
 	buf->poll[cpu].events = POLLIN;
 	return 0;
+}
+
+struct ply_return buffer_service(struct buffer *buf, int ready, struct pollfd *fds)
+{
+	struct ply_return ret = {};
+	uint32_t cpu;
+
+	for (cpu = 0; ready && (cpu < buf->ncpus); cpu++) {
+		if (!(fds[cpu].revents & POLLIN))
+			continue;
+
+		ret = buffer_q_drain(&buf->q[cpu]);
+		ready--;
+		if (ret.err || ret.exit)
+			break;
+	}
+
+	return ret;
+}
+
+void buffer_fill_pollset(struct buffer *buf, struct pollfd *fds)
+{
+	memcpy(fds, buf->poll, buf->ncpus * sizeof(*fds));
+}
+
+nfds_t buffer_get_nfds(struct buffer *buf)
+{
+	return buf->ncpus;
 }
 
 struct buffer *buffer_new(int mapfd)

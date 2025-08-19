@@ -8,6 +8,7 @@
 #define _PLY_H
 
 #include <stdio.h>
+#include <poll.h>
 
 #include "sym.h"
 #include "utils.h"
@@ -22,6 +23,22 @@ struct ply_return {
 	unsigned err:1;
 	unsigned exit:1;
 };
+
+static inline void ply_return_fold(struct ply_return *ret, struct ply_return new)
+{
+	if (ret->err)
+		return;
+
+	if (new.err) {
+		*ret = new;
+		return;
+	}
+
+	if (ret->exit)
+		return;
+
+	*ret = new;
+}
 
 /* api */
 struct ply_probe {
@@ -83,7 +100,9 @@ void ply_maps_print(struct ply *ply);
 void ply_map_print(struct ply *ply, struct sym *sym, FILE *fp);
 void ply_map_clear(struct ply *ply, struct sym *sym);
 
-struct ply_return ply_loop(struct ply *ply);
+struct ply_return ply_service(struct ply *ply, int ready, struct pollfd *fds);
+nfds_t ply_get_nfds(struct ply *ply);
+void ply_fill_pollset(struct ply *ply, struct pollfd *fds);
 
 int ply_start(struct ply *ply);
 int ply_stop(struct ply *ply);
