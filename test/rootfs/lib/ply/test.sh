@@ -43,7 +43,7 @@ case=print && ply_simple 'print("test"); exit(0);' && \
 
 case=wildcard
 ply -c \
-    "dd if=/dev/zero of=/dev/null bs=1 count=100" \
+    "dd if=/dev/zero of=/dev/null bs=1 count=100 status=none" \
     "kprobe:vfs_*r[ei][at][de] { @[comm, caller] = count(); }" >/tmp/wildcard \
 && \
 cat /tmp/wildcard | awk '
@@ -56,7 +56,7 @@ cat /tmp/wildcard | awk '
 if atomics_supported; then
     case=quantize
     ply -c \
-	"dd if=/dev/zero of=/dev/null bs=10240 count=10" \
+	"dd if=/dev/zero of=/dev/null bs=10240 count=10 status=none" \
 	'kr:vfs_read if (!strcmp(comm, "dd")) {
     		 @["rdsz"] = quantize(retval);
      }' >/tmp/quantize \
@@ -66,7 +66,7 @@ if atomics_supported; then
 fi
 
 case=interval
-ply -c 'for i in `seq 3`; do dd if=/dev/zero of=/dev/null count=10; sleep 1; done' \
+ply -c 'for i in `seq 3`; do dd if=/dev/zero of=/dev/null count=10 status=none; sleep 1; done' \
     'k:vfs_read { @[pid] = count(); }
      i:1 { print(@); clear(@); }' >/tmp/interval \
 && \
