@@ -61,8 +61,8 @@ probes
 ;
 
 probe
-: PSPEC stmt      { __ply_probe_alloc(ply, $1, $2); }
-| PSPEC predicate { __ply_probe_alloc(ply, $1, $2); }
+: PSPEC stmt      { if (__ply_probe_alloc(ply, $1, $2)) YYABORT; }
+| PSPEC predicate { if (__ply_probe_alloc(ply, $1, $2)) YYABORT; }
 ;
 
 /* Support dtrace-style predicates as well as normal if guards. I.e.
