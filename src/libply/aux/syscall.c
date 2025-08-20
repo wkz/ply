@@ -70,12 +70,12 @@ int bpf_prog_test_run(int prog_fd)
 static int bpf_map_op(enum bpf_cmd cmd, int fd,
 		      void *key, void *val_or_next, int flags)
 {
-	union bpf_attr attr =  {
-		.map_fd = fd,
-		.key = ptr_to_u64(key),
-		.value = ptr_to_u64(val_or_next),
-		.flags = flags,
-	};
+	union bpf_attr attr = {};
+
+	attr.map_fd = fd;
+	attr.key = ptr_to_u64(key);
+	attr.value = ptr_to_u64(val_or_next);
+	attr.flags = flags;
 
 	return syscall(__NR_bpf, cmd, &attr, sizeof(attr));
 }
